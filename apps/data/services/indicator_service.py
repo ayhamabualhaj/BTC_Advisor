@@ -35,6 +35,7 @@ def technical_snapshot(date):
     close = closes[-1]
     snapshot = {
         "close": close,
+        "sma_20": trend.sma(closes, 20),
         "sma_50": trend.sma(closes, 50),
         "sma_200": trend.sma(closes, 200),
         "rsi_14": momentum.rsi(closes, 14),

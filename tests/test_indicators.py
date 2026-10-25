@@ -134,6 +134,7 @@ class SnapshotTests(TestCase):
         snapshot = indicator_service.technical_snapshot(self.START + datetime.timedelta(days=29))
         self.assertIsNone(snapshot["sma_200"])
         self.assertEqual(snapshot["sma_50"], None)
+        self.assertEqual(snapshot["sma_20"], 100.0)
 
     def test_stale_series_is_ignored(self):
         self.save_daily("bybit", "funding_rate", [0.0001] * 7)

@@ -32,24 +32,26 @@ class RuleScoreTests(SimpleTestCase):
 
 
 class TechnicalRuleTests(SimpleTestCase):
-    def test_bullish_setup(self):
-        snapshot = {"close": 100, "sma_50": 90, "sma_200": 80, "rsi_14": 25,
-                    "macd_cross_3d": "bullish", "near_support": True, "near_resistance": False}
-        self.assertEqual(technical_rules.score(snapshot).score, 50 + 10 + 10 + 10 + 5 + 5)
+    def test_sharp_drop_into_support_is_bullish(self):
+        snapshot = {"close": 90, "sma_20": 100, "sma_200": 80, "rsi_14": 25, "change_7d_pct": -8,
+                    "near_support": True, "near_resistance": False}
+        self.assertEqual(technical_rules.score(snapshot).score, 50 + 3 + 5 + 3 + 5 + 3)
 
-    def test_bearish_setup(self):
-        snapshot = {"close": 100, "sma_50": 110, "sma_200": 120, "rsi_14": 75,
-                    "macd_cross_3d": "bearish", "near_support": False, "near_resistance": True}
-        self.assertEqual(technical_rules.score(snapshot).score, 50 - 10 - 10 - 10 - 5 - 5)
+    def test_stretched_rally_into_resistance_is_bearish(self):
+        snapshot = {"close": 110, "sma_20": 100, "sma_200": 120, "rsi_14": 75, "change_7d_pct": 8,
+                    "near_support": False, "near_resistance": True}
+        self.assertEqual(technical_rules.score(snapshot).score, 50 - 3 - 5 - 5 - 5 - 3)
 
-    def test_neutral_rsi_adds_nothing(self):
-        result = technical_rules.score({"close": 100, "sma_50": 90, "sma_200": 90, "rsi_14": 50})
-        self.assertEqual(result.score, 70)
+    def test_an_uptrend_alone_is_barely_bullish(self):
+        # Above every average with normal momentum: the trend is context, not a buy signal.
+        result = technical_rules.score({"close": 100, "sma_20": 98, "sma_50": 95, "sma_200": 80,
+                                        "rsi_14": 60, "change_7d_pct": 2, "macd_cross_3d": "bullish"})
+        self.assertEqual((result.score, result.direction), (53, "neutral"))
 
     def test_missing_data_is_skipped_not_counted(self):
         result = technical_rules.score({"close": None})
         self.assertEqual(result.score, 50)
-        self.assertEqual(result.skipped, ["50-day average", "200-day average", "RSI"])
+        self.assertEqual(result.skipped, ["200-day average", "20-day average", "7-day change", "RSI"])
 
 
 class DerivativesRuleTests(SimpleTestCase):
@@ -107,10 +109,11 @@ class RuleScoringServiceTests(TestCase):
 
         self.assertEqual(set(results), {"technical", "derivatives", "macro"})
         run = AgentRun.objects.get(agent="technical")
-        # A steady climb: above the 50-day average (+10) but RSI 100 is overbought (-10);
-        # 60 days are too few for the 200-day average.
-        self.assertEqual(run.rule_score, 50)
-        self.assertEqual(run.reasons, ["Price above 50-day average (+10)", "RSI 100: overbought (-10)"])
+        # A steady climb: 6.4% above the 20-day average (-5) and RSI 100 (-5); the 7-day
+        # gain of 4.6% is under the cutoff and 60 days are too few for the 200-day average.
+        self.assertEqual(run.rule_score, 40)
+        self.assertEqual(run.reasons, ["Price 6.4% above 20-day average: stretched (-5)",
+                                       "RSI 100: overbought (-5)"])
         self.assertIsNone(run.opus_score)
         self.assertIn("200-day average", run.key_data["skipped"])
         self.assertEqual(AgentRun.objects.count(), 3)

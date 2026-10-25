@@ -133,6 +133,17 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
   5 closest as `similar_past_setups` (no dates). `build_memory` (free); daily_run adds new cases.
 
+## Technical agent rework (after step 14)
+- Tuned on Aug 2025 - Jun 2026 only (before the test period). Trend-following signals
+  (above 50/200-day average, golden cross, MACD cross) had no 7-day edge; stretched short
+  moves partly reverted. The old rules (+-10 per average) were confidently wrong at turns:
+  Brier 0.307 on the test period, 0.432 on Oct 4-13.
+- New rules score mean reversion with small points (200-day +-3, stretch vs 20-day average
+  +-5 at 5%, 7-day rally -5 / drop +3 at 5%, RSI 70/30 +-5, levels +-3). Brier 0.259 on the
+  test period; scores stay ~38-59, so technical alone rarely trades.
+- Prompt v2 adds `price_vs_sma_20_pct` and says what the tuning period showed. The Opus
+  technical backtest runs were made with v1 (rerunning them is paid).
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -141,7 +152,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 5. Rule-based scores
 - [x] 6. First backtest (rules only)
 - [x] 7. Opus agents
-- [x] 8. Opus backtest (code done; not yet run: needs ANTHROPIC_API_KEY)
+- [x] 8. Opus backtest (run on Jul 1-20 and Oct 4-13, all agents)
 - [x] 9. Calibration check
 - [x] 10. Combining rule (rules-tuned; redo with --scores opus after the Opus backtest)
 - [x] 11. REST API
@@ -150,4 +161,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14. Pending for the user: ANTHROPIC_API_KEY + paid Opus backtest, FRED_API_KEY, ETF CSV, crontab. (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
+**Current step:** done through 14, technical agent reworked. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical backtest with prompt v2 (paid, ~$0.45).

@@ -19,6 +19,7 @@ def model_input(snapshot):
     """Relative numbers only: an absolute price would reveal the asset and the year."""
     close = snapshot.get("close")
     return {
+        "price_vs_sma_20_pct": pct_from(close, snapshot.get("sma_20")),
         "price_vs_sma_50_pct": pct_from(close, snapshot.get("sma_50")),
         "price_vs_sma_200_pct": pct_from(close, snapshot.get("sma_200")),
         "sma_50_vs_sma_200_pct": pct_from(snapshot.get("sma_50"), snapshot.get("sma_200")),

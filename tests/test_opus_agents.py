@@ -76,11 +76,12 @@ class OpusClientTests(SimpleTestCase):
 
 class ModelInputTests(SimpleTestCase):
     def test_technical_input_has_no_absolute_prices(self):
-        snapshot = {"close": 110.0, "sma_50": 100.0, "sma_200": 88.0, "rsi_14": 55.0,
+        snapshot = {"close": 110.0, "sma_20": 105.0, "sma_50": 100.0, "sma_200": 88.0, "rsi_14": 55.0,
                     "macd_cross_3d": None, "change_7d_pct": 1.0, "change_30d_pct": 5.0,
                     "support": 104.5, "resistance": 121.0}
         data = technical_agent.model_input(snapshot)
         self.assertEqual(data["price_vs_sma_50_pct"], 10.0)
+        self.assertEqual(data["price_vs_sma_20_pct"], 4.76)
         self.assertEqual(data["sma_50_vs_sma_200_pct"], 13.64)
         self.assertEqual(data["support_distance_pct"], 5.0)
         self.assertEqual(data["resistance_distance_pct"], 10.0)
@@ -128,7 +129,7 @@ class AgentRunTests(TestCase):
         self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro"])
         self.assertEqual(len(client.calls), 3)
         run = AgentRun.objects.get(agent="technical")
-        self.assertEqual((run.rule_score, run.opus_score, run.direction), (50, 62, "bullish"))
+        self.assertEqual((run.rule_score, run.opus_score, run.direction), (40, 62, "bullish"))
         self.assertEqual(run.prompt_version.version, 1)
         self.assertEqual(run.suggested_stop_loss, round(159.0 * 0.95, 2))
         self.assertEqual((run.input_tokens, run.output_tokens), (1000, 500))
@@ -147,7 +148,7 @@ class AgentRunTests(TestCase):
         client = FakeClient(response("broken"))
         [run] = agent_service.run_agents(DAY, ["technical"], client=client)
         self.assertIsNone(run.opus_score)
-        self.assertEqual(run.direction, "neutral")
+        self.assertEqual(run.direction, "bearish")  # the rule direction stands in
         self.assertIn("Invalid reply", run.error)
         self.assertEqual(run.input_tokens, 2000)
 
