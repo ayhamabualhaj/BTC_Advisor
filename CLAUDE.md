@@ -53,12 +53,19 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Stand-ins for data with no free source: "cut expected" = 2-year yield 0.25 below fed
   funds; "CPI vs expectations" = latest monthly change vs the previous 3 months' average.
 
+## Rule scores (step 5)
+- `apps/agents/<agent>/rules.py` — `score(snapshot) -> RuleScore` (start 50, clamp 0-100;
+  bullish >= 55, bearish <= 45). Weights and thresholds are named constants at the top of
+  each file, to be tuned by the backtest. Missing data skips a criterion (listed in
+  `skipped`), it never counts as bullish or bearish.
+- `python manage.py score_rules [--date] [--save]` prints/stores rule-only AgentRuns.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
 - [x] 3. Data collectors
 - [x] 4. Indicator calculations
-- [ ] 5. Rule-based scores
+- [x] 5. Rule-based scores
 - [ ] 6. First backtest (rules only)
 - [ ] 7. Opus agents
 - [ ] 8. Opus backtest
@@ -70,4 +77,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 5. Rule-based scores
+**Current step:** 6. First backtest (rules only)
