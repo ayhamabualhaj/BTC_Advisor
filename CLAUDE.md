@@ -28,14 +28,14 @@ score. The system only advises; Ayham places trades manually. Full plan:
 
 ## Layout
 - `config/` — settings, urls.
-- `apps/data/` — market data models, collectors, indicators.
-- `apps/agents/` — agent runs, prompts, per-agent rules and Opus calls.
-- `apps/backtest/` — backtests, outcomes, decisions.
+- `apps/data/` — MarketData (long date/source/field/value table), collectors, indicators.
+- `apps/agents/` — AgentRun, PromptVersion (text locked once saved), MemoryCase; per-agent rules and Opus calls.
+- `apps/backtest/` — Decision, Outcome, BacktestRun, ManualTrade.
 - `apps/dashboard/` — web pages (later).
 
 ## Progress
 - [x] 1. Project setup
-- [ ] 2. Database models
+- [x] 2. Database models
 - [ ] 3. Data collectors
 - [ ] 4. Indicator calculations
 - [ ] 5. Rule-based scores
@@ -50,4 +50,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 2. Database models
+**Current step:** 3. Data collectors
