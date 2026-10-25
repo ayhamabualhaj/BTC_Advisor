@@ -37,3 +37,21 @@ class AgentRun(models.Model):
 
     def __str__(self):
         return f"{self.date} {self.agent}: rules {self.rule_score:.0f}, opus {self.opus_score}"
+
+    def as_output(self):
+        """The agent output format from the project plan."""
+        key_data = {k: v for k, v in self.key_data.items() if k not in ("model_input", "rule_reasons", "skipped")}
+        return {
+            "agent": self.agent,
+            "date": self.date.isoformat(),
+            "rule_score": self.rule_score,
+            "opus_score": self.opus_score,
+            "direction": self.direction,
+            "reasons": self.reasons,
+            "key_data": key_data,
+            "suggested_stop_loss": self.suggested_stop_loss,
+            "prompt_version": self.prompt_version.version if self.prompt_version else None,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "cost_usd": float(self.cost_usd),
+        }

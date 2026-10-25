@@ -121,6 +121,8 @@ REST_FRAMEWORK = {
 # AI (Anthropic API, called directly without an agent framework)
 AI_MODEL = os.getenv("AI_MODEL", "claude-opus-5-5")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# How hard Opus thinks: low | medium | high | xhigh | max. Higher costs more output tokens.
+AI_EFFORT = os.getenv("AI_EFFORT", "medium")
 
 # Data sources
 # FRED needs a free key: https://fred.stlouisfed.org/docs/api/api_key.html

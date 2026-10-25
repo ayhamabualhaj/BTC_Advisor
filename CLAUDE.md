@@ -67,6 +67,18 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - `python manage.py backtest_rules [--start --end --threshold --agents-required --no-save]`
   saves one BacktestRun per agent plus "combined", each compared with buy-and-hold.
 
+## Opus agents (step 7)
+- `apps/agents/<agent>/prompt.md` + shared `apps/agents/output_instructions.md` = the system
+  prompt. `apps/agents/ai/prompts.py` makes a new PromptVersion whenever that text changes.
+- `apps/agents/<agent>/agent.py` — `model_input(snapshot)`: relative numbers only (no
+  absolute prices, levels or dates, so the asset and the year stay hidden), and `run()`.
+- `apps/agents/ai/opus_client.py` — the only Anthropic API call: structured JSON output,
+  effort from AI_EFFORT, one retry on invalid output, tokens and cost on every call.
+  Prices ($4 / $20 per M tokens for Opus 5.5) are constants there.
+- Opus never sees the rule score or other agents' results. opus_score = confidence (0-100)
+  that the price is higher in 7 days.
+- `python manage.py run_agents [--date] [--agent]` (paid). Tests use `tests/fake_anthropic.py`.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -74,7 +86,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 4. Indicator calculations
 - [x] 5. Rule-based scores
 - [x] 6. First backtest (rules only)
-- [ ] 7. Opus agents
+- [x] 7. Opus agents
 - [ ] 8. Opus backtest
 - [ ] 9. Calibration check
 - [ ] 10. Combining rule
@@ -84,4 +96,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 7. Opus agents
+**Current step:** 8. Opus backtest
