@@ -33,10 +33,22 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - `apps/backtest/` — Decision, Outcome, BacktestRun, ManualTrade.
 - `apps/dashboard/` — web pages (later).
 
+## Data (step 3)
+- `python manage.py collect_data [--start --end --source]` pulls and saves, then lists gaps.
+- Dating rule: a MarketData date is the last UTC day by whose end the value was known
+  (FRED daily +1 day, CPI dated by its release, funding by settlement). Keeps backtests honest.
+- Sources: binance (OHLCV), bybit (funding_rate, open_interest, long_account_ratio),
+  okx (liquidations), yahoo (dxy/nasdaq/sp500 closes; direct chart API, no yfinance),
+  fred (needs FRED_API_KEY), farside ETF flows via `import_etf_flows <csv>`.
+- Known limits: OKX keeps ~24h of liquidations, so there is no history and complete days
+  need collection several times a day (step 13). Farside blocks scripts (Cloudflare), so
+  ETF flows are imported from a CSV saved in the browser. Yahoo/FRED gaps on US holidays
+  are expected.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
-- [ ] 3. Data collectors
+- [x] 3. Data collectors
 - [ ] 4. Indicator calculations
 - [ ] 5. Rule-based scores
 - [ ] 6. First backtest (rules only)
@@ -50,4 +62,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 3. Data collectors
+**Current step:** 4. Indicator calculations
