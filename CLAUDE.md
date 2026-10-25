@@ -33,6 +33,10 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - `apps/backtest/` — Decision, Outcome, BacktestRun, ManualTrade.
 - `apps/dashboard/` — web pages (later).
 
+## Database
+- PostgreSQL (settings from DB_* in .env). `bash scripts/setup_postgres.sh` creates or
+  repairs the role (with CREATEDB, needed by the test runner) and the database.
+
 ## Data (step 3)
 - `python manage.py collect_data [--start --end --source]` pulls and saves, then lists gaps.
 - Dating rule: a MarketData date is the last UTC day by whose end the value was known

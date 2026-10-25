@@ -14,7 +14,7 @@ The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE
 
 ## Setup
 
-Python 3.12 or newer.
+Python 3.12 or newer and a running PostgreSQL server.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -26,14 +26,18 @@ Edit `.env`:
 
 | Setting | What it is |
 |---|---|
+| `DB_NAME`, `DB_USER`, `DB_PASSWORD` | The PostgreSQL database, user and a password you choose |
 | `SECRET_KEY` | Any long random string (`python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"`) |
 | `ANTHROPIC_API_KEY` | For the Opus scores. Without it everything runs on rule scores only. |
 | `FRED_API_KEY` | Free key from https://fred.stlouisfed.org/docs/api/api_key.html (Fed rates, CPI, 2-year yield) |
 | `AI_EFFORT` | Opus thinking effort: `low`, `medium` (default), `high`… Higher costs more. |
 
-Then create the database, load the history and build the memory:
+Then create the PostgreSQL user and database from those settings (asks for your sudo
+password once; the user gets CREATEDB so the tests can make their own database), load the
+history and build the memory:
 
 ```bash
+bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Jan 2025 to yesterday, all sources (~20 s)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
@@ -114,6 +118,7 @@ Read-only JSON API under `/api/`: `decision/today/`, `agent-runs/?agent=&backtes
 
 ```
 config/            settings, urls
+scripts/           setup_postgres.sh
 apps/data/         MarketData, collectors (Binance, Bybit, OKX, Yahoo, FRED, Farside CSV), indicators
 apps/agents/       technical/ derivatives/ macro/ (prompt.md, rules.py, agent.py), ai/ (Opus client,
                    prompt versions, runner), memory/ (RAG), AgentRun, PromptVersion, MemoryCase
