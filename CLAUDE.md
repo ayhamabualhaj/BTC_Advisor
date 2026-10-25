@@ -100,6 +100,12 @@ score. The system only advises; Ayham places trades manually. Full plan:
   preferred, else rules-tuned, else 3 agents >= 60) to the day's live AgentRuns.
 - With ~115 test days the chosen rule is fragile; re-run after the Opus backtest.
 
+## REST API (step 11)
+- Read-only, no login (local only). `apps/dashboard/`: views/api_views.py → services/
+  report_service.py → repositories/report_repository.py. Endpoints under /api/:
+  `decision/today/`, `agent-runs/?agent=&backtest=&date=`, `backtests/?name=`, `costs/`,
+  `prompts/?agent=` (each version with runs, errors, cost, 7-day hit rate).
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -111,10 +117,10 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 8. Opus backtest (code done; not yet run: needs ANTHROPIC_API_KEY)
 - [x] 9. Calibration check
 - [x] 10. Combining rule (rules-tuned; redo with --scores opus after the Opus backtest)
-- [ ] 11. REST API
+- [x] 11. REST API
 - [ ] 12. Dashboard pages
 - [ ] 13. Daily run
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 11. REST API (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
+**Current step:** 12. Dashboard pages (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
