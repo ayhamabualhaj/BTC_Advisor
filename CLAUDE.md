@@ -45,11 +45,19 @@ score. The system only advises; Ayham places trades manually. Full plan:
   ETF flows are imported from a CSV saved in the browser. Yahoo/FRED gaps on US holidays
   are expected.
 
+## Indicators (step 4)
+- `apps/data/indicators/` — pure math on lists (trend, momentum, levels, macro), no Django.
+- `apps/data/services/indicator_service.py` — `technical_snapshot(date)`,
+  `derivatives_snapshot(date)`, `macro_snapshot(date)`: reads only data dated <= date;
+  a series older than 5 days counts as missing (None).
+- Stand-ins for data with no free source: "cut expected" = 2-year yield 0.25 below fed
+  funds; "CPI vs expectations" = latest monthly change vs the previous 3 months' average.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
 - [x] 3. Data collectors
-- [ ] 4. Indicator calculations
+- [x] 4. Indicator calculations
 - [ ] 5. Rule-based scores
 - [ ] 6. First backtest (rules only)
 - [ ] 7. Opus agents
@@ -62,4 +70,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 4. Indicator calculations
+**Current step:** 5. Rule-based scores

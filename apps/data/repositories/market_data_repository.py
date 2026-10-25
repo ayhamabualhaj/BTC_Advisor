@@ -29,3 +29,16 @@ def dates_for(source, field, start, end):
 
 def fields_for(source):
     return sorted(set(MarketData.objects.filter(source=source).values_list("field", flat=True)))
+
+
+def series(source, field, end, limit):
+    """The last `limit` (date, value) pairs dated on or before `end`, oldest first.
+
+    `end` is the decision date: nothing after it is ever returned.
+    """
+    rows = (
+        MarketData.objects.filter(source=source, field=field, date__lte=end)
+        .order_by("-date")
+        .values_list("date", "value")[:limit]
+    )
+    return list(reversed(rows))
