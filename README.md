@@ -1,18 +1,133 @@
 # BTC Advisor
 
 A local multi-agent tool that advises on daily Bitcoin trades. Three independent agents
-(technical analysis, derivatives, macro) each produce a rule-based score computed in code and
-a judgment score from Claude Opus. A trade is suggested only when the agents agree above a
-confidence threshold. The system never places trades.
+(technical analysis, derivatives, macro) each give two scores for the day:
 
-See `docs/project_plan.pdf` for the full plan and `CLAUDE.md` for progress.
+- a **rule score** computed in code from explicit criteria (start at 50, criteria add or subtract);
+- an **Opus score** from Claude Opus 5.5: its confidence (0-100) that the price is higher in
+  7 days, with 3-5 reasons and a suggested stop loss.
+
+A buy is suggested only when enough agents are confident at the same time (the combining
+rule, chosen by backtest). The system only advises; it never places trades.
+
+The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 
 ## Setup
+
+Python 3.12 or newer.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # then fill in SECRET_KEY, ANTHROPIC_API_KEY, FRED_API_KEY
-python manage.py migrate
-python manage.py test
+cp .env.example .env
 ```
+
+Edit `.env`:
+
+| Setting | What it is |
+|---|---|
+| `SECRET_KEY` | Any long random string (`python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"`) |
+| `ANTHROPIC_API_KEY` | For the Opus scores. Without it everything runs on rule scores only. |
+| `FRED_API_KEY` | Free key from https://fred.stlouisfed.org/docs/api/api_key.html (Fed rates, CPI, 2-year yield) |
+| `AI_EFFORT` | Opus thinking effort: `low`, `medium` (default), `high`… Higher costs more. |
+
+Then create the database, load the history and build the memory:
+
+```bash
+python manage.py migrate
+python manage.py collect_data            # Jan 2025 to yesterday, all sources (~20 s)
+python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
+python manage.py test                    # 135 tests, no network, no API calls
+```
+
+**Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
+https://farside.co.uk/bitcoin-etf-flow-all-data/ in a browser, save the table as CSV, then:
+
+```bash
+python manage.py import_etf_flows path/to/flows.csv
+```
+
+## Daily use
+
+```bash
+python manage.py daily_run               # collect, run agents for yesterday (UTC), decide
+python manage.py runserver               # dashboard at http://127.0.0.1:8000/
+```
+
+`daily_run` costs about 3 Opus calls a day; it refuses to run the same day twice unless you
+pass `--force`, and falls back to rule scores (free) when no API key is set (or with
+`--rules-only`).
+
+### Run it automatically (cron)
+
+Daily candles close at 00:00 UTC. Add to `crontab -e` (adjust the path):
+
+```cron
+CRON_TZ=UTC
+# The decision for the day that just closed.
+15 0 * * * cd /home/lime/PycharmProjects/BTC_Advisor && .venv/bin/python manage.py daily_run >> daily_run.log 2>&1
+# OKX keeps only ~24 hours of liquidations, so collect them several times a day.
+0 */4 * * * cd /home/lime/PycharmProjects/BTC_Advisor && .venv/bin/python manage.py collect_data --source okx --start $(date -u -d '2 days ago' +\%F) >> collect.log 2>&1
+```
+
+## Backtesting and tuning
+
+The test period starts on 2026-07-01, after Opus 5.5's training cutoff.
+
+```bash
+python manage.py backtest_rules                    # rule scores: each agent alone + combined (free)
+python manage.py calibration --scores rules        # is a 70 right 70% of the time? (free)
+python manage.py choose_combining_rule --scores rules
+
+python manage.py backtest_opus --estimate          # calls needed and expected cost (free)
+python manage.py backtest_opus --agent technical --max-cost 2   # PAID; resumes where it stopped
+python manage.py backtest_opus --max-cost 30       # all three agents
+python manage.py calibration --scores opus
+python manage.py choose_combining_rule --scores opus   # the daily decision then uses Opus scores
+```
+
+Each agent gets only data dated on or before the decision day, as relative numbers (no
+prices, no dates, no coin name), plus its 5 most similar past setups whose 7-day outcome was
+already known.
+
+## Other commands
+
+| Command | What it does |
+|---|---|
+| `collect_data [--source X] [--start --end]` | Pull data again; lists missing days |
+| `score_rules [--date] [--save]` | Rule scores for one day |
+| `run_agents [--date] [--agent X]` | Rules + Opus for one day, prints the JSON output (paid) |
+| `build_memory [--start --end]` | Rebuild the RAG memory |
+
+## Dashboard and API
+
+Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
+(score chart, data used, live/backtest runs), **Backtests** (profit vs buy-and-hold,
+calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
+prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
+version automatically on the next run.
+
+Read-only JSON API under `/api/`: `decision/today/`, `agent-runs/?agent=&backtest=&date=`,
+`backtests/?name=`, `costs/`, `prompts/?agent=`.
+
+## Layout
+
+```
+config/            settings, urls
+apps/data/         MarketData, collectors (Binance, Bybit, OKX, Yahoo, FRED, Farside CSV), indicators
+apps/agents/       technical/ derivatives/ macro/ (prompt.md, rules.py, agent.py), ai/ (Opus client,
+                   prompt versions, runner), memory/ (RAG), AgentRun, PromptVersion, MemoryCase
+apps/backtest/     metrics, calibration, combining rule, daily run, outcomes, Decision, BacktestRun
+apps/dashboard/    REST API and pages (views -> services -> repositories)
+templates/ static/ HTML templates, CSS, Chart.js helpers
+tests/             unit and integration tests (a fake Anthropic client, no paid calls)
+```
+
+## Known limits
+
+- **Liquidations** have no free history (OKX keeps ~24 h), so that rule only works going
+  forward once the 4-hourly cron is running.
+- **Stand-ins for paid data:** "Fed cut expected" = 2-year yield 0.25 below fed funds;
+  "CPI vs expectations" = latest monthly CPI change vs the previous 3 months.
+- **Small test period:** about 115 days since July 2026, so backtest numbers and the chosen
+  combining rule are fragile. On rule scores alone, every strategy trailed buy-and-hold.

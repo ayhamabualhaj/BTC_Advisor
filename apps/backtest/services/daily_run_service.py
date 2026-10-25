@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 from django.conf import settings
 
+from apps.agents.memory import memory_service
 from apps.agents.models import AgentRun
 from apps.agents.services import agent_service, rule_scoring_service
 from apps.backtest.repositories import price_repository
@@ -60,4 +61,8 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
 
     report.decision = decision_service.make_decision(date)
     report.outcomes_updated = outcome_service.update_outcomes()
+    # Days whose 7-day outcome became known recently join the memory.
+    for agent, module in agent_service.AGENT_MODULES.items():
+        report.memory_cases += memory_service.build_cases(
+            agent, module.model_input, date - datetime.timedelta(days=COLLECT_DAYS + 7), date)
     return report

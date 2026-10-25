@@ -5,6 +5,10 @@ The data comes as JSON. `null` means the number is not available today; do not g
 All numbers were calculated by code; do not recalculate them, reason about what they mean.
 The asset and the date are deliberately not named. Judge only the numbers given.
 
+`similar_past_setups` lists up to 5 earlier days whose numbers were closest to today's,
+with how the price moved over the 7 days after each. Treat them as weak evidence: a
+handful of cases can easily point the wrong way, and today's numbers come first.
+
 Reply with:
 - `opus_score`: an integer from 0 to 100, your confidence that the asset's price will be
   higher 7 days from now. 50 means no edge either way, 70 means you expect to be right

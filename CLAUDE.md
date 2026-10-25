@@ -122,6 +122,13 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
   `collect_data --source okx` every 4 hours for liquidations.
 
+## RAG memory (step 14)
+- `apps/agents/memory/`: a MemoryCase per agent and day = the agent's model input (as
+  setup_summary JSON) + its 7-day return. The setup's own numbers are the embedding
+  (standardized distance, missing features count as 2 std apart); no embedding service.
+- Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
+  5 closest as `similar_past_setups` (no dates). `build_memory` (free); daily_run adds new cases.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -136,7 +143,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 11. REST API
 - [x] 12. Dashboard pages
 - [x] 13. Daily run
-- [ ] 14. RAG memory
-- [ ] 15. Optional extras
+- [x] 14. RAG memory
+- [ ] 15. Optional extras (not planned for now)
 
-**Current step:** 14. RAG memory (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
+**Current step:** done through 14. Pending for the user: ANTHROPIC_API_KEY + paid Opus backtest, FRED_API_KEY, ETF CSV, crontab. (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)

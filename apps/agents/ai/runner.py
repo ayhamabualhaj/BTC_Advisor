@@ -1,6 +1,7 @@
 """Runs one agent for one date: rule score in code, judgment score from Opus, one AgentRun."""
 
 from apps.agents.ai import opus_client, prompts
+from apps.agents.memory import memory_service
 from apps.agents.models import AgentRun
 from apps.agents.services import rule_scoring_service
 from apps.data.repositories.market_data_repository import series
@@ -20,7 +21,9 @@ def stop_loss_price(close, stop_pct):
 def run_agent(agent, prompt_file, model_input, date, client=None, is_backtest=False):
     snapshot, rule_score = rule_scoring_service.score_agent(agent, date)
     prompt = prompts.current_version(agent, prompt_file)
-    data_for_opus = model_input(snapshot)
+    setup = model_input(snapshot)
+    similar = memory_service.similar_cases(agent, date, setup)
+    data_for_opus = {**setup, "similar_past_setups": memory_service.as_model_input(similar)}
     reply = opus_client.ask(prompt.prompt_text, data_for_opus, client)
     verdict = reply.data or {}
     return AgentRun.objects.create(
