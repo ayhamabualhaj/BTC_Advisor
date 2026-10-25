@@ -114,11 +114,11 @@ class OpusBacktestTests(TestCase):
     def test_stops_before_passing_the_cost_cap(self):
         from tests.fake_anthropic import FakeClient, response
 
-        # Each fake call costs 1000 x $4/M + 500 x $20/M = $0.014; the first estimate is $0.07.
+        # Each fake call costs 1000 x $4/M + 500 x $20/M = $0.014; the first estimate is $0.016.
         client = FakeClient(response())
-        # After one call: $0.014 spent + $0.07 expected next > $0.08 cap.
-        progress = opus_backtest_service.run(["technical"], self.days, Decimal("0.08"), client)
-        self.assertEqual((progress.calls, progress.stopped_at_cap), (1, True))
+        # After two calls: $0.028 spent + $0.014 expected next > $0.04 cap.
+        progress = opus_backtest_service.run(["technical"], self.days, Decimal("0.04"), client)
+        self.assertEqual((progress.calls, progress.stopped_at_cap), (2, True))
 
     def test_estimate_counts_pending_calls(self):
         calls, cost = opus_backtest_service.estimate(["technical", "macro"], self.days)

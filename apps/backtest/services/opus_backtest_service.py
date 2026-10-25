@@ -9,8 +9,9 @@ from apps.agents.ai import prompts
 from apps.agents.models import AgentRun
 from apps.agents.services.agent_service import AGENT_MODULES
 
-# Used for estimates until real runs exist: about 2k input and 3k output tokens per call.
-DEFAULT_COST_PER_CALL = Decimal("0.07")
+# Used for estimates until real runs exist. Measured in October 2026 at effort "medium":
+# about 2,300 input and 300 output tokens, $0.016 per call.
+DEFAULT_COST_PER_CALL = Decimal("0.016")
 
 
 @dataclass
@@ -60,7 +61,7 @@ def run(agents, days, max_cost_usd, client=None, on_run=None):
             progress.calls += 1
             progress.spent_usd += agent_run.cost_usd
             # Keep the estimate honest as real costs come in.
-            per_call = max(per_call, agent_run.cost_usd)
+            per_call = progress.spent_usd / progress.calls
             if agent_run.error:
                 progress.errors.append(f"{day} {agent}: {agent_run.error}")
             if on_run:
