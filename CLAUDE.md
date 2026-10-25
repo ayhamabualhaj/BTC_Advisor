@@ -60,13 +60,20 @@ score. The system only advises; Ayham places trades manually. Full plan:
   `skipped`), it never counts as bullish or bearish.
 - `python manage.py score_rules [--date] [--save]` prints/stores rule-only AgentRuns.
 
+## Backtest (step 6)
+- Daily strategy: a buy signal at the close of day D holds to the close of D+1;
+  consecutive buy days are one trade. Test period starts 2026-07-01 (after Opus 5.5's
+  training cutoff). `apps/backtest/metrics.py` is the pure math.
+- `python manage.py backtest_rules [--start --end --threshold --agents-required --no-save]`
+  saves one BacktestRun per agent plus "combined", each compared with buy-and-hold.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
 - [x] 3. Data collectors
 - [x] 4. Indicator calculations
 - [x] 5. Rule-based scores
-- [ ] 6. First backtest (rules only)
+- [x] 6. First backtest (rules only)
 - [ ] 7. Opus agents
 - [ ] 8. Opus backtest
 - [ ] 9. Calibration check
@@ -77,4 +84,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 6. First backtest (rules only)
+**Current step:** 7. Opus agents
