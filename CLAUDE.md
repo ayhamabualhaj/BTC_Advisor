@@ -114,6 +114,14 @@ score. The system only advises; Ayham places trades manually. Full plan:
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
+## Daily run (step 13)
+- `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
+  last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else
+  rules only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
+  agent). Refuses a date that already ran unless --force, so retries never pay twice.
+- Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
+  `collect_data --source okx` every 4 hours for liquidations.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -127,8 +135,8 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 10. Combining rule (rules-tuned; redo with --scores opus after the Opus backtest)
 - [x] 11. REST API
 - [x] 12. Dashboard pages
-- [ ] 13. Daily run
+- [x] 13. Daily run
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 13. Daily run (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
+**Current step:** 14. RAG memory (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
