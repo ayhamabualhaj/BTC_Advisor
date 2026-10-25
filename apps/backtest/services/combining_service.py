@@ -6,7 +6,8 @@ from apps.backtest import metrics
 from apps.backtest.models import BacktestRun
 from apps.backtest.services.backtest_service import Market, combined_positions
 
-THRESHOLDS = [50, 55, 60, 65, 70, 75, 80]
+# 50 means "no edge", so a buy needs at least 55.
+THRESHOLDS = [55, 60, 65, 70, 75, 80]
 AGENTS_REQUIRED = [3, 2]
 # Fewer trades than this is too little evidence to pick a rule on.
 MIN_TRADES = 3

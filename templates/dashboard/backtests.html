@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Backtests · BTC Advisor{% endblock %}
+{% block content %}
+<h1>Backtest results</h1>
+{% if not strategies and not calibration %}
+  <p class="empty">No backtests yet. Run <code>python manage.py backtest_rules</code>.</p>
+{% endif %}
+
+{% if strategies %}
+<section class="panel">
+  <h2>Profit by strategy <span class="muted">vs buy and hold (gray)</span></h2>
+  <div class="chart-box"><canvas id="profit-chart" aria-label="Total profit per strategy" role="img"></canvas></div>
+  <table class="data">
+    <thead><tr><th>Strategy</th><th>Period</th><th>Trades</th><th>Win rate</th><th>Profit</th><th>Max drawdown</th><th>Buy and hold</th><th>Rule</th></tr></thead>
+    <tbody>
+    {% for run in strategies %}
+      <tr><td>{{ run.name }}</td><td>{{ run.start_date }} – {{ run.end_date }}</td><td>{{ run.trade_count }}</td>
+        <td>{% if run.win_rate is not None %}{{ run.win_rate|floatformat:1 }}%{% else %}–{% endif %}</td>
+        <td>{{ run.total_profit_pct|floatformat:2 }}%</td><td>{{ run.max_drawdown_pct|floatformat:2 }}%</td>
+        <td>{{ run.buy_and_hold_pct|floatformat:2 }}%</td>
+        <td class="small">≥ {{ run.settings.threshold }}{% if run.settings.agents_required %}, {{ run.settings.agents_required }} agents{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {{ chart|json_script:"profit-data" }}
+</section>
+{% endif %}
+
+{% if calibration %}
+<section class="panel">
+  <h2>Calibration <span class="muted">is a 70 right 70% of the time? (7-day horizon)</span></h2>
+  <div class="cards">
+  {% for run in calibration %}
+    <article class="card">
+      <h3>{{ run.settings.score_type }} · {{ run.settings.agent }}</h3>
+      <p class="muted small">{{ run.settings.calls }} calls · Brier {{ run.settings.brier_score|floatformat:3 }} (0.250 = always 50)</p>
+      <table class="data">
+        <thead><tr><th>Band</th><th>Calls</th><th>Said</th><th>Right</th></tr></thead>
+        <tbody>
+        {% for bucket in run.settings.buckets %}
+          <tr><td>{{ bucket.label }}</td><td>{{ bucket.calls }}</td><td>{{ bucket.avg_confidence|floatformat:0 }}%</td><td>{{ bucket.hit_rate|floatformat:0 }}%</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </article>
+  {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if combining %}
+<section class="panel">
+  <h2>Combining rule</h2>
+  {% for run in combining %}
+    <p><strong>{{ run.settings.score_type }}:</strong> buy when {{ run.settings.agents_required }} agents score ≥ {{ run.settings.threshold }}
+      — {{ run.trade_count }} trades, {{ run.total_profit_pct|floatformat:2 }}% profit
+      (first half {{ run.settings.first_half_pct|floatformat:2 }}%, second half {{ run.settings.second_half_pct|floatformat:2 }}%).</p>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>if (document.getElementById("profit-data")) profitChart("profit-chart", JSON.parse(document.getElementById("profit-data").textContent));</script>{% endblock %}

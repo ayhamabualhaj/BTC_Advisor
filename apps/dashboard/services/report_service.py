@@ -53,3 +53,25 @@ def prompt_history(agent=None):
             "judged_calls": judged,
         })
     return history
+
+
+def agent_history(agent, is_backtest=False, limit=180):
+    """Oldest-first runs of one agent, for its score chart."""
+    runs = report_repository.agent_runs(agent, is_backtest)[:limit]
+    return list(reversed(runs))
+
+
+def backtest_overview():
+    """The newest BacktestRun of every name, grouped for the backtest page."""
+    latest = {}
+    for run in report_repository.backtest_runs():
+        latest.setdefault(run.name, run)
+    groups = {"strategies": [], "calibration": [], "combining": []}
+    for name, run in sorted(latest.items()):
+        if name.endswith(":calibration"):
+            groups["calibration"].append(run)
+        elif name.endswith(":combining_rule"):
+            groups["combining"].append(run)
+        else:
+            groups["strategies"].append(run)
+    return groups

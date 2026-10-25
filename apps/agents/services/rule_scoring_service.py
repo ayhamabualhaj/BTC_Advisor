@@ -31,7 +31,7 @@ def run_rules(date, save=False, is_backtest=False):
                 rule_score=rule_score.score,
                 direction=rule_score.direction,
                 reasons=rule_score.reasons,
-                key_data={**snapshot, "skipped": rule_score.skipped},
+                key_data={**snapshot, "skipped": rule_score.skipped, "rule_reasons": rule_score.reasons},
                 is_backtest=is_backtest,
             )
     return results

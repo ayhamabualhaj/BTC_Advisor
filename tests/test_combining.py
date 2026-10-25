@@ -47,11 +47,11 @@ class ChooseAndDecideTests(TestCase):
 
     def test_sweep_picks_and_saves_a_rule(self):
         candidates, chosen = combining_service.choose("rules", self.scores, self.market)
-        self.assertEqual(len(candidates), 14)
+        self.assertEqual(len(candidates), 12)
         self.assertEqual((chosen.agents_required, chosen.performance.win_rate), (2, 100.0))
         saved = BacktestRun.objects.get(name="rules:combining_rule")
         self.assertEqual(saved.settings["threshold"], chosen.threshold)
-        self.assertEqual(len(saved.settings["candidates"]), 14)
+        self.assertEqual(len(saved.settings["candidates"]), 12)
 
     def test_current_rule_defaults_and_prefers_opus(self):
         self.assertEqual(combining_service.current_rule(),

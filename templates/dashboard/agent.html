@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{{ label }} · BTC Advisor{% endblock %}
+{% block content %}
+<h1>{{ label }} agent</h1>
+<p class="toggle">
+  <a href="?backtest=0" {% if not is_backtest %}class="active"{% endif %}>Live runs</a>
+  <a href="?backtest=1" {% if is_backtest %}class="active"{% endif %}>Backtest runs</a>
+</p>
+{% if not latest %}
+  <p class="empty">No {% if is_backtest %}backtest{% else %}live{% endif %} runs yet.</p>
+{% else %}
+  <section class="panel">
+    <h2>Scores over time</h2>
+    <div class="chart-box"><canvas id="score-chart" aria-label="Rule and Opus scores by date" role="img"></canvas></div>
+  </section>
+
+  <section class="panel">
+    <h2>Latest run <span class="muted">{{ latest.date }}</span></h2>
+    <div class="tiles">
+      <div><div class="tile-label">Opus score</div>{% include "dashboard/_score.html" with score=latest.opus_score %}</div>
+      <div><div class="tile-label">Rule score</div>{% include "dashboard/_score.html" with score=latest.rule_score %}</div>
+      <div><div class="tile-label">Direction</div><span class="pill">{{ latest.direction|default:"–" }}</span></div>
+      <div><div class="tile-label">Stop loss</div>{% if latest.suggested_stop_loss %}${{ latest.suggested_stop_loss|floatformat:0 }}{% else %}–{% endif %}</div>
+    </div>
+    <div class="two-col">
+      <div>
+        {% if latest.opus_score is not None %}
+        <h3>Opus reasoning</h3>
+        <ul class="reasons">{% for reason in latest.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="muted small">Rules only: no Opus judgment for this run.</p>
+        {% endif %}
+        <h3>Rule criteria</h3>
+        <ul class="reasons">{% for reason in latest.key_data.rule_reasons %}<li>{{ reason }}</li>{% empty %}<li class="muted">None fired.</li>{% endfor %}</ul>
+        {% if latest.key_data.skipped %}<p class="muted small">No data for: {{ latest.key_data.skipped|join:", " }}</p>{% endif %}
+      </div>
+      <div>
+        <h3>Data</h3>
+        <table class="data">
+          {% for key, value in latest.key_data.items %}
+            {% if key != "model_input" and key != "rule_reasons" and key != "skipped" %}
+            <tr><th>{{ key }}</th><td>{{ value|default_if_none:"–" }}</td></tr>
+            {% endif %}
+          {% endfor %}
+        </table>
+      </div>
+    </div>
+    {% if latest.error %}<p class="error">{{ latest.error }}</p>{% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>Recent runs</h2>
+    <table class="data">
+      <thead><tr><th>Date</th><th>Rules</th><th>Opus</th><th>Direction</th><th>Prompt</th><th>Cost</th></tr></thead>
+      <tbody>
+      {% for run in history %}
+        <tr><td>{{ run.date }}</td><td>{{ run.rule_score|floatformat:0 }}</td><td>{{ run.opus_score|default_if_none:"–" }}</td>
+          <td>{{ run.direction }}</td><td>v{{ run.prompt_version.version|default:"–" }}</td><td>${{ run.cost_usd|floatformat:4 }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {{ chart|json_script:"score-data" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>if (document.getElementById("score-data")) scoreChart("score-chart", JSON.parse(document.getElementById("score-data").textContent));</script>{% endblock %}

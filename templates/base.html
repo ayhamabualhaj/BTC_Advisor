@@ -1,0 +1,30 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}BTC Advisor{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'today' %}">BTC Advisor</a>
+    <nav>
+      <a href="{% url 'today' %}">Today</a>
+      <a href="{% url 'agent_detail' 'technical' %}">Technical</a>
+      <a href="{% url 'agent_detail' 'derivatives' %}">Derivatives</a>
+      <a href="{% url 'agent_detail' 'macro' %}">Macro</a>
+      <a href="{% url 'backtests' %}">Backtests</a>
+      <a href="{% url 'costs' %}">Costs</a>
+      <a href="{% url 'prompts' %}">Prompts</a>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>Advice only. The system never places trades.</footer>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="{% static 'js/charts.js' %}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

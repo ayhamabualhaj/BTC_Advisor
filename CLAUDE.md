@@ -94,7 +94,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 
 ## Combining rule (step 10)
 - `python manage.py choose_combining_rule --scores rules|opus`: tries all three / any two
-  agents >= 50..80, keeps the highest profit with at least 3 trades (ties: lower drawdown),
+  agents >= 55..80, keeps the highest profit with at least 3 trades (ties: lower drawdown),
   shows first-half / second-half profit to expose overfitting. Saved as "<type>:combining_rule".
 - `decision_service.make_decision(date)`: applies the latest chosen rule (Opus-tuned
   preferred, else rules-tuned, else 3 agents >= 60) to the day's live AgentRuns.
@@ -105,6 +105,14 @@ score. The system only advises; Ayham places trades manually. Full plan:
   report_service.py → repositories/report_repository.py. Endpoints under /api/:
   `decision/today/`, `agent-runs/?agent=&backtest=&date=`, `backtests/?name=`, `costs/`,
   `prompts/?agent=` (each version with runs, errors, cost, 7-day hit rate).
+
+## Dashboard (step 12)
+- `python manage.py runserver` then http://127.0.0.1:8000/ — Today, one page per agent
+  (live/backtest toggle, score chart), Backtests (profit vs buy-and-hold, calibration,
+  combining rule), Costs, Prompts. Views in `apps/dashboard/views/page_views.py` use the same
+  report_service as the API. Templates in `templates/`, CSS tokens (light + dark) in
+  `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
+- Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
 ## Progress
 - [x] 1. Project setup
@@ -118,9 +126,9 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 9. Calibration check
 - [x] 10. Combining rule (rules-tuned; redo with --scores opus after the Opus backtest)
 - [x] 11. REST API
-- [ ] 12. Dashboard pages
+- [x] 12. Dashboard pages
 - [ ] 13. Daily run
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 12. Dashboard pages (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
+**Current step:** 13. Daily run (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)

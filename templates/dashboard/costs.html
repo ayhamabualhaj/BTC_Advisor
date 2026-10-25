@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Costs · BTC Advisor{% endblock %}
+{% block content %}
+<h1>API costs</h1>
+<div class="tiles hero">
+  <div><div class="tile-label">Total spent</div><span class="score">${{ total_usd|floatformat:2 }}</span></div>
+</div>
+{% if not by_agent %}
+  <p class="empty">No paid Opus calls yet.</p>
+{% else %}
+<section class="panel">
+  <h2>Spend per day</h2>
+  <div class="chart-box"><canvas id="cost-chart" aria-label="API spend per day by agent" role="img"></canvas></div>
+</section>
+<section class="panel">
+  <h2>Per agent</h2>
+  <table class="data">
+    <thead><tr><th>Agent</th><th>Kind</th><th>Calls</th><th>Input tokens</th><th>Output tokens</th><th>Cost</th><th>Per call</th></tr></thead>
+    <tbody>
+    {% for row in by_agent %}
+      <tr><td><span class="dot dot-{{ row.agent }}"></span>{{ row.agent }}</td><td>{% if row.is_backtest %}backtest{% else %}live{% endif %}</td>
+        <td>{{ row.calls }}</td><td>{{ row.input_tokens }}</td><td>{{ row.output_tokens }}</td>
+        <td>${{ row.cost_usd|floatformat:4 }}</td><td>${{ row.per_call|floatformat:4 }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{{ chart|json_script:"cost-data" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>if (document.getElementById("cost-data")) costChart("cost-chart", JSON.parse(document.getElementById("cost-data").textContent));</script>{% endblock %}
