@@ -92,6 +92,14 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - `python manage.py calibration --scores rules|opus [--horizon 7]` (opus reads saved
   backtest runs, never calls the API). Saved as BacktestRuns named "<type>:<agent>:calibration".
 
+## Combining rule (step 10)
+- `python manage.py choose_combining_rule --scores rules|opus`: tries all three / any two
+  agents >= 50..80, keeps the highest profit with at least 3 trades (ties: lower drawdown),
+  shows first-half / second-half profit to expose overfitting. Saved as "<type>:combining_rule".
+- `decision_service.make_decision(date)`: applies the latest chosen rule (Opus-tuned
+  preferred, else rules-tuned, else 3 agents >= 60) to the day's live AgentRuns.
+- With ~115 test days the chosen rule is fragile; re-run after the Opus backtest.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -102,11 +110,11 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 7. Opus agents
 - [x] 8. Opus backtest (code done; not yet run: needs ANTHROPIC_API_KEY)
 - [x] 9. Calibration check
-- [ ] 10. Combining rule
+- [x] 10. Combining rule (rules-tuned; redo with --scores opus after the Opus backtest)
 - [ ] 11. REST API
 - [ ] 12. Dashboard pages
 - [ ] 13. Daily run
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 10. Combining rule
+**Current step:** 11. REST API (pending: run the Opus backtest once ANTHROPIC_API_KEY is set)
