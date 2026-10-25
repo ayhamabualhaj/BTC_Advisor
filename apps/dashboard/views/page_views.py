@@ -1,9 +1,11 @@
+import datetime
+
 from django.http import Http404
 from django.shortcuts import render
 
 from apps.agents.models import AgentName
 from apps.backtest.services import combining_service
-from apps.dashboard.services import report_service
+from apps.dashboard.services import report_service, signal_service
 
 AGENT_ORDER = AgentName.values
 
@@ -33,6 +35,38 @@ def agent_detail(request, agent):
         "history": list(reversed(history))[:30],
         "is_backtest": is_backtest,
         "chart": chart,
+    })
+
+
+def parse_date(value):
+    try:
+        return datetime.date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
+def signals(request):
+    try:
+        horizon = int(request.GET.get("horizon", signal_service.DEFAULT_HORIZON))
+    except ValueError:
+        horizon = signal_service.DEFAULT_HORIZON
+    if horizon not in signal_service.HORIZONS:
+        horizon = signal_service.DEFAULT_HORIZON
+    opus_only = request.GET.get("opus") == "1"
+    table = signal_service.signal_table(parse_date(request.GET.get("start")), parse_date(request.GET.get("end")),
+                                        horizon, opus_only)
+    columns = table["columns"]
+    for row in table["rows"]:
+        row["cells"] = [row["calls"][column.key] for column in columns]
+        row["return_text"] = f"{row['return_pct']:+.2f}%" if row["return_pct"] is not None else None
+    # One scoreboard card per agent (plus combined), each with its Rules and Opus line.
+    cards = {}
+    for column in columns:
+        cards.setdefault(column.agent, {"agent": column.agent, "label": column.label, "lines": []})
+        cards[column.agent]["lines"].append({"source": column.source, **table["summary"].get(column.key, {})})
+    return render(request, "dashboard/signals.html", {
+        **table, "cards": list(cards.values()), "horizon": horizon, "horizons": signal_service.HORIZONS,
+        "opus_only": opus_only, "groups": [columns[i] for i in range(0, len(columns), 2)],
     })
 
 

@@ -118,6 +118,13 @@ score. The system only advises; Ayham places trades manually. Full plan:
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
+## Signals page (after step 14)
+- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules and an
+  Opus column per agent plus the combining rule. Score >= 55 is Buy, <= 45 Sell, else Hold
+  (never judged). A call is green when the price after 1/3/7 days (`?horizon=`) moved its
+  way, red when not, gray while waiting. Rules are scored fresh (current rules); Opus uses
+  the newest saved run per day. Filters: `?start= &end= &opus=1` (only days with Opus).
+
 ## Daily run (step 13)
 - `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
   last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else

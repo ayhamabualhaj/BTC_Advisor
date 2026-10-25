@@ -11,7 +11,7 @@ DAY = datetime.date(2026, 7, 1)
 
 class EmptyPagesTests(TestCase):
     def test_every_page_works_with_an_empty_database(self):
-        for url in ("/", "/agents/technical/", "/backtests/", "/costs/", "/prompts/"):
+        for url in ("/", "/agents/technical/", "/signals/", "/backtests/", "/costs/", "/prompts/"):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, url)
         self.assertContains(self.client.get("/"), "daily_run")
@@ -57,3 +57,49 @@ class FilledPagesTests(TestCase):
     def test_costs_and_prompts_pages(self):
         self.assertContains(self.client.get("/costs/"), "$0.05")
         self.assertContains(self.client.get("/prompts/"), "You are the agent")
+
+
+class SignalsPageTests(TestCase):
+    """Price falls 1 a day, so every Buy is wrong and every Sell is right after 7 days."""
+
+    def setUp(self):
+        from apps.data.collectors.base import Point
+        from apps.data.repositories import market_data_repository
+
+        start = DAY - datetime.timedelta(days=60)
+        points = [Point(start + datetime.timedelta(days=i), field, 200.0 - i)
+                  for i in range(75) for field in ("close", "high", "low")]
+        market_data_repository.save_points("binance", points)
+        prompt = PromptVersion.objects.create(agent="macro", version=2, prompt_text="p")
+        for offset, score in ((0, 70), (1, 30), (2, 50)):
+            AgentRun.objects.create(date=DAY + datetime.timedelta(days=offset), agent="macro", rule_score=50,
+                                    opus_score=score, direction="neutral", reasons=[], key_data={},
+                                    prompt_version=prompt, is_backtest=True)
+
+    def test_judges_opus_calls_against_the_price(self):
+        from apps.dashboard.services import signal_service
+
+        table = signal_service.signal_table(DAY, DAY + datetime.timedelta(days=2))
+        calls = {row["date"]: row["calls"]["macro:opus"] for row in table["rows"]}
+        self.assertEqual((calls[DAY].signal, calls[DAY].outcome), ("buy", "wrong"))
+        self.assertEqual((calls[DAY + datetime.timedelta(days=1)].signal,
+                          calls[DAY + datetime.timedelta(days=1)].outcome), ("sell", "right"))
+        self.assertEqual(calls[DAY + datetime.timedelta(days=2)].outcome, "none")  # a Hold is never judged
+        self.assertEqual(calls[DAY].note, "prompt v2")
+        self.assertEqual(table["summary"]["macro:opus"],
+                         {"right": 1, "wrong": 1, "pending": 0, "hit_rate": 50.0})
+        # Newest day first, and the last days wait for their 7-day price.
+        self.assertEqual(table["rows"][0]["date"], DAY + datetime.timedelta(days=2))
+
+    def test_last_days_are_pending(self):
+        from apps.dashboard.services import signal_service
+
+        self.assertEqual(signal_service.judge("buy", None), "pending")
+        self.assertEqual(signal_service.judge("hold", 0.05), "none")
+        self.assertEqual(signal_service.judge("sell", 0.05), "wrong")
+
+    def test_page_shows_colored_calls_and_filters(self):
+        page = self.client.get(f"/signals/?opus=1&start={DAY}&end={DAY + datetime.timedelta(days=2)}").content.decode()
+        for text in ("call-wrong", "call-right", "▲ Buy", "▼ Sell", "Days with Opus", "-5.00%"):
+            self.assertIn(text, page)
+        self.assertEqual(self.client.get("/signals/?horizon=99&start=junk").status_code, 200)

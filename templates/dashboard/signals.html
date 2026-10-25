@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Signals · BTC Advisor{% endblock %}
+{% block content %}
+<h1>Signals <span class="muted">every call, right or wrong</span></h1>
+<p class="muted small">A score of 55 or more is a <strong>Buy</strong> call, 45 or less a <strong>Sell</strong> call, in between
+  <strong>Hold</strong>. A call is right when the price {{ horizon }} day{{ horizon|pluralize }} later moved its way.
+  Rules are scored as they are now; Opus scores are the saved runs.
+  {% if rule %}Combined = buy when {{ rule.agents_required }} agents score ≥ {{ rule.threshold }}.{% endif %}</p>
+
+<form class="controls" method="get">
+  <div class="toggle" role="group" aria-label="Judge after">
+    <span class="tile-label">Judge after</span>
+    {% for h in horizons %}
+      <a href="?horizon={{ h }}{% if opus_only %}&opus=1{% endif %}{% if request.GET.start %}&start={{ request.GET.start }}{% endif %}{% if request.GET.end %}&end={{ request.GET.end }}{% endif %}"
+         class="{% if h == horizon %}active{% endif %}">{{ h }}d</a>
+    {% endfor %}
+  </div>
+  <div class="toggle" role="group" aria-label="Days shown">
+    <a href="?horizon={{ horizon }}{% if request.GET.start %}&start={{ request.GET.start }}{% endif %}{% if request.GET.end %}&end={{ request.GET.end }}{% endif %}" class="{% if not opus_only %}active{% endif %}">All days</a>
+    <a href="?horizon={{ horizon }}&opus=1{% if request.GET.start %}&start={{ request.GET.start }}{% endif %}{% if request.GET.end %}&end={{ request.GET.end }}{% endif %}" class="{% if opus_only %}active{% endif %}">Days with Opus</a>
+  </div>
+  <label class="small">From <input type="date" name="start" value="{{ start|date:'Y-m-d' }}"></label>
+  <label class="small">To <input type="date" name="end" value="{{ end|date:'Y-m-d' }}"></label>
+  <input type="hidden" name="horizon" value="{{ horizon }}">
+  {% if opus_only %}<input type="hidden" name="opus" value="1">{% endif %}
+  <button type="submit">Show</button>
+</form>
+
+{% if not rows %}
+  <p class="empty">No days to show. Run <code>python manage.py collect_data</code>{% if opus_only %}, or switch to “All days”{% endif %}.</p>
+{% else %}
+
+<section class="cards scoreboard">
+  {% for card in cards %}
+  <article class="card">
+    <h2>{% if card.agent != "combined" %}<span class="dot dot-{{ card.agent }}"></span>{% endif %}{{ card.label }}</h2>
+    {% for line in card.lines %}
+      <div class="hit-line">
+        <div class="hit-head">
+          <span class="tile-label">{{ line.source }}</span>
+          <span class="hit-rate">{% if line.hit_rate is not None %}{{ line.hit_rate|floatformat:0 }}%{% else %}–{% endif %}</span>
+        </div>
+        {% if line.right or line.wrong %}
+        <div class="hit-bar" role="img" aria-label="{{ line.right }} right, {{ line.wrong }} wrong">
+          {% if line.right %}<span class="hit-right" style="flex-grow: {{ line.right }}"></span>{% endif %}
+          {% if line.wrong %}<span class="hit-wrong" style="flex-grow: {{ line.wrong }}"></span>{% endif %}
+        </div>
+        {% endif %}
+        <p class="small muted">✓ {{ line.right }} right · ✗ {{ line.wrong }} wrong{% if line.pending %} · {{ line.pending }} waiting{% endif %}</p>
+      </div>
+    {% endfor %}
+  </article>
+  {% endfor %}
+</section>
+
+<p class="legend small">
+  <span class="call call-right">▲ Buy ✓</span> right
+  <span class="call call-wrong">▼ Sell ✗</span> wrong
+  <span class="call call-pending">▲ Buy …</span> waiting for the price
+  <span class="call call-none">Hold</span> no call
+</p>
+
+<section class="panel signal-panel">
+  <table class="data signals">
+    <thead>
+      <tr>
+        <th rowspan="2" class="sticky">Date</th>
+        <th rowspan="2" class="num">BTC after {{ horizon }}d</th>
+        {% for group in groups %}
+          <th colspan="2" class="group">{% if group.agent != "combined" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</th>
+        {% endfor %}
+      </tr>
+      <tr>{% for column in columns %}<th class="sub">{{ column.source }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <th class="sticky">{{ row.date|date:"D d M" }}</th>
+        <td class="num {% if row.return_pct > 0 %}up{% elif row.return_pct < 0 %}down{% endif %}">
+          {% if row.return_text %}{{ row.return_text }}{% else %}<span class="muted">…</span>{% endif %}</td>
+        {% for call in row.cells %}
+          <td class="call call-{{ call.outcome }} call-{{ call.signal }}"
+              title="{% if call.signal == 'none' %}No score{% else %}{{ call.signal|capfirst }}{% endif %}{% if call.score is not None %} at {{ call.score|floatformat:0 }}{% endif %}{% if call.outcome != 'none' %} · {{ call.outcome }}{% endif %}{% if call.note %} · {{ call.note }}{% endif %}">
+            {% if call.signal == "none" %}<span class="muted">–</span>
+            {% else %}
+              {% if call.signal == "buy" %}▲ Buy{% elif call.signal == "sell" %}▼ Sell{% else %}Hold{% endif %}
+              {% if call.outcome == "right" %}✓{% elif call.outcome == "wrong" %}✗{% elif call.outcome == "pending" %}…{% endif %}
+              {% if call.score is not None %}<span class="call-score">{{ call.score|floatformat:0 }}</span>{% endif %}
+            {% endif %}
+          </td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

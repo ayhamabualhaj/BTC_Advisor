@@ -41,7 +41,7 @@ bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Jan 2025 to yesterday, all sources (~20 s)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
-python manage.py test                    # 135 tests, no network, no API calls
+python manage.py test                    # 139 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
@@ -106,7 +106,8 @@ already known.
 ## Dashboard and API
 
 Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
-(score chart, data used, live/backtest runs), **Backtests** (profit vs buy-and-hold,
+(score chart, data used, live/backtest runs), **Signals** (every day's Buy/Sell/Hold call from
+each agent's rules and Opus, green when right and red when wrong after 1, 3 or 7 days), **Backtests** (profit vs buy-and-hold,
 calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
 prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
 version automatically on the next run.

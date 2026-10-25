@@ -66,3 +66,9 @@ def prompt_versions(agent=None):
 
 def runs_for_version(version):
     return AgentRun.objects.filter(prompt_version=version)
+
+
+def opus_runs(start, end):
+    """Every run with an Opus score in the period (live and backtest), oldest first."""
+    return (AgentRun.objects.filter(date__range=(start, end), opus_score__isnull=False)
+            .select_related("prompt_version").order_by("date", "created_at"))
