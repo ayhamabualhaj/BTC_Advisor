@@ -85,6 +85,13 @@ score. The system only advises; Ayham places trades manually. Full plan:
   only data up to that day; skips days already done for the current prompt version, so it
   resumes after a stop and never pays twice. Results saved as BacktestRuns named "opus:*".
 
+## Calibration (step 9)
+- `apps/backtest/calibration.py`: a score s = "s% chance the price is higher in 7 days";
+  below 50 it is a down call with confidence 100-s; 50 is no call. Buckets 50s-90s with hit
+  rate vs stated confidence, plus a Brier score (0.25 = always saying 50).
+- `python manage.py calibration --scores rules|opus [--horizon 7]` (opus reads saved
+  backtest runs, never calls the API). Saved as BacktestRuns named "<type>:<agent>:calibration".
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -94,7 +101,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 6. First backtest (rules only)
 - [x] 7. Opus agents
 - [x] 8. Opus backtest (code done; not yet run: needs ANTHROPIC_API_KEY)
-- [ ] 9. Calibration check
+- [x] 9. Calibration check
 - [ ] 10. Combining rule
 - [ ] 11. REST API
 - [ ] 12. Dashboard pages
@@ -102,4 +109,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 9. Calibration check
+**Current step:** 10. Combining rule
