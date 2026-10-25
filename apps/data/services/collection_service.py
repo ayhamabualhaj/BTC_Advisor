@@ -42,6 +42,9 @@ def expected_days(source, start, end):
     days = [start + datetime.timedelta(days=n) for n in range((end - start).days + 1)]
     if source in EVERY_DAY_SOURCES:
         return days
+    if source == fred.SOURCE:
+        # FRED values are dated one day late (see fred.py), so business days land Tue-Sat.
+        return [day for day in days if (day - datetime.timedelta(days=1)).weekday() < 5]
     return [day for day in days if day.weekday() < 5]
 
 

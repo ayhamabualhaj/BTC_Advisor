@@ -154,3 +154,8 @@ class CollectionServiceTests(TestCase):
         days = [D(2026, 7, 2), D(2026, 7, 3), D(2026, 7, 6)]  # Thu, Fri, Mon
         market_data_repository.save_points("yahoo", [Point(day, "dxy_close", 1.0) for day in days])
         self.assertEqual(collection_service.missing_days(D(2026, 7, 1), D(2026, 7, 6), ["yahoo"]), {})
+
+    def test_fred_business_days_are_expected_one_day_late(self):
+        days = [D(2026, 7, 3), D(2026, 7, 4), D(2026, 7, 7)]  # Thu, Fri, Mon values dated Fri, Sat, Tue
+        market_data_repository.save_points("fred", [Point(day, "treasury_2y", 3.5) for day in days])
+        self.assertEqual(collection_service.missing_days(D(2026, 7, 3), D(2026, 7, 7), ["fred"]), {})
