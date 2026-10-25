@@ -9,7 +9,7 @@ class MemoryCase(models.Model):
     date = models.DateField()
     agent = models.CharField(max_length=20, choices=AgentName.choices)
     setup_summary = models.TextField()
-    # A list of floats; stored as JSON so it works on SQLite as well as PostgreSQL.
+    # {feature: float} from memory/features.py: the setup's own numbers serve as its embedding.
     embedding = models.JSONField(default=list, blank=True)
     outcome = models.TextField(blank=True)
     return_7d_pct = models.FloatField(null=True, blank=True)
