@@ -1,11 +1,13 @@
 import datetime
+from decimal import Decimal
 
 from django.test import SimpleTestCase, TestCase
 
 from apps.backtest import metrics
 from apps.backtest.decision_rule import agents_above, is_buy
 from apps.backtest.models import BacktestRun
-from apps.backtest.services import backtest_service
+from apps.agents.models import AgentRun
+from apps.backtest.services import backtest_service, opus_backtest_service, score_history
 from apps.data.collectors.base import Point
 from apps.data.repositories import market_data_repository
 
@@ -87,3 +89,46 @@ class BacktestServiceTests(TestCase):
         [alone, combined] = backtest_service.run_backtest("rules", scores, market, save=False)
         self.assertEqual((alone.trade_count, combined.trade_count), (0, 0))
         self.assertEqual(BacktestRun.objects.count(), 0)
+
+
+class OpusBacktestTests(TestCase):
+    def setUp(self):
+        start = day(0) - datetime.timedelta(days=30)
+        closes = [Point(start + datetime.timedelta(days=i), field, 100.0 + i)
+                  for i in range(36) for field in ("close", "high", "low")]
+        market_data_repository.save_points("binance", closes)
+        self.days = [day(0), day(1), day(2)]
+
+    def test_runs_each_day_once_and_resumes(self):
+        from tests.fake_anthropic import FakeClient
+
+        client = FakeClient()
+        progress = opus_backtest_service.run(["technical"], self.days, Decimal("10"), client)
+        self.assertEqual((progress.calls, progress.stopped_at_cap), (3, False))
+        self.assertEqual(AgentRun.objects.filter(is_backtest=True).count(), 3)
+
+        again = opus_backtest_service.run(["technical"], self.days, Decimal("10"), client)
+        self.assertEqual(again.calls, 0)
+        self.assertEqual(len(client.calls), 3)
+
+    def test_stops_before_passing_the_cost_cap(self):
+        from tests.fake_anthropic import FakeClient, response
+
+        # Each fake call costs 1000 x $4/M + 500 x $20/M = $0.014; the first estimate is $0.07.
+        client = FakeClient(response())
+        # After one call: $0.014 spent + $0.07 expected next > $0.08 cap.
+        progress = opus_backtest_service.run(["technical"], self.days, Decimal("0.08"), client)
+        self.assertEqual((progress.calls, progress.stopped_at_cap), (1, True))
+
+    def test_estimate_counts_pending_calls(self):
+        calls, cost = opus_backtest_service.estimate(["technical", "macro"], self.days)
+        self.assertEqual(calls, 6)
+        self.assertEqual(cost, 6 * opus_backtest_service.DEFAULT_COST_PER_CALL)
+
+    def test_opus_scores_feed_the_backtest(self):
+        from tests.fake_anthropic import FakeClient
+
+        opus_backtest_service.run(["technical"], self.days, Decimal("10"), FakeClient())
+        versions = opus_backtest_service.prompt_versions(["technical"])
+        scores = score_history.opus_scores(self.days, versions)
+        self.assertEqual(scores[day(1)], {"technical": 62})

@@ -79,6 +79,12 @@ score. The system only advises; Ayham places trades manually. Full plan:
   that the price is higher in 7 days.
 - `python manage.py run_agents [--date] [--agent]` (paid). Tests use `tests/fake_anthropic.py`.
 
+## Opus backtest (step 8)
+- `python manage.py backtest_opus --estimate` first (free), then
+  `backtest_opus [--agent] [--max-cost 5]` (paid). Runs each agent alone, day by day, with
+  only data up to that day; skips days already done for the current prompt version, so it
+  resumes after a stop and never pays twice. Results saved as BacktestRuns named "opus:*".
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -87,7 +93,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 5. Rule-based scores
 - [x] 6. First backtest (rules only)
 - [x] 7. Opus agents
-- [ ] 8. Opus backtest
+- [x] 8. Opus backtest (code done; not yet run: needs ANTHROPIC_API_KEY)
 - [ ] 9. Calibration check
 - [ ] 10. Combining rule
 - [ ] 11. REST API
@@ -96,4 +102,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [ ] 14. RAG memory
 - [ ] 15. Optional extras
 
-**Current step:** 8. Opus backtest
+**Current step:** 9. Calibration check
