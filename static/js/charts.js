@@ -33,7 +33,7 @@ function scoreChart(id, data) {
     data: {
       labels: data.labels,
       datasets: [
-        { label: "Opus score", data: data.opus, borderColor: token("--technical"), backgroundColor: token("--technical"),
+        { label: `${data.llm_label || "LLM"} score`, data: data.opus, borderColor: token("--technical"), backgroundColor: token("--technical"),
           borderWidth: 2, pointRadius, pointHoverRadius: 5, spanGaps: false },
         { label: "Rule score", data: data.rule, borderColor: token("--derivatives"), backgroundColor: token("--derivatives"),
           borderWidth: 2, pointRadius, pointHoverRadius: 5, stepped: true },

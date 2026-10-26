@@ -1,17 +1,14 @@
-"""The Model comparison page: AI_MODEL (Opus) and another Claude model on the same saved
-questions, per agent, judged like the Signals page."""
+"""The Model comparison page: Opus 5.5 (the reference) and another Claude model on the same
+saved questions, per agent, judged like the Signals page."""
 
-from django.conf import settings
-
+from ai.opus_client import model_label
 from apps.agents.models import AgentName
 from apps.backtest.services import model_comparison_service as mcs
 from apps.dashboard.services.signal_service import score_call
 
 
 def label(model):
-    """"claude-haiku-5-5" -> "Haiku 5.5"."""
-    parts = model.removeprefix("claude-").split("-")
-    return f"{parts[0].capitalize()} {'.'.join(parts[1:])}".strip()
+    return model_label(model)
 
 
 def day_rows(found, moves):
@@ -47,8 +44,8 @@ def chart(found):
 def comparison(model=None, horizon=7):
     models = mcs.compared_models()
     model = model if model in models else (models[0] if models else None)
-    page = {"models": [(m, label(m)) for m in models], "model": model, "reference": settings.AI_MODEL,
-            "reference_label": label(settings.AI_MODEL), "other_label": label(model) if model else ""}
+    page = {"models": [(m, label(m)) for m in models], "model": model, "reference": mcs.REFERENCE,
+            "reference_label": label(mcs.REFERENCE), "other_label": label(model) if model else ""}
     if model is None:
         return {**page, "agents": []}
     found = mcs.pairs(model)

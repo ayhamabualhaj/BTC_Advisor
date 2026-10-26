@@ -45,6 +45,12 @@ class OpusReply:
     model: str = ""
 
 
+def model_label(model=None):
+    """"claude-haiku-5-5" -> "Haiku 5.5", for the pages. Defaults to AI_MODEL."""
+    parts = (model or settings.AI_MODEL).removeprefix("claude-").split("-")
+    return f"{parts[0].capitalize()} {'.'.join(parts[1:])}".strip()
+
+
 def make_client():
     # An empty key lets the SDK fall back to its other credential sources.
     return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY or None)

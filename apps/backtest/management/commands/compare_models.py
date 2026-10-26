@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from ai.opus_client import PRICES_PER_MTOK
@@ -14,7 +13,7 @@ def tally(t):
 
 
 class Command(BaseCommand):
-    help = ("Ask another Claude model exactly what AI_MODEL was asked in its backtest and compare "
+    help = ("Ask another Claude model exactly what Opus 5.5 was asked in its backtest and compare "
             "(PAID for the other model's calls; use --estimate first).")
 
     def add_arguments(self, parser):
@@ -32,7 +31,7 @@ class Command(BaseCommand):
             return
         if not options["report"] and calls:
             progress = mcs.replay(model, options["max_cost"], on_run=lambda ref, run: self.stdout.write(
-                f"{run.date} {run.agent:<11} {settings.AI_MODEL} {ref.opus_score:.0f}  {model} "
+                f"{run.date} {run.agent:<11} {mcs.REFERENCE} {ref.opus_score:.0f}  {model} "
                 f"{run.opus_score if run.opus_score is not None else '-'}  ${run.cost_usd:.5f}"))
             self.stdout.write(f"Made {progress.calls} calls for ${progress.spent_usd:.4f}")
             for error in progress.errors:
@@ -47,7 +46,7 @@ class Command(BaseCommand):
                 return
             self.stdout.write(f"\nJudged after {horizon} day(s) (Buy >= 55, Sell <= 45):")
             for key, row in rows.items():
-                self.stdout.write(f"  {key:<11} {settings.AI_MODEL:<16} {tally(row['reference'])}")
+                self.stdout.write(f"  {key:<11} {mcs.REFERENCE:<16} {tally(row['reference'])}")
                 self.stdout.write(f"  {'':<11} {model:<16} {tally(row['other'])}")
                 self.stdout.write(f"  {'':<11} same side {row['same_side']}/{row['reference'].days} days, "
                                   f"mean score gap {row['gap']:.1f}")

@@ -1,13 +1,13 @@
-"""Asks another Claude model exactly what the configured model (AI_MODEL, Opus) was asked
-in its backtest: the same saved prompt version and the same saved model input, day by day.
-So the two are compared on identical questions, and nothing is rebuilt from today's code.
+"""Asks another Claude model exactly what Opus 5.5 (REFERENCE) was asked in its backtest:
+the same saved prompt version and the same saved model input, day by day. So the two are
+compared on identical questions, and nothing is rebuilt from today's code. The reference is
+fixed, not AI_MODEL: switching the live model must not turn the other model's thousands of
+runs into questions to replay.
 """
 
 import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-
-from django.conf import settings
 
 from ai import opus_client
 from apps.agents.models import AgentName, AgentRun
@@ -15,6 +15,7 @@ from apps.backtest.calibration import forward_returns
 from apps.backtest.repositories import price_repository
 
 HORIZONS = (1, 3, 7)
+REFERENCE = "claude-opus-5-5"
 
 
 @dataclass
@@ -26,8 +27,8 @@ class ReplayProgress:
 
 
 def reference_runs():
-    """The configured model's backtest runs that kept their exact input, oldest first."""
-    runs = (AgentRun.objects.filter(is_backtest=True, model=settings.AI_MODEL, opus_score__isnull=False,
+    """The reference model's backtest runs that kept their exact input, oldest first."""
+    runs = (AgentRun.objects.filter(is_backtest=True, model=REFERENCE, opus_score__isnull=False,
                                     prompt_version__isnull=False)
             .select_related("prompt_version").order_by("date", "agent", "created_at"))
     # The newest run per day, agent and prompt version, like the backtest itself.
@@ -117,9 +118,9 @@ class Tally:
 
 
 def compared_models():
-    """Models with answers to compare against AI_MODEL, e.g. ["claude-haiku-5-5"]."""
+    """Models with answers to compare against the reference, e.g. ["claude-haiku-5-5"]."""
     return sorted(set(AgentRun.objects.filter(is_backtest=True, opus_score__isnull=False)
-                      .exclude(model__in=["", settings.AI_MODEL]).values_list("model", flat=True)))
+                      .exclude(model__in=["", REFERENCE]).values_list("model", flat=True)))
 
 
 def pairs(model):

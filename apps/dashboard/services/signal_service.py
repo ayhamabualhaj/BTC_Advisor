@@ -1,17 +1,18 @@
-"""Every day's call from each domain's rule, ML and Opus agent and from the vote, judged
+"""Every day's call from each domain's rule, ML and LLM (AI_MODEL) agent and from the vote, judged
 against what the price did.
 
 A score s means "s% sure the price is higher after the horizon". s >= 55 is a Buy call
 (s% sure it rises), s <= 45 a Sell call (100 - s% sure it falls), in between Hold, which is
 never judged. A call is right when the price moved its way; its result is the move seen
 from the call's side (a Sell that saw the price fall 3% won 3%). Rules and ML come from
-score_store (stored, recomputed when the code changes); Opus from the saved runs. The
-votes are the current combining rule: a Rules, an ML and an Opus vote, then the overall vote.
+score_store (stored, recomputed when the code changes); the LLM from the saved runs. The
+votes are the current combining rule: a Rules, an ML and an LLM vote, then the overall vote.
 """
 
 import datetime
 from dataclasses import dataclass
 
+from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
@@ -23,7 +24,9 @@ from apps.dashboard.repositories import report_repository
 HORIZONS = (1, 3, 7)
 DEFAULT_HORIZON = 7
 START = datetime.date(2019, 1, 1)
-SOURCES = [("rules", "Rules"), ("ml", "ML"), ("opus", "Opus")]
+def sources():
+    """Each kind of agent with its label; the LLM one is named after AI_MODEL (e.g. "Haiku 5.5")."""
+    return [("rules", "Rules"), ("ml", "ML"), ("opus", model_label())]
 # The periods each part was chosen on, so the pages can say which numbers are a fair test.
 PERIODS = [
     ("2019-2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31),
@@ -55,8 +58,8 @@ class Column:
 
 def columns():
     result = [Column(f"{agent.value}:{source}", agent.value, agent.label, source, label)
-              for agent in AgentName for source, label in SOURCES]
-    result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in SOURCES]
+              for agent in AgentName for source, label in sources()]
+    result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()]
     result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
     return result
 
@@ -107,13 +110,13 @@ def group_note(scores):
 
 
 def overall_note(groups):
-    names = dict(SOURCES)
+    names = dict(sources())
     parts = ", ".join(f"{names[source]} {signal if signal != 'none' else 'no scores'}" for source, signal in groups.items())
     return f"{parts} (net {overall_net(groups):+d})"
 
 
 def opus_history(start, end):
-    """{date: {agent: run}}: the newest run with an Opus score per day and agent."""
+    """{date: {agent: run}}: the newest run with an LLM score per day and agent."""
     history = {}
     for run in report_repository.opus_runs(start, end):
         history.setdefault(run.date, {})[run.agent] = run

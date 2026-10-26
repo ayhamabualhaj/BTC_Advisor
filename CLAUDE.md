@@ -274,6 +274,11 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   it was written for 7 days. Overlapping weeks: ~1/7 as many independent calls.
 
 ## Model comparison: Haiku vs Opus (Oct 2026)
+- AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from
+  it (`ai.opus_client.model_label`, context processor `llm_label`); internal keys and the
+  `opus_score` field keep the old name. The comparison reference stays Opus 5.5
+  (`model_comparison_service.REFERENCE`), whatever AI_MODEL is.
+- Tests run with AI_MODEL = Opus whatever .env says (`tests/runner.py`).
 - `AgentRun.model` records the Claude model asked (old runs back-filled as Opus 5.5). Opus
   queries (Signals, opus_scores, backtest_opus) read only AI_MODEL's runs, so comparison
   runs never mix in. Prices per model in `ai/opus_client.PRICES_PER_MTOK`; a model without

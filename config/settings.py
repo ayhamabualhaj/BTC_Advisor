@@ -70,12 +70,14 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'apps.dashboard.context_processors.llm',
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+TEST_RUNNER = 'tests.runner.Runner'
 
 
 # Database: PostgreSQL. The user needs CREATEDB so the test runner can make its own database.

@@ -3,6 +3,7 @@ import datetime
 from django.http import Http404
 from django.shortcuts import render
 
+from ai.opus_client import model_label
 from apps.agents.models import AgentName
 from apps.backtest.services import combining_service
 from apps.dashboard.services import model_service, report_service, signal_service
@@ -29,6 +30,7 @@ def agent_detail(request, agent):
         "rule": [run.rule_score for run in history],
         "ml": [run.ml_score for run in history],
         "opus": [run.opus_score for run in history],
+        "llm_label": model_label(),
     }
     return render(request, "dashboard/agent.html", {
         "agent": agent,
@@ -57,7 +59,7 @@ def parse_horizon(request):
 
 
 def column_groups(columns):
-    """Header groups: one per agent (its Rules, ML and Opus columns), then the vote."""
+    """Header groups: one per agent (its Rules, ML and LLM columns), then the vote."""
     groups = []
     for column in columns:
         if not groups or groups[-1]["agent"] != column.agent:
@@ -86,7 +88,7 @@ def signals(request):
         cards[column.agent]["lines"].append({"column": column, **table["summary"].get(column.key, {})})
     return render(request, "dashboard/signals.html", {
         **table, "cards": list(cards.values()), "groups": column_groups(columns), "horizon": horizon,
-        "horizons": signal_service.HORIZONS, "years": years(table["months"]), "sources": signal_service.SOURCES,
+        "horizons": signal_service.HORIZONS, "years": years(table["months"]), "sources": signal_service.sources(),
     })
 
 
@@ -98,7 +100,7 @@ def signals_overview(request):
         entry["cells"] = [(column, entry["summary"][column.key]) for column in columns]
     return render(request, "dashboard/signals_overview.html", {
         **data, "groups": column_groups(columns), "horizon": horizon, "horizons": signal_service.HORIZONS,
-        "sources": signal_service.SOURCES,
+        "sources": signal_service.sources(),
     })
 
 

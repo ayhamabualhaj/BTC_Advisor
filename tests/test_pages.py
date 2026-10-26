@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from apps.agents.models import AgentRun, PromptVersion
 from apps.backtest.models import BacktestRun, Decision
@@ -35,12 +35,12 @@ class FilledPagesTests(TestCase):
 
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
-        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "ML vote: Buy", "Opus vote: Hold"):
+        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "ML vote: Buy", "Opus 5.5 vote: Hold"):
             self.assertIn(text, page)
 
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
         page = self.client.get("/agents/technical/").content.decode()
-        for text in ("Opus reasoning", "Price above 50-day average", "rsi_14", 'id="score-data"'):
+        for text in ("Opus 5.5 reasoning", "Price above 50-day average", "rsi_14", 'id="score-data"'):
             self.assertIn(text, page)
 
     def test_backtests_page_lists_runs_calibration_and_rule(self):
@@ -121,3 +121,12 @@ class SignalsPageTests(TestCase):
         page = self.client.get("/signals/overview/").content.decode()
         for text in ("Oct 2026 on", "Jul 2026", "?month=2026-07", "rate-cell"):
             self.assertIn(text, page)
+
+
+class LLMLabelTests(TestCase):
+    @override_settings(AI_MODEL="claude-haiku-5-5")
+    def test_pages_name_the_model_in_use(self):
+        from apps.dashboard.services import signal_service
+
+        self.assertEqual(signal_service.sources()[2], ("opus", "Haiku 5.5"))
+        self.assertIn("Haiku 5.5", self.client.get("/signals/").content.decode())

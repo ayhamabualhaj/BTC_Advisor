@@ -3,9 +3,9 @@
 {% block content %}
 <h1>Prompt history</h1>
 <p class="muted">A new version is created whenever an agent's prompt.md changes; old versions are never edited.</p>
-{% if not history %}<p class="empty">No prompt versions yet; they are created on the first Opus run.</p>{% endif %}
+{% if not history %}<p class="empty">No prompt versions yet; they are created on the first LLM run.</p>{% endif %}
 <table class="data">
-  <thead><tr><th>Agent</th><th>Version</th><th>Created</th><th>Runs</th><th>Backtest</th><th>Errors</th><th>Avg Opus</th><th>7-day hit rate</th><th>Cost</th></tr></thead>
+  <thead><tr><th>Agent</th><th>Version</th><th>Created</th><th>Runs</th><th>Backtest</th><th>Errors</th><th>Avg LLM score</th><th>7-day hit rate</th><th>Cost</th></tr></thead>
   <tbody>
   {% for entry in history %}
     <tr><td><span class="dot dot-{{ entry.version.agent }}"></span>{{ entry.version.agent }}</td><td>v{{ entry.version.version }}</td>

@@ -138,5 +138,5 @@ def describe(rule):
     if "overall_lead" in rule:  # the first two-round vote
         return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
                 f"{rule['group_lead']}+), then those 3 votes vote (Buy when Buy leads by {rule['overall_lead']}+)")
-    return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
+    return (f"the Rules, ML and LLM agents each vote among their 3 domains (Buy when Buy leads by "
             f"{rule['group_lead']}+); the overall vote calls only when all those votes agree")

@@ -8,7 +8,7 @@
   <section class="signal {% if decision.signal == 'buy' %}signal-buy{% else %}signal-none{% endif %}">
     {% if decision %}
       <div class="signal-label">{{ decision.get_signal_display }}</div>
-      <div class="muted">{% if decision.rule %}{% if decision.group_calls %}Rules vote: {{ decision.group_calls.rules|capfirst }} · ML vote: {{ decision.group_calls.ml|capfirst }} · Opus vote: {{ decision.group_calls.opus|capfirst }} · overall net {{ decision.net_votes|stringformat:"+d" }}<br>{% endif %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
+      <div class="muted">{% if decision.rule %}{% if decision.group_calls %}Rules vote: {{ decision.group_calls.rules|capfirst }} · ML vote: {{ decision.group_calls.ml|capfirst }} · {{ llm_label }} vote: {{ decision.group_calls.opus|capfirst }} · overall net {{ decision.net_votes|stringformat:"+d" }}<br>{% endif %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
       <div class="signal-label">No decision saved</div>
       <div class="muted">Agent runs exist but no Decision was made for this date.</div>
@@ -21,7 +21,7 @@
       <h2><span class="dot dot-{{ agent }}"></span><a href="{% url 'agent_detail' agent %}">{{ agent|capfirst }}</a></h2>
       {% if run %}
         <div class="tiles">
-          <div><div class="tile-label">Opus</div>{% include "dashboard/_score.html" with score=run.opus_score %}</div>
+          <div><div class="tile-label">{{ llm_label }}</div>{% include "dashboard/_score.html" with score=run.opus_score %}</div>
           <div><div class="tile-label">ML</div>{% include "dashboard/_score.html" with score=run.ml_score %}</div>
           <div><div class="tile-label">Rules</div>{% include "dashboard/_score.html" with score=run.rule_score %}</div>
           <div><div class="tile-label">Direction</div><span class="pill">{{ run.direction|default:"–" }}</span></div>
