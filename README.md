@@ -11,7 +11,8 @@ Flow:
   7 days, with 3-5 reasons and a suggested stop loss.
 
 A buy comes from a two-round vote: the rules, ML and Opus agents each vote among their three
-domains, then those three votes vote (leads chosen on 2019-2024, tested on 2025 onward). The system only advises; it never places trades.
+domains, and the overall vote calls only when those votes all agree (chosen on 2019-2024,
+tested on 2025 onward). The system only advises; it never places trades.
 
 The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 

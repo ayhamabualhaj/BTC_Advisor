@@ -8,8 +8,9 @@
       when not. “won +3.1%” / “lost −2.0%” is the move seen from the call’s side: a Sell that saw the price fall 3.1% won 3.1%.</li>
     <li><strong>Hit rate</strong> = right ÷ (right + wrong).{% if base_rate %} Always guessing “up” would have been right
       {{ base_rate|floatformat:0 }}% of the time since 2019 at this horizon, so that is the bar to beat, not 50%.{% endif %}</li>
-    <li><strong>Votes</strong>: {{ rule_text }}. The Rules, ML and Opus columns under Vote are the first round, Overall
-      the second. Opus has scores on few days; without them it abstains. The leads were chosen on 2019–2024 only.</li>
+    <li><strong>Votes</strong>: {{ rule_text }}. The Rules, ML and Opus columns under Vote are the first round; Overall
+      calls only when they all agree. Opus has scores on few days; without them it sits out and Rules and ML must agree.
+      The group lead was chosen on 2019–2024 only.</li>
     <li>Fair tests: the rules were chosen on Jan 2025 – Sep 2026, so <strong>2019–2024 is new to the rules</strong>; the vote was chosen
       on 2019–2024, so <strong>2025 on is new to the vote</strong>; <strong>Oct 2026 on is new to everything</strong>. ML only ever learns
       from days whose result was already known, so every ML call is a fair test.</li>

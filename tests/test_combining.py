@@ -14,8 +14,8 @@ def result(hit_rate, calls):
     return cs.Result(calls, round(calls * hit_rate / 100), hit_rate, 0, 0, 0.0, 0.0, 0.0)
 
 
-def candidate(group_lead, overall_lead, hit_rate, calls):
-    return cs.Candidate(group_lead, overall_lead, result(hit_rate, calls), result(50, 10))
+def candidate(group_lead, hit_rate, calls):
+    return cs.Candidate(group_lead, result(hit_rate, calls), result(50, 10))
 
 
 class VoteTests(SimpleTestCase):
@@ -35,27 +35,30 @@ class VoteTests(SimpleTestCase):
         self.assertEqual(group_calls(scores, 1), {"rules": "buy", "ml": "sell", "opus": "none"})
         self.assertEqual(group_calls(scores, 2), {"rules": "hold", "ml": "hold", "opus": "none"})
 
-    def test_the_group_votes_vote_and_a_missing_group_abstains(self):
-        self.assertEqual(overall_call({"rules": "buy", "ml": "buy", "opus": "sell"}, 1), "buy")
-        self.assertEqual(overall_call({"rules": "buy", "ml": "hold", "opus": "none"}, 2), "hold")
-        self.assertEqual(overall_call({"rules": "sell", "ml": "sell", "opus": "none"}, 2), "sell")
-        self.assertEqual(overall_call({"rules": "none", "ml": "none", "opus": "none"}, 1), "none")
+    def test_overall_calls_only_when_every_group_vote_agrees(self):
+        self.assertEqual(overall_call({"rules": "buy", "ml": "buy", "opus": "buy"}), "buy")
+        self.assertEqual(overall_call({"rules": "buy", "ml": "buy", "opus": "sell"}), "hold")
+        self.assertEqual(overall_call({"rules": "buy", "ml": "buy", "opus": "hold"}), "hold")
+        # Opus without scores sits out; Rules and ML must agree, and one group alone is not enough.
+        self.assertEqual(overall_call({"rules": "sell", "ml": "sell", "opus": "none"}), "sell")
+        self.assertEqual(overall_call({"rules": "buy", "ml": "none", "opus": "none"}), "hold")
+        self.assertEqual(overall_call({"rules": "none", "ml": "none", "opus": "none"}), "none")
 
     def test_decide_runs_both_rounds(self):
         scores = {"rules": {"technical": 70, "derivatives": 60}, "ml": {"macro": 56}}
-        groups, signal = decide(scores, {"group_lead": 1, "overall_lead": 2})
+        groups, signal = decide(scores, {"group_lead": 1, "overall": cs.OVERALL})
         self.assertEqual((groups, signal), ({"rules": "buy", "ml": "buy", "opus": "none"}, "buy"))
 
 
 class BestVoteTests(SimpleTestCase):
     def test_highest_hit_rate_with_enough_calls(self):
-        lucky = candidate(3, 2, hit_rate=80, calls=20)
-        steady = candidate(1, 2, hit_rate=56, calls=400)
-        loose = candidate(1, 1, hit_rate=53, calls=900)
+        lucky = candidate(3, hit_rate=80, calls=20)
+        steady = candidate(2, hit_rate=56, calls=400)
+        loose = candidate(1, hit_rate=53, calls=900)
         self.assertIs(cs.best([lucky, steady, loose]), steady)
 
     def test_none_when_no_vote_calls_enough(self):
-        self.assertIsNone(cs.best([candidate(3, 2, hit_rate=90, calls=cs.MIN_CALLS - 1)]))
+        self.assertIsNone(cs.best([candidate(3, hit_rate=90, calls=cs.MIN_CALLS - 1)]))
 
 
 class ChooseAndDecideTests(TestCase):
@@ -79,10 +82,10 @@ class ChooseAndDecideTests(TestCase):
 
     def test_chosen_on_the_tuning_years_and_reported_on_the_test(self):
         found, chosen = cs.choose({"rules": self.rules, "ml": self.ml}, self.market, self.returns_7d(), self.days[-1])
-        self.assertEqual(len(found), len(cs.GROUP_LEADS) * len(cs.OVERALL_LEADS))
-        # 7 days on, the price is where it was a day later: rules' even-day Buys rise. On odd
-        # days the rules' Sell and ML's Buy cancel to Hold, so every call made is right.
-        self.assertEqual((chosen.group_lead, chosen.overall_lead), (1, 1))
+        self.assertEqual(len(found), len(cs.GROUP_LEADS))
+        # 7 days on, the price is where it was a day later: rules' even-day Buys rise and ML
+        # agrees. On odd days the rules' Sell and ML's Buy disagree: Hold. Every call is right.
+        self.assertEqual(chosen.group_lead, 1)
         self.assertEqual(chosen.tuning.hit_rate, 100)
         saved = BacktestRun.objects.get(name=cs.RULE_NAME)
         self.assertEqual(saved.settings["tuned_on"], ["2019-01-01", "2024-12-31"])
@@ -92,10 +95,10 @@ class ChooseAndDecideTests(TestCase):
 
     def test_default_rule_until_one_is_chosen(self):
         self.assertEqual(cs.current_rule(), cs.DEFAULT_RULE)
-        # A choice saved by the old one-round vote does not carry over.
-        BacktestRun.objects.create(name=cs.RULE_NAME, start_date=self.days[0], end_date=self.days[0],
-                                   settings={"sources": ["rules", "ml"], "min_net_votes": 2})
-        self.assertEqual(cs.current_rule(), cs.DEFAULT_RULE)
+        # Choices saved by older votes do not carry over.
+        for old in ({"sources": ["rules", "ml"], "min_net_votes": 2}, {"group_lead": 3, "overall_lead": 1}):
+            BacktestRun.objects.create(name=cs.RULE_NAME, start_date=self.days[0], end_date=self.days[0], settings=old)
+            self.assertEqual(cs.current_rule(), cs.DEFAULT_RULE)
 
     def test_decision_applies_the_vote_to_live_runs(self):
         day = datetime.date(2026, 7, 3)
@@ -103,14 +106,14 @@ class ChooseAndDecideTests(TestCase):
             AgentRun.objects.create(date=day, agent=agent, rule_score=rules, ml_score=ml)
         AgentRun.objects.create(date=day, agent="macro", rule_score=90, is_backtest=True)  # backtests never count
 
-        # Default, both leads 1. Rules: 2 Buy, 1 Sell -> Buy. ML: 1 Buy, 1 Hold, 1 Sell -> Hold.
+        # Default, group lead 1. Rules: 2 Buy, 1 Sell -> Buy.
         decision = decision_service.make_decision(day)
+        # ML: technical 60 Buy, derivatives 50 Hold, macro 40 Sell -> net 0, Hold. Not all agree.
         self.assertEqual(decision.group_calls, {"rules": "buy", "ml": "hold", "opus": "none"})
-        self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.BUY, 1))
+        self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.NO_TRADE, 1))
         self.assertEqual((decision.technical_score, decision.macro_score), (72, 40))
 
-        BacktestRun.objects.create(name=cs.RULE_NAME, start_date=day, end_date=day,
-                                   settings={"group_lead": 1, "overall_lead": 2})
-        decision = decision_service.make_decision(day)  # only the Rules vote says Buy: not enough
-        self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.NO_TRADE, 1))
-        self.assertEqual(decision.rule, {"group_lead": 1, "overall_lead": 2})
+        AgentRun.objects.filter(agent="macro").update(ml_score=50)  # ML now 1 Buy, 2 Hold -> Buy
+        decision = decision_service.make_decision(day)
+        self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.BUY, 2))
+        self.assertEqual(decision.rule, cs.DEFAULT_RULE)

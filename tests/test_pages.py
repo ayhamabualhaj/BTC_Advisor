@@ -30,7 +30,7 @@ class FilledPagesTests(TestCase):
             suggested_stop_loss=95000, prompt_version=prompt, cost_usd=Decimal("0.05"),
         )
         Decision.objects.create(date=DAY, technical_score=71, signal="buy", net_votes=2,
-                                rule={"group_lead": 1, "overall_lead": 2},
+                                rule={"group_lead": 1, "overall": "all agree"},
                                 group_calls={"rules": "buy", "ml": "buy", "opus": "hold"})
 
     def test_today_shows_signal_scores_and_reasons(self):
@@ -53,10 +53,10 @@ class FilledPagesTests(TestCase):
         period = {"calls": 120, "right": 66, "hit_rate": 55.0, "buy_days": 40, "trades": 9, "profit_pct": 12.5,
                   "drawdown_pct": 4.0, "hold_pct": 8.0}
         BacktestRun.objects.create(name="combining_rule", start_date=DAY, end_date=DAY, settings={
-            "group_lead": 1, "overall_lead": 2, "tuned_on": ["2019-01-01", "2024-12-31"],
+            "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their 3 domains", "leads by 2+", "55.0%"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their 3 domains", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):

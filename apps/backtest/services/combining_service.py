@@ -1,12 +1,12 @@
-"""Chooses the two-round vote's leads on one period, then tests it once on a later one.
+"""Chooses the two-round vote's group lead on one period, then tests it once on a later one.
 
 The choice is made on 2019-2024 only; 2025 onward is the test, reported but never used
 to choose. Candidates and the way to pick are fixed here, before looking at the test:
 the highest 7-day hit rate of the vote's Buy and Sell calls, among candidates with at
 least MIN_CALLS calls (ties: more calls).
 
-Opus has no scores before mid-2026, so the choice is made on the Rules and ML votes; live,
-the Opus vote joins round 2 as a third voter.
+Opus has no scores before mid-2026, so the choice is made on the Rules and ML votes
+agreeing; live, the Opus vote must agree too.
 """
 
 import datetime
@@ -20,10 +20,11 @@ TUNE_START = datetime.date(2019, 1, 1)
 TUNE_END = datetime.date(2024, 12, 31)
 TEST_START = datetime.date(2025, 1, 1)
 GROUP_LEADS = [1, 2, 3]
-# 3 would need all three groups, and Opus has no history to choose it on.
-OVERALL_LEADS = [1, 2]
 MIN_CALLS = 100
-DEFAULT_RULE = {"group_lead": 1, "overall_lead": 1}
+# Round 2 is fixed: every group vote must agree. Stored with the rule so a choice saved
+# under an older round 2 is not reused.
+OVERALL = "all agree"
+DEFAULT_RULE = {"group_lead": 1, "overall": OVERALL}
 RULE_NAME = "combining_rule"
 
 
@@ -42,13 +43,12 @@ class Result:
 @dataclass
 class Candidate:
     group_lead: int
-    overall_lead: int
     tuning: Result
     test: Result
 
     @property
     def rule(self):
-        return {"group_lead": self.group_lead, "overall_lead": self.overall_lead}
+        return {"group_lead": self.group_lead, "overall": OVERALL}
 
 
 def evaluate(rule, scores_by_source, days, next_day_returns, returns_7d):
@@ -81,11 +81,9 @@ def candidates(scores_by_source, market, returns_7d, test_end):
     test = split(market, TEST_START, test_end)
     found = []
     for group_lead in GROUP_LEADS:
-        for overall_lead in OVERALL_LEADS:
-            rule = {"group_lead": group_lead, "overall_lead": overall_lead}
-            found.append(Candidate(group_lead, overall_lead,
-                                   evaluate(rule, scores_by_source, *tune, returns_7d),
-                                   evaluate(rule, scores_by_source, *test, returns_7d)))
+        rule = {"group_lead": group_lead, "overall": OVERALL}
+        found.append(Candidate(group_lead, evaluate(rule, scores_by_source, *tune, returns_7d),
+                               evaluate(rule, scores_by_source, *test, returns_7d)))
     return found
 
 
@@ -125,17 +123,20 @@ def choose(scores_by_source, market, returns_7d, test_end, save=True):
 
 
 def current_rule():
-    """The latest chosen vote, or the default (both leads 1)."""
+    """The latest chosen vote, or the default (group lead 1)."""
     run = BacktestRun.objects.filter(name=RULE_NAME).order_by("-created_at").first()
-    # Choices saved before the two-round vote do not apply to it.
-    if run is None or "group_lead" not in run.settings:
+    # Choices saved under an older vote do not apply to this one.
+    if run is None or run.settings.get("overall") != OVERALL:
         return dict(DEFAULT_RULE)
-    return {"group_lead": run.settings["group_lead"], "overall_lead": run.settings["overall_lead"]}
+    return {"group_lead": run.settings["group_lead"], "overall": OVERALL}
 
 
 def describe(rule):
     if "group_lead" not in rule:  # a Decision or BacktestRun from the one-round vote
         who = " + ".join({"rules": "rules", "ml": "ML", "opus": "Opus"}[s] for s in rule.get("sources", []))
         return f"one-round vote of the {who} agents, Buy when Buy votes lead by {rule.get('min_net_votes')}+"
+    if "overall_lead" in rule:  # the first two-round vote
+        return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
+                f"{rule['group_lead']}+), then those 3 votes vote (Buy when Buy leads by {rule['overall_lead']}+)")
     return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
-            f"{rule['group_lead']}+), then those 3 votes vote (Buy when Buy leads by {rule['overall_lead']}+)")
+            f"{rule['group_lead']}+); the overall vote calls only when all those votes agree")
