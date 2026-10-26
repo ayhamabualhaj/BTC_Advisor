@@ -7,10 +7,13 @@ from decimal import Decimal
 import anthropic
 from django.conf import settings
 
-# US$ per million tokens for Claude Opus 5.5 (Anthropic API, October 2026).
-# Thinking tokens are billed and reported as output tokens.
-INPUT_PRICE_PER_MTOK = Decimal("4.00")
-OUTPUT_PRICE_PER_MTOK = Decimal("20.00")
+# US$ per million input / output tokens (Anthropic API, October 2026). Thinking tokens are
+# billed and reported as output tokens. Haiku's prices are for prompts of 100K tokens or
+# fewer (ours are ~2-3K); above that it costs 5x.
+PRICES_PER_MTOK = {
+    "claude-opus-5-5": (Decimal("4.00"), Decimal("20.00")),
+    "claude-haiku-5-5": (Decimal("0.10"), Decimal("0.50")),
+}
 MAX_TOKENS = 16000
 ATTEMPTS = 2  # the plan: invalid output is retried once, then logged as an error
 
@@ -39,6 +42,7 @@ class OpusReply:
     output_tokens: int = 0
     cost_usd: Decimal = Decimal("0")
     error: str = ""
+    model: str = ""
 
 
 def make_client():
@@ -46,22 +50,29 @@ def make_client():
     return anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY or None)
 
 
-def cost_usd(input_tokens, output_tokens):
-    return (input_tokens * INPUT_PRICE_PER_MTOK + output_tokens * OUTPUT_PRICE_PER_MTOK) / 1_000_000
+def cost_usd(input_tokens, output_tokens, model=None):
+    model = model or settings.AI_MODEL
+    if model not in PRICES_PER_MTOK:
+        # Never call a model whose cost cannot be logged.
+        raise ValueError(f"No prices for {model}; add them to PRICES_PER_MTOK")
+    input_price, output_price = PRICES_PER_MTOK[model]
+    return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
 
 
-def ask(system_prompt, model_input, client=None):
+def ask(system_prompt, model_input, client=None, model=None):
     """Send the agent's data, get its verdict back as validated JSON.
 
-    Tokens and cost add up over both attempts, since both are paid for.
+    model: defaults to AI_MODEL. Tokens and cost add up over both attempts, since both are paid for.
     """
+    model = model or settings.AI_MODEL
+    cost_usd(0, 0, model)  # fails before any call if the model has no prices
     client = client or make_client()
-    reply = OpusReply(data=None)
+    reply = OpusReply(data=None, model=model)
     user_message = json.dumps(model_input, indent=1, sort_keys=True)
     for _ in range(ATTEMPTS):
         try:
             response = client.messages.create(
-                model=settings.AI_MODEL,
+                model=model,
                 max_tokens=MAX_TOKENS,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
@@ -76,7 +87,7 @@ def ask(system_prompt, model_input, client=None):
             return reply
         reply.input_tokens += response.usage.input_tokens
         reply.output_tokens += response.usage.output_tokens
-        reply.cost_usd = cost_usd(reply.input_tokens, reply.output_tokens)
+        reply.cost_usd = cost_usd(reply.input_tokens, reply.output_tokens, model)
         try:
             reply.data = parse(response)
             reply.error = ""

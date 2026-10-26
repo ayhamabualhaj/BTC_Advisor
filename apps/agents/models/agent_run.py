@@ -17,8 +17,11 @@ class AgentRun(models.Model):
     rule_score = models.FloatField()
     # Empty when the ML agent had too few past days to learn from.
     ml_score = models.FloatField(null=True, blank=True)
-    # Empty for rule-only runs and when Opus failed twice (see error).
+    # Empty for rule-only runs and when Opus failed twice (see error). Holds the score of
+    # whichever Claude model ran (see model), Opus unless a comparison says otherwise.
     opus_score = models.FloatField(null=True, blank=True)
+    # The Claude model asked; empty when none was.
+    model = models.CharField(max_length=40, blank=True)
     direction = models.CharField(max_length=10, choices=Direction.choices, blank=True)
     reasons = models.JSONField(default=list, blank=True)
     key_data = models.JSONField(default=dict, blank=True)
@@ -54,6 +57,7 @@ class AgentRun(models.Model):
             "key_data": key_data,
             "suggested_stop_loss": self.suggested_stop_loss,
             "prompt_version": self.prompt_version.version if self.prompt_version else None,
+            "model": self.model,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "cost_usd": float(self.cost_usd),

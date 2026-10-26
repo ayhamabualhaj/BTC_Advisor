@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 
@@ -69,6 +70,7 @@ def runs_for_version(version):
 
 
 def opus_runs(start, end):
-    """Every run with an Opus score in the period (live and backtest), oldest first."""
-    return (AgentRun.objects.filter(date__range=(start, end), opus_score__isnull=False)
+    """Every run of the configured model (AI_MODEL) in the period (live and backtest), oldest
+    first. Runs of another model, made to compare, stay out."""
+    return (AgentRun.objects.filter(date__range=(start, end), opus_score__isnull=False, model=settings.AI_MODEL)
             .select_related("prompt_version").order_by("date", "created_at"))

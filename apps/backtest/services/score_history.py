@@ -1,5 +1,7 @@
 """Daily agent scores over a period, for backtests: {date: {agent: score}}."""
 
+from django.conf import settings
+
 from ai.domains import DOMAINS
 from apps.agents.models import AgentName, AgentRun
 from apps.agents.services import agent_service, memory_service, rule_scoring_service
@@ -44,7 +46,7 @@ def opus_scores(days, prompt_versions):
     """Opus scores saved by the Opus backtest, for the given prompt version per agent."""
     history = {day: {agent: None for agent in prompt_versions} for day in days}
     runs = AgentRun.objects.filter(
-        is_backtest=True, date__in=days, opus_score__isnull=False,
+        is_backtest=True, date__in=days, opus_score__isnull=False, model=settings.AI_MODEL,
         prompt_version__in=prompt_versions.values(),
     ).order_by("created_at")
     for run in runs:

@@ -157,7 +157,8 @@ class AgentRunTests(TestCase):
         output = run.as_output()
         self.assertEqual(set(output), {
             "agent", "date", "rule_score", "ml_score", "opus_score", "direction", "reasons", "key_data",
-            "suggested_stop_loss", "prompt_version", "input_tokens", "output_tokens", "cost_usd",
+            "suggested_stop_loss", "prompt_version", "model", "input_tokens", "output_tokens", "cost_usd",
         })
+        self.assertEqual(output["model"], "claude-opus-5-5")
         self.assertEqual(output["date"], "2026-07-31")
         self.assertNotIn("model_input", output["key_data"])

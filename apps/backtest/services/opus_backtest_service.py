@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from django.conf import settings
 from django.db.models import Avg
 
 from ai.domains import DOMAINS
@@ -30,14 +31,14 @@ def pending_days(agent, prompt_version, days):
     """Days without a successful backtest run for this prompt version, so reruns resume."""
     done = set(
         AgentRun.objects.filter(agent=agent, prompt_version=prompt_version, is_backtest=True,
-                                opus_score__isnull=False, date__in=days)
+                                opus_score__isnull=False, date__in=days, model=settings.AI_MODEL)
         .values_list("date", flat=True)
     )
     return [day for day in days if day not in done]
 
 
 def average_cost_per_call():
-    average = AgentRun.objects.filter(cost_usd__gt=0).aggregate(avg=Avg("cost_usd"))["avg"]
+    average = AgentRun.objects.filter(cost_usd__gt=0, model=settings.AI_MODEL).aggregate(avg=Avg("cost_usd"))["avg"]
     return Decimal(str(average)) if average else DEFAULT_COST_PER_CALL
 
 

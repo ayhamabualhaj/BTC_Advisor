@@ -79,7 +79,10 @@ class SignalsPageTests(TestCase):
         for offset, score in ((0, 70), (1, 30), (2, 50)):
             AgentRun.objects.create(date=DAY + datetime.timedelta(days=offset), agent="macro", rule_score=50,
                                     opus_score=score, direction="neutral", reasons=[], key_data={},
-                                    prompt_version=prompt, is_backtest=True)
+                                    prompt_version=prompt, is_backtest=True, model="claude-opus-5-5")
+        # A comparison run of another model never shows as Opus.
+        AgentRun.objects.create(date=DAY, agent="macro", rule_score=50, opus_score=20, prompt_version=prompt,
+                                is_backtest=True, model="claude-haiku-5-5")
 
     def test_judges_opus_calls_with_confidence_and_result(self):
         from apps.dashboard.services import signal_service

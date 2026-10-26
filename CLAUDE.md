@@ -226,6 +226,20 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
   `choose_combining_rule --scores ml`.
 
+## Model comparison: Haiku vs Opus (Oct 2026)
+- `AgentRun.model` records the Claude model asked (old runs back-filled as Opus 5.5). Opus
+  queries (Signals, opus_scores, backtest_opus) read only AI_MODEL's runs, so comparison
+  runs never mix in. Prices per model in `ai/opus_client.PRICES_PER_MTOK`; a model without
+  prices is never called.
+- `python manage.py compare_models [--model claude-haiku-5-5] [--estimate] [--max-cost 0.50]
+  [--report]`: replays AI_MODEL's saved backtest questions (same prompt version, same saved
+  model input) to the other model, once per day and agent, then compares at 1/3/7 days.
+- Result on the 30 Opus test days x 3 domains (Jul 1-20, Oct 4-13, prompt v2): Haiku's
+  scores were within 1.7 points of Opus on average, same Buy/Sell/Hold on 78 of 90; 7-day
+  hit rate 33.3% of 33 calls vs Opus 35.5% of 31, Brier 0.262 vs 0.260. Cost $0.048 vs
+  $1.38 (~29x cheaper). Both did badly on these mostly falling days; 90 answers is too few
+  to call either good, only that Haiku answers almost the same.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models

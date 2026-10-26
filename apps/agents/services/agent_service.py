@@ -64,6 +64,7 @@ def save(brief, verdict, prompt, is_backtest):
         key_data=key_data,
         suggested_stop_loss=stop_loss_price(close_on(brief.date), answer.get("suggested_stop_loss_pct")),
         prompt_version=prompt,
+        model=opus.model if opus else "",
         input_tokens=opus.input_tokens if opus else 0,
         output_tokens=opus.output_tokens if opus else 0,
         cost_usd=opus.cost_usd if opus else 0,
