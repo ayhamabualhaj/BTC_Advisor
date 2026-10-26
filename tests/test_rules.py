@@ -55,26 +55,24 @@ class TechnicalRuleTests(SimpleTestCase):
 
 
 class DerivativesRuleTests(SimpleTestCase):
-    def test_high_funding_and_oi_rising_into_falling_price(self):
-        snapshot = {"funding_rate": 0.0005, "open_interest_change_3d_pct": 5, "price_change_3d_pct": -2}
-        self.assertEqual(derivatives_rules.score(snapshot).score, 50 - 15 - 10)
+    def test_very_high_funding_is_bearish(self):
+        self.assertEqual(derivatives_rules.score({"funding_rate": 0.0005}).score, 45)
 
-    def test_negative_funding_flush_and_crowded_shorts(self):
-        snapshot = {"funding_rate": -0.0001, "open_interest_change_3d_pct": 3, "price_change_3d_pct": 1,
-                    "long_liquidations_usd_1d": 30_000_000,
-                    "long_account_ratio": 0.45, "long_account_ratio_90d_avg": 0.60}
-        self.assertEqual(derivatives_rules.score(snapshot).score, 50 + 10 + 5 + 10 + 10)
+    def test_negative_funding_and_a_flush_are_bullish(self):
+        snapshot = {"funding_rate": -0.0001, "long_liquidations_usd_1d": 30_000_000}
+        self.assertEqual(derivatives_rules.score(snapshot).score, 50 + 5 + 5)
 
-    def test_crowded_longs_lower_the_score(self):
-        snapshot = {"long_account_ratio": 0.72, "long_account_ratio_90d_avg": 0.60}
-        self.assertEqual(derivatives_rules.score(snapshot).score, 40)
-
-    def test_normal_market_stays_neutral(self):
-        snapshot = {"funding_rate": 0.0001, "open_interest_change_3d_pct": 1, "price_change_3d_pct": 1,
+    def test_open_interest_and_crowd_no_longer_move_the_score(self):
+        # Both failed on the tuning period: OI rising into a falling price was not bearish
+        # and fading an extreme crowd pointed the wrong way.
+        snapshot = {"funding_rate": 0.0001, "open_interest_change_3d_pct": 5, "price_change_3d_pct": -2,
                     "long_liquidations_usd_1d": 1_000_000,
-                    "long_account_ratio": 0.6, "long_account_ratio_90d_avg": 0.58}
+                    "long_account_ratio": 0.72, "long_account_ratio_90d_avg": 0.60}
         result = derivatives_rules.score(snapshot)
         self.assertEqual((result.score, result.skipped), (50, []))
+
+    def test_missing_data_is_skipped(self):
+        self.assertEqual(derivatives_rules.score({}).skipped, ["Funding rate", "Liquidations"])
 
 
 class MacroRuleTests(SimpleTestCase):

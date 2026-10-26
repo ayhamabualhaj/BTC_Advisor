@@ -118,6 +118,15 @@ score. The system only advises; Ayham places trades manually. Full plan:
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
+## Derivatives agent rework (after step 14)
+- Tuned on Aug 2025 - Jun 2026 only. Two old rules were wrong: OI rising while price fell
+  (-10) was not bearish (test period: up 71% of weeks), and fading an extreme long/short
+  crowd (+-10) pointed the wrong way. Both removed; open interest and the crowd stay in the
+  Opus input as context.
+- Kept, smaller: funding > 0.03% -5, funding negative +5 (tuning: 55% up vs 45% base),
+  long-liquidation flush +5 (no liquidation history yet). Brier test 0.269 -> 0.252.
+- Prompt v2 says what the tuning period showed. Model input unchanged.
+
 ## Signals page (after step 14)
 - /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules and an
   Opus column per agent plus the combining rule. Score >= 55 is Buy, <= 45 Sell, else Hold
@@ -168,4 +177,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, technical agent reworked. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical backtest with prompt v2 (paid, ~$0.45).
+**Current step:** done through 14, technical and derivatives agents reworked, Signals page. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical and derivatives backtests with prompt v2 (paid, ~$0.45 each).
