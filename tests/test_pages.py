@@ -56,7 +56,7 @@ class FilledPagesTests(TestCase):
             "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "4 ML with financial", "all those votes agree", "55.0%"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "ML: macro and financial", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):

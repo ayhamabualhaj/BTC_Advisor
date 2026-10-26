@@ -2,8 +2,8 @@
 
 A local multi-agent tool that advises on daily Bitcoin trades. Three domains (technical
 analysis, derivatives, macro) each have three independent agents, run together by a CrewAI
-Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent, which
-votes with the other ML agents:
+Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent. The ML
+vote is the macro and stress ML agents (technical and derivatives ML are shown but do not vote):
 
 - a **rules** agent: a score computed in code from explicit criteria (start at 50, criteria add or subtract);
 - an **ML** agent: logistic regression on the domain's numbers, retrained every day on past

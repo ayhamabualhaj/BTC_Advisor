@@ -1,8 +1,8 @@
 """The combining rule: a vote in two rounds.
 
 Round 1: each kind of agent votes among its domains. The rule agents (technical,
-derivatives, macro) give the Rules vote, the ML agents (those three plus financial stress)
-the ML vote, the Opus agents the Opus vote. An agent without a score abstains. Each agent says Buy (score >= 55), Sell (<= 45) or Hold; the group says Buy when
+derivatives, macro) give the Rules vote, the macro and financial stress ML agents the ML
+vote (see VOTERS), the Opus agents the Opus vote. An agent without a score abstains. Each agent says Buy (score >= 55), Sell (<= 45) or Hold; the group says Buy when
 its Buy votes lead its Sell votes by at least `group_lead`, Sell when the reverse.
 
 Round 2, the overall vote: Buy (or Sell) only when every group vote agrees. A group with
@@ -14,6 +14,11 @@ buying: a Sell means stay out.
 from ai.scoring import BEARISH_AT, BULLISH_AT
 
 GROUPS = ["rules", "ml", "opus"]
+# Who votes in a group (a group not listed: every domain). Technical and derivatives ML are
+# still scored and shown but do not vote: ~98% of their calls were Buys and they were right
+# less often than "always up". Without them (Oct 2026) the vote's hit rate was the same
+# (54.0% vs 53.8% on 2019-24) and its worst drops smaller (34% vs 40%; from 2025 4% vs 6.5%).
+VOTERS = {"ml": {"macro", "stress"}}
 CALL_VOTES = {"buy": 1, "sell": -1, "hold": 0, "none": 0}
 # One group alone is not "all agree".
 MIN_GROUPS = 2
@@ -54,9 +59,15 @@ def group_call(scores, group_lead):
     return call(scores, group_lead)
 
 
+def voters(source, scores):
+    """The {agent: score} of a group's agents that vote."""
+    allowed = VOTERS.get(source)
+    return scores if allowed is None else {agent: score for agent, score in scores.items() if agent in allowed}
+
+
 def group_calls(scores_by_source, group_lead):
     """{"rules": "buy", "ml": "hold", "opus": "none"} from {source: {agent: score}}."""
-    return {source: group_call(scores_by_source.get(source, {}), group_lead) for source in GROUPS}
+    return {source: group_call(voters(source, scores_by_source.get(source, {})), group_lead) for source in GROUPS}
 
 
 def overall_net(groups):

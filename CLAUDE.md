@@ -346,9 +346,12 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   forest). In the project (stored scores, NFCI as first published): 50.3% of 1056 calls in
   2019-22, 46.3% of 231 in 2023-24, 70.4% of 54 in 2025, 60.0% of 25 in 2026. (With revised
   NFCI it had looked like 48.8 / 28.2 / 62.8% of 86 / 61.1% of 54.)
-- It votes in the ML group (4 voters). Vote re-chosen after the first-print fix: group lead 1,
-  all agree -> 53.8% of 617 on 2019-24; 2025 on 70.8% of 89 calls, +34.8% (rules + ML), with
-  Haiku 69.6% of 56, +19.7% (hold -14.5%).
+- It votes in the ML group. Since Oct 26 2026 the ML vote is macro + stress only
+  (`decision_rule.VOTERS`): technical and derivatives ML were ~98% Buys and below "always up"
+  (2019-24 52.8% / 50.4% vs 54.2%; 2026 43.5% / 45.3% vs 48.3%); they stay scored and shown.
+  Vote (group lead 1, all agree): 54.0% of 626 on 2019-24 (+149%, worst drop 34%; with all 4
+  ML: 53.8% of 617, +221%, 40%); 2025 on 72.3% of 94, +34.2%, drop 4% (rules + ML), with
+  Haiku 68.5% of 54, +18.6% (hold -14.5%).
 - build_memory defaults to 2025: a new agent needs `build_memory --agent X --start
   2017-08-17`. Memory is not in the score fingerprint, so after rebuilding memory delete
   all DailyScore rows and run build_scores (deleting one agent's rows is not enough: a day

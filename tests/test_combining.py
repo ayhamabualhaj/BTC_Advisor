@@ -30,10 +30,14 @@ class VoteTests(SimpleTestCase):
 
     def test_each_kind_of_agent_votes_among_its_domains(self):
         scores = {"rules": {"technical": 60, "derivatives": 70, "macro": 30},
-                  "ml": {"technical": 50, "derivatives": 40, "macro": 50},
+                  "ml": {"macro": 50, "stress": 40},
                   "opus": {"technical": None, "derivatives": None, "macro": None}}
         self.assertEqual(group_calls(scores, 1), {"rules": "buy", "ml": "sell", "opus": "none"})
         self.assertEqual(group_calls(scores, 2), {"rules": "hold", "ml": "hold", "opus": "none"})
+
+    def test_technical_and_derivatives_ml_do_not_vote(self):
+        scores = {"rules": {}, "ml": {"technical": 70, "derivatives": 70, "macro": 50}}
+        self.assertEqual(group_calls(scores, 1)["ml"], "hold")
 
     def test_overall_calls_only_when_every_group_vote_agrees(self):
         self.assertEqual(overall_call({"rules": "buy", "ml": "buy", "opus": "buy"}), "buy")
@@ -102,18 +106,18 @@ class ChooseAndDecideTests(TestCase):
 
     def test_decision_applies_the_vote_to_live_runs(self):
         day = datetime.date(2026, 7, 3)
-        for agent, rules, ml in (("technical", 72, 60), ("derivatives", 66, 50), ("macro", 40, 40)):
+        for agent, rules, ml in (("technical", 72, 60), ("derivatives", 66, 50), ("macro", 40, 50)):
             AgentRun.objects.create(date=day, agent=agent, rule_score=rules, ml_score=ml)
         AgentRun.objects.create(date=day, agent="macro", rule_score=90, is_backtest=True)  # backtests never count
 
         # Default, group lead 1. Rules: 2 Buy, 1 Sell -> Buy.
         decision = decision_service.make_decision(day)
-        # ML: technical 60 Buy, derivatives 50 Hold, macro 40 Sell -> net 0, Hold. Not all agree.
+        # ML: only macro votes (technical's 60 Buy does not count): 50 Hold -> Hold. Not all agree.
         self.assertEqual(decision.group_calls, {"rules": "buy", "ml": "hold", "opus": "none"})
         self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.NO_TRADE, 1))
         self.assertEqual((decision.technical_score, decision.macro_score), (72, 40))
 
-        AgentRun.objects.filter(agent="macro").update(ml_score=50)  # ML now 1 Buy, 2 Hold -> Buy
+        AgentRun.objects.filter(agent="macro").update(ml_score=60)  # ML now macro Buy -> Buy
         decision = decision_service.make_decision(day)
         self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.BUY, 2))
         self.assertEqual(decision.rule, cs.DEFAULT_RULE)

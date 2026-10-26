@@ -17,7 +17,7 @@ from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import GROUPS, decide, net_votes, overall_net, vote
+from apps.backtest.decision_rule import GROUPS, decide, net_votes, overall_net, vote, voters
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
@@ -138,7 +138,7 @@ def day_calls(scores, opus_runs, rule, forward_return):
     by_source = {**scores, "opus": opus_scores}
     groups, overall = decide(by_source, rule)
     for source in GROUPS:
-        calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(by_source[source]))
+        calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(voters(source, by_source[source])))
     calls["vote"] = vote_cell(overall, forward_return, overall_note(groups))
     return calls
 
