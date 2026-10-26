@@ -98,11 +98,11 @@ class RuleScoringServiceTests(TestCase):
 
         results = rule_scoring_service.run_rules(date, save=True)
 
-        self.assertEqual(set(results), {"technical", "derivatives", "macro"})
+        self.assertEqual(set(results), {"technical", "derivatives", "macro", "riskon"})
         run = AgentRun.objects.get(agent="technical")
         # A steady climb of 23% in 30 days (+10); 60 days are too few for the 200-day average.
         self.assertEqual(run.rule_score, 60)
         self.assertEqual(run.reasons, ["Up 23% in 30 days: strong momentum (+10)"])
         self.assertIsNone(run.opus_score)
         self.assertIn("200-day average", run.key_data["skipped"])
-        self.assertEqual(AgentRun.objects.count(), 3)
+        self.assertEqual(AgentRun.objects.count(), 4)

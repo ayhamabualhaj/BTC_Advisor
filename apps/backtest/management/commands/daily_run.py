@@ -38,7 +38,7 @@ class Command(BaseCommand):
         decision = report.decision
         self.stdout.write(self.style.SUCCESS(
             f"{report.date}: {decision.get_signal_display()} "
-            f"(Rules vote {decision.group_calls['rules']}, ML vote {decision.group_calls['ml']}, "
-            f"Opus vote {decision.group_calls['opus']}; overall net {decision.net_votes:+d})"))
+            f"({', '.join(f'{voter} {call}' for voter, call in decision.group_calls.items())}; "
+            f"overall net {decision.net_votes:+d})"))
         self.stdout.write(f"Rule: {combining_service.describe(decision.rule)}")
         self.stdout.write(f"Outcomes updated: {report.outcomes_updated}; memory cases added: {report.memory_cases}")

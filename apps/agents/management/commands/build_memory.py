@@ -3,8 +3,7 @@ import datetime
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.agents.models import AgentName
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, with_kind
 from apps.agents.services import memory_service
 
 
@@ -14,12 +13,13 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--start", default=settings.DATA_START_DATE)
         parser.add_argument("--end", help="YYYY-MM-DD (default: yesterday UTC)")
-        parser.add_argument("--agent", action="append", choices=AgentName.values)
+        # Memory feeds the ML agents (and the LLM's similar days); the risk-on day has neither.
+        parser.add_argument("--agent", action="append", choices=with_kind("ml"))
 
     def handle(self, *args, **options):
         start = datetime.date.fromisoformat(options["start"])
         yesterday = datetime.datetime.now(datetime.UTC).date() - datetime.timedelta(days=1)
         end = datetime.date.fromisoformat(options["end"]) if options["end"] else yesterday
-        for agent in options["agent"] or AgentName.values:
+        for agent in options["agent"] or with_kind("ml"):
             count = memory_service.build_cases(agent, DOMAINS[agent].inputs.model_input, start, end)
             self.stdout.write(self.style.SUCCESS(f"{agent}: {count} memory cases"))

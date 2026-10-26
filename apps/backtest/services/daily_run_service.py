@@ -8,7 +8,7 @@ from django.conf import settings
 from apps.agents.models import AgentRun
 from apps.backtest.decision_rule import overall_call
 from apps.backtest.models import Decision
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, with_kind
 from apps.agents.services import agent_service, memory_service
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import decision_service, outcome_service
@@ -60,9 +60,9 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
     report.decision = decision_service.make_decision(date)
     report.outcomes_updated = outcome_service.update_outcomes()
     # Days whose 7-day outcome became known recently join the memory.
-    for agent, domain in DOMAINS.items():
+    for agent in with_kind("ml"):
         report.memory_cases += memory_service.build_cases(
-            agent, domain.inputs.model_input, date - datetime.timedelta(days=COLLECT_DAYS + 7), date)
+            agent, DOMAINS[agent].inputs.model_input, date - datetime.timedelta(days=COLLECT_DAYS + 7), date)
     return report
 
 

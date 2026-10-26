@@ -6,7 +6,8 @@ A score s means "s% sure the price is higher after the horizon". s >= 55 is a Bu
 never judged. A call is right when the price moved its way; its result is the move seen
 from the call's side (a Sell that saw the price fall 3% won 3%). Rules and ML come from
 score_store (stored, recomputed when the code changes); the LLM from the saved runs. The
-votes are the current combining rule: a Rules, an ML and an LLM vote, then the overall vote.
+votes are the current combining rule: a Rules, an ML and an LLM vote, then the overall vote
+(those three plus the financial stress and risk-on day agents; 3 of the 5 must agree).
 """
 
 import datetime
@@ -17,7 +18,7 @@ from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import GROUPS, decide, net_votes, overall_net, vote, voters
+from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, decide, net_votes, vote, voters
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
@@ -28,6 +29,12 @@ START = datetime.date(2019, 1, 1)
 def sources():
     """Each kind of agent with its label; the LLM one is named after AI_MODEL (e.g. "Haiku 5.5")."""
     return [("rules", "Rules"), ("ml", "ML"), ("opus", model_label())]
+
+
+def voter_labels():
+    """The five voters of the overall vote, by key: three group votes and two single agents."""
+    labels = {source: f"{label} vote" for source, label in sources()}
+    return {**labels, **{voter: AgentName(agent).label for voter, (_, agent) in SOLO.items()}}
 # The periods each part was chosen on, so the pages can say which numbers are a fair test.
 PERIODS = [
     ("2019-2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31),
@@ -111,9 +118,10 @@ def group_note(scores):
 
 
 def overall_note(groups):
-    names = dict(sources())
-    parts = ", ".join(f"{names[source]} {signal if signal != 'none' else 'no scores'}" for source, signal in groups.items())
-    return f"{parts} (net {overall_net(groups):+d})"
+    names = voter_labels()
+    parts = ", ".join(f"{names[voter]} {signal if signal != 'none' else 'did not vote'}" for voter, signal in groups.items())
+    buys, sells = list(groups.values()).count("buy"), list(groups.values()).count("sell")
+    return f"{parts} ({buys} Buy, {sells} Sell; {OVERALL_NEEDED} needed)"
 
 
 def opus_history(start, end):

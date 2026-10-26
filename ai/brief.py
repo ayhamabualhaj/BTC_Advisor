@@ -26,5 +26,5 @@ class Brief:
 class Verdict:
     agent: str
     rules: RuleScore | None  # None for a domain without a rules agent
-    ml: object              # ai.ml.MLScore
+    ml: object | None       # ai.ml.MLScore; None for a domain without an ML agent
     opus: OpusReply | None = None  # None when Opus was not asked

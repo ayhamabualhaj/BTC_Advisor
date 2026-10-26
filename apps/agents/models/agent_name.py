@@ -6,3 +6,4 @@ class AgentName(models.TextChoices):
     DERIVATIVES = "derivatives", "Derivatives"
     MACRO = "macro", "Macro"
     STRESS = "stress", "Financial stress"
+    RISKON = "riskon", "Risk-on day"

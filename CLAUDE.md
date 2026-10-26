@@ -3,7 +3,8 @@
 A local Django tool that advises Ayham on daily Bitcoin trades. Three domains (technical,
 derivatives, macro) each have three independent agents: rules (code), ML (walk-forward:
 logistic regression, random forest for macro) and Opus 5.5 (judgment). A fourth domain,
-financial stress, has only an ML agent (see "Financial stress domain"). The system only advises; Ayham places trades manually. Full plan:
+financial stress, has only an ML agent (see "Financial stress domain"); a fifth, the risk-on
+day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -106,7 +107,20 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
 - `python manage.py calibration --scores rules|opus [--horizon 7]` (opus reads saved
   backtest runs, never calls the API). Saved as BacktestRuns named "<type>:<agent>:calibration".
 
-## Combining rule: the two-round vote (replaces step 10's thresholds)
+## Combining rule: the two-round vote, 3 of 5 (Oct 27 2026, the user's choice)
+- Round 1 as below (Rules vote: technical, derivatives, macro rules; ML vote: macro ML only;
+  LLM vote). Round 2 has five voters (`decision_rule.VOTERS_ROUND_2`): those three votes plus
+  financial stress ML and the risk-on day rule, each voting on its own (`SOLO`, so stress no
+  longer votes inside the ML vote). Buy or Sell when 3 of the 5 say it (`OVERALL_NEEDED`);
+  no score or Hold counts as not agreeing. Stored as overall = "3 of 5"; older choices ignored.
+- choose_combining_rule: group lead 1 again. 2019-24 (no LLM): 56.6% of 371 calls, +202%,
+  worst drop 22% (old "all agree": 54.0% of 626, +149%, 34%). 2025 - Oct 25 2026 with Haiku:
+  68.1% of 91 calls, +32.9%, drop 9.7% (hold -15.3%); old vote on the same days 78.9% of 57,
+  +32.7%. More calls, lower hit rate, same profit from 2025; better on 2019-24.
+- Today page: a "Who voted" table (`report_service.vote_breakdown`): each voter's call, the
+  agents behind it with scores, and which are shown only (technical / derivatives ML).
+
+## Combining rule: the earlier two-round vote ("all agree", replaced Oct 27 2026)
 - `apps/backtest/decision_rule.py`: every agent says Buy (>= 55), Sell (<= 45) or Hold.
   Round 1: the rules agents of the 3 domains vote -> the Rules vote; likewise the ML vote
   and the Opus vote (Buy when Buy leads Sell by `group_lead`). Round 2, the overall vote:
@@ -146,7 +160,8 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Today's "What should I do today?" button (POST /advise/, `daily_run_service.advice()`): runs
   daily_run for yesterday UTC if it has not run (paid LLM calls, ~$0.002 with Haiku), else
-  only reads the saved Decision; shows BUY / SELL / HOLD from the overall vote.
+  only reads the saved Decision; shows BUY / SELL / HOLD from the overall vote and who voted.
+- Nav links every agent page (Technical, Derivatives, Macro, Stress, Risk-on).
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
 ## Signals pages (after step 14)
@@ -170,7 +185,7 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
 
 ## Profit page
 - `/profit/?period=since-2025|2026|2025|90d|2019-2024|all` or `?start=&end=`, `&short=1`:
-  each Signals column (9 agents, Rules / ML / LLM votes, overall vote) as a strategy: Buy =
+  each Signals column (11 agents, Rules / ML / LLM votes, overall vote) as a strategy: Buy =
   long close D to close D+1; Sell = flat, or short with `short`. Profit, vs holding, worst
   drop, trades, trades won, coverage, and one chart line per agent. `profit_service.py` builds
   it from score_store + LLM runs; math in `metrics.py` (positions 1 / 0 / -1). Filters and sort
@@ -365,7 +380,8 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   forest). In the project (stored scores, NFCI as first published): 50.3% of 1056 calls in
   2019-22, 46.3% of 231 in 2023-24, 70.4% of 54 in 2025, 60.0% of 25 in 2026. (With revised
   NFCI it had looked like 48.8 / 28.2 / 62.8% of 86 / 61.1% of 54.)
-- It votes in the ML group. Since Oct 26 2026 the ML vote is macro + stress only
+- Since Oct 27 2026 it votes on its own in round 2 (see the 3-of-5 vote), not in the ML vote.
+  Before that it voted in the ML group. From Oct 26 2026 the ML vote was macro + stress only
   (`decision_rule.VOTERS`): technical and derivatives ML were ~98% Buys and below "always up"
   (2019-24 52.8% / 50.4% vs 54.2%; 2026 43.5% / 45.3% vs 48.3%); they stay scored and shown.
   Vote (group lead 1, all agree): 54.0% of 626 on 2019-24 (+149%, worst drop 34%; with all 4
@@ -375,6 +391,29 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   2017-08-17`. Memory is not in the score fingerprint, so after rebuilding memory delete
   all DailyScore rows and run build_scores (deleting one agent's rows is not enough: a day
   with any stored row counts as done).
+
+## Risk-on day domain (Oct 27 2026)
+- `ai/riskon/`: `inputs.py` and `rules.py` only (`ml = None`, `opus = None`). Rule: Bitcoin up
+  today and the Nasdaq up today (its close vs its previous close; it must have traded that
+  day) -> score 40 = Sell for tomorrow; anything else 50. Never Buys. Snapshot
+  `indicator_service.riskon_snapshot` (binance close, yahoo nasdaq_close; the Nasdaq closes
+  before Bitcoin's 24:00 UTC close, so both are known). No memory (build_memory skips it).
+- Found by looking at 60 markets on 2017-2026: after Bitcoin and US stocks rise together,
+  Bitcoin rises the next day less often. Most of the raw pattern is Bitcoin's own bounce
+  after an up day (47% up next day after a BTC up day in 2017-24, gone from 2025: 49%).
+- Hand-picked "BTC up + Nasdaq up -> Sell", next day: 52.1 / 54.2 / 56.6 / 51.8% in
+  2018-19 / 2020-21 / 2022 / 2023-24 (fair 47.5 / 45.3 / 54.2 / 49.2), 58.4% of 149 from 2025
+  (58.6% 2025, 58.1% 2026), luck p 0.045; holding BTC but out on its Sell days +52.7% vs
+  -15.3%. Over 7 days a coin flip (51.4%). Not a clean test: the Nasdaq was picked after
+  seeing 2025-26; a rules learner on 2017-24 picked only Solana (51.3%), an ML version 52.0%,
+  "Sell after every BTC up day" 53.0%. Added on the user's request; judge it on new data.
+- Same day, also tested and not added (scratchpad scripts): agents per market for the top 20
+  markets by correlation with BTC (rules + logistic ML): none passed, best HYG rules 65.5%
+  (p 0.006). Pairs of the top 10 (joint tertile rules, random forest; 94 strategies) and
+  threes (median-split rules, forest; 170): none passed; the best (stock-index groups, ~60-65%
+  from 2025, p 0.005-0.06) were 41-48% when learned before 2022 and 2023. All 10 together
+  48-49%. Same-day correlation (IBIT +0.91, ETH +0.78) says nothing about tomorrow (next-day
+  correlation -0.07 to +0.01).
 
 ## Data audit, ETF flows and volatility (Oct 26 2026; scripts in the session scratchpad)
 - Audit: no missing Binance days or impossible prices; Binance and Coinbase give the same
@@ -442,4 +481,5 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, financial stress ML agent (4th domain, votes in the ML group), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
+**Current step:** done through 14, risk-on day rules agent (5th domain), overall vote 3 of 5
+(Rules, ML, LLM votes, stress, risk-on day), financial stress ML agent (4th domain), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

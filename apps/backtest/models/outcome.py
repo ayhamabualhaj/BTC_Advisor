@@ -14,6 +14,7 @@ class Outcome(models.Model):
     derivatives_correct = models.BooleanField(null=True, blank=True)
     macro_correct = models.BooleanField(null=True, blank=True)
     stress_correct = models.BooleanField(null=True, blank=True)
+    riskon_correct = models.BooleanField(null=True, blank=True)
 
     class Meta:
         ordering = ["-date"]

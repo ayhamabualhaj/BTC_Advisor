@@ -42,7 +42,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Chosen on {cs.TUNE_START} - {cs.TUNE_END}; tested on {cs.TEST_START} - {end}.")
         for c in found:
             mark = "  <- chosen" if c is chosen else ""
-            self.stdout.write(f"group lead {c.group_lead}, overall: all agree{mark}")
+            self.stdout.write(f"group lead {c.group_lead}, overall: {cs.OVERALL}{mark}")
             self.stdout.write(f"   tuning  {line(c.tuning)}")
             self.stdout.write(f"   test    {line(c.test)}")
             test = cs.split(market, cs.TEST_START, end)

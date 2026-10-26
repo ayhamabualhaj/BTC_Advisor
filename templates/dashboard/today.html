@@ -13,15 +13,15 @@
       <div class="muted">{{ advice.error }}</div>
     {% elif advice.call == "buy" %}
       <div class="advice-label">BUY</div>
-      <div>Every group of agents says Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
+      <div>{{ breakdown.buy }} of the 5 voters say Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
     {% elif advice.call == "sell" %}
       <div class="advice-label">SELL</div>
-      <div>Every group of agents says Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
+      <div>{{ breakdown.sell }} of the 5 voters say Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
     {% else %}
       <div class="advice-label">HOLD: no clear call</div>
-      <div>The agents do not agree for the day that closed on {{ advice.date }}. Do nothing: keep what you have, open nothing new.</div>
+      <div>Fewer than 3 of the 5 voters agree for the day that closed on {{ advice.date }}. Do nothing: keep what you have, open nothing new.</div>
     {% endif %}
-    {% if advice.decision %}<div class="muted small">Rules vote: {{ advice.decision.group_calls.rules|capfirst }} · ML vote: {{ advice.decision.group_calls.ml|capfirst }} · {{ llm_label }} vote: {{ advice.decision.group_calls.opus|capfirst }}. Advice only: you place the trade yourself.</div>{% endif %}
+    {% if advice.decision %}<div class="muted small">Advice only: you place the trade yourself.</div>{% endif %}
   </section>
 {% endif %}
 
@@ -32,17 +32,41 @@
   <section class="signal {% if decision.signal == 'buy' %}signal-buy{% else %}signal-none{% endif %}">
     {% if decision %}
       <div class="signal-label">{{ decision.get_signal_display }}</div>
-      <div class="muted">{% if decision.rule %}{% if decision.group_calls %}Rules vote: {{ decision.group_calls.rules|capfirst }} · ML vote: {{ decision.group_calls.ml|capfirst }} · {{ llm_label }} vote: {{ decision.group_calls.opus|capfirst }} · overall net {{ decision.net_votes|stringformat:"+d" }}<br>{% endif %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
+      <div class="muted">{% if decision.rule %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
       <div class="signal-label">No decision saved</div>
       <div class="muted">Agent runs exist but no Decision was made for this date.</div>
     {% endif %}
   </section>
 
+  {% if breakdown %}
+  <section class="panel votes">
+    <h2>Who voted{% if advice.decision %} <span class="muted">for {{ advice.date }}</span>{% endif %}</h2>
+    <p class="muted small">{{ breakdown.needed }} of 5 must agree. {{ breakdown.buy }} Buy · {{ breakdown.sell }} Sell · {{ breakdown.hold }} Hold · {{ breakdown.missing }} did not vote.</p>
+    <table class="data vote-table">
+      <thead><tr><th>Voter</th><th>Vote</th><th>Agents behind it</th></tr></thead>
+      <tbody>
+      {% for voter in breakdown.voters %}
+        <tr>
+          <td>{{ voter.label }}</td>
+          <td>{% if voter.call == "none" %}<span class="muted">Did not vote</span>{% else %}<span class="vote-call vote-{{ voter.call }}">{{ voter.call|capfirst }}</span>{% endif %}</td>
+          <td class="small">
+            {% for agent in voter.agents %}
+              <span class="{% if not agent.votes %}muted{% endif %}">{{ agent.label }}:
+              {% if agent.call == "none" %}no score{% else %}{{ agent.call|capfirst }} ({{ agent.score|floatformat:0 }}){% endif %}{% if not agent.votes %}, shown only, does not vote{% endif %}</span>{% if not forloop.last %} · {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   <div class="cards">
-    {% for agent, run in cards %}
+    {% for agent, label, run in cards %}
     <article class="card">
-      <h2><span class="dot dot-{{ agent }}"></span><a href="{% url 'agent_detail' agent %}">{{ agent|capfirst }}</a></h2>
+      <h2><span class="dot dot-{{ agent }}"></span><a href="{% url 'agent_detail' agent %}">{{ label }}</a></h2>
       {% if run %}
         <div class="tiles">
           <div><div class="tile-label">{{ llm_label }}</div>{% include "dashboard/_score.html" with score=run.opus_score %}</div>

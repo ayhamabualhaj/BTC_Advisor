@@ -10,7 +10,7 @@ import datetime
 
 from apps.agents.models import AgentName
 from apps.backtest import metrics
-from apps.backtest.decision_rule import decide
+from apps.backtest.decision_rule import GROUPS, decide
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import backtest_service, combining_service, score_store
 from apps.dashboard.services import signal_service
@@ -58,8 +58,8 @@ def daily_signals(days):
                 if f"{agent}:{source}" in signals:
                     signals[f"{agent}:{source}"].append(signal_service.signal_for(by_source[source].get(agent)))
         groups, overall = decide(by_source, rule)
-        for source, signal in groups.items():
-            signals[f"vote:{source}"].append(signal)
+        for source in GROUPS:  # the solo voters (stress, risk-on day) are already agent columns
+            signals[f"vote:{source}"].append(groups[source])
         signals["vote"].append(overall)
     return signals
 

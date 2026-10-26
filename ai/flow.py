@@ -37,7 +37,8 @@ class AdvisorFlow(Flow[AdvisorState]):
 
     @start()
     def ml_agents(self):
-        self.state.ml = {agent: DOMAINS[agent].ml.score(brief) for agent, brief in self.state.briefs.items()}
+        self.state.ml = {agent: DOMAINS[agent].ml.score(brief)
+                         for agent, brief in self.state.briefs.items() if has(agent, "ml")}
 
     @start()
     def opus_agents(self):
@@ -47,7 +48,7 @@ class AdvisorFlow(Flow[AdvisorState]):
 
     @listen(and_(rule_agents, ml_agents, opus_agents))
     def verdicts(self):
-        return [Verdict(agent, self.state.rules.get(agent), self.state.ml[agent], self.state.opus.get(agent))
+        return [Verdict(agent, self.state.rules.get(agent), self.state.ml.get(agent), self.state.opus.get(agent))
                 for agent in self.state.briefs]
 
 

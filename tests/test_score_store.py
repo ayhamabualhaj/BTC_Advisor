@@ -20,7 +20,7 @@ class ScoreStoreTests(TestCase):
 
     def test_scores_are_computed_once_then_read_back(self):
         first = score_store.scores(self.days)
-        self.assertEqual(DailyScore.objects.count(), 15)  # 5 days x 3 rule agents; stress has no ML score yet
+        self.assertEqual(DailyScore.objects.count(), 20)  # 5 days x 4 rule agents; stress has no ML score yet
         with mock.patch("apps.backtest.services.score_history.rule_and_ml_scores") as compute:
             again = score_store.scores(self.days)
         compute.assert_not_called()

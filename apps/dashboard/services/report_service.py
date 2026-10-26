@@ -2,9 +2,15 @@
 
 import datetime
 
+from ai.domains import has
+from apps.agents.models import AgentName
 from apps.backtest import calibration
+from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, VOTERS, VOTERS_ROUND_2
 from apps.backtest.repositories import price_repository
 from apps.dashboard.repositories import report_repository
+from apps.dashboard.services import signal_service
+
+SCORE_FIELDS = {"rules": "rule_score", "ml": "ml_score", "opus": "opus_score"}
 
 
 def today():
@@ -13,6 +19,40 @@ def today():
     date = decision.date if decision else report_repository.latest_live_date()
     runs = report_repository.latest_live_runs(date) if date else []
     return {"date": date, "decision": decision, "agent_runs": runs}
+
+
+def group_members(source):
+    """[(agent, votes)] for a group vote: every agent of that kind, and whether it counts."""
+    solo_agents = {agent for _, agent in SOLO.values()}
+    allowed = VOTERS.get(source)
+    return [(agent, allowed is None or agent in allowed) for agent in AgentName.values
+            if has(agent, source) and agent not in solo_agents]
+
+
+def vote_breakdown(decision):
+    """Who voted what in a Decision's overall vote: the five voters, and each one's agents.
+
+    A voter whose call is "none" did not vote (no score that day); an agent with
+    `votes` False is scored and shown but does not count in its group.
+    """
+    runs = {run.agent: run for run in report_repository.latest_live_runs(decision.date)}
+    labels = signal_service.voter_labels()
+    voters = []
+    for key in VOTERS_ROUND_2:
+        if key in GROUPS:
+            source, members = key, group_members(key)
+        else:
+            source, agent = SOLO[key]
+            members = [(agent, True)]
+        rows = []
+        for agent, votes in members:
+            score = getattr(runs[agent], SCORE_FIELDS[source]) if agent in runs else None
+            rows.append({"label": AgentName(agent).label, "score": score,
+                         "call": signal_service.signal_for(score), "votes": votes})
+        voters.append({"key": key, "label": labels[key], "call": decision.group_calls.get(key, "none"), "agents": rows})
+    calls = [voter["call"] for voter in voters]
+    return {"voters": voters, "needed": OVERALL_NEEDED, "buy": calls.count("buy"), "sell": calls.count("sell"),
+            "hold": calls.count("hold"), "missing": calls.count("none")}
 
 
 def costs():

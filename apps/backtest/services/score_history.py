@@ -2,7 +2,7 @@
 
 from django.conf import settings
 
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, with_kind
 from apps.agents.models import AgentName, AgentRun
 from apps.agents.services import agent_service, memory_service, rule_scoring_service
 from apps.backtest.services import opus_backtest_service
@@ -23,15 +23,16 @@ def rule_and_ml_scores(days, on_progress=None):
     The ML agent is retrained for every day on the cases known by then (walk-forward);
     the memory is read once per agent and cut by date in memory_service.training_cases.
     """
-    cases = {agent: memory_service.known_cases(agent) for agent in DOMAINS}
+    cases = {agent: memory_service.known_cases(agent) for agent in with_kind("ml")}
     rules, ml = {}, {}
     for day in days:
         rules[day], ml[day] = {}, {}
         for agent, domain in DOMAINS.items():
-            brief = agent_service.make_brief(agent, day, cases[agent])
+            brief = agent_service.make_brief(agent, day, cases.get(agent))
             if domain.rules:
                 rules[day][agent] = domain.rules.score(brief.snapshot).score
-            ml[day][agent] = domain.ml.score(brief).score
+            if domain.ml:
+                ml[day][agent] = domain.ml.score(brief).score
         if on_progress:
             on_progress(day)
     return rules, ml

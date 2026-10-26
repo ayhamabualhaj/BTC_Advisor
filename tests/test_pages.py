@@ -33,11 +33,12 @@ class FilledPagesTests(TestCase):
         )
         Decision.objects.create(date=DAY, technical_score=71, signal="buy", net_votes=2,
                                 rule={"group_lead": 1, "overall": "all agree"},
-                                group_calls={"rules": "buy", "ml": "buy", "opus": "hold"})
+                                group_calls={"rules": "buy", "ml": "buy", "opus": "hold", "stress": "buy", "riskon": "none"})
 
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
-        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "ML vote: Buy", "Opus 5.5 vote: Hold"):
+        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "Who voted", "3 of 5 must agree",
+                     "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote"):
             self.assertIn(text, page)
 
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
@@ -58,7 +59,7 @@ class FilledPagesTests(TestCase):
             "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "ML: macro and financial", "all those votes agree", "55.0%"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
@@ -149,11 +150,11 @@ class ProfitPageTests(TestCase):
 
     def test_profit_per_agent_against_holding(self):
         page, rows = self.rows(short=False)
-        self.assertEqual(len(rows), 14)  # 9 agents, the stress ML agent, 3 group votes, the overall vote
+        self.assertEqual(len(rows), 15)  # 9 agents, stress ML, the risk-on day rules, 3 group votes, the overall vote
         self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 - 1) * 100, places=3)
         self.assertEqual((rows["macro:opus"]["trades"], rows["macro:opus"]["days_long"]), (1, 1))
         self.assertLess(page["hold"].total_profit_pct, rows["macro:opus"]["profit_pct"])  # holding loses every day
-        self.assertEqual(len(page["chart"]["lines"]), 14)
+        self.assertEqual(len(page["chart"]["lines"]), 15)
 
     def test_short_mode_profits_from_sell_calls(self):
         _, rows = self.rows(short=True)
@@ -182,16 +183,16 @@ class AdviceButtonTests(TestCase):
         AgentRun.objects.create(date=self.day, agent="technical", rule_score=60)
         Decision.objects.create(date=self.day, signal="no_trade", rule={"group_lead": 1}, group_calls=calls)
 
-    def test_buy_when_every_group_says_buy(self):
-        self.save_decision({"rules": "buy", "ml": "buy", "opus": "buy"})
+    def test_buy_when_three_of_five_say_buy(self):
+        self.save_decision({"rules": "buy", "ml": "buy", "opus": "none", "stress": "buy", "riskon": "sell"})
         with mock.patch("apps.backtest.services.daily_run_service.run") as run:
             self.assertContains(self.client.post("/advise/"), "BUY")
         run.assert_not_called()
 
     def test_sell_and_hold(self):
-        self.save_decision({"rules": "sell", "ml": "sell", "opus": "none"})
+        self.save_decision({"rules": "sell", "ml": "sell", "opus": "none", "stress": "hold", "riskon": "sell"})
         self.assertContains(self.client.post("/advise/"), "SELL")
-        Decision.objects.update(group_calls={"rules": "buy", "ml": "sell", "opus": "none"})
+        Decision.objects.update(group_calls={"rules": "sell", "ml": "sell", "opus": "none", "stress": "buy", "riskon": "none"})
         self.assertContains(self.client.post("/advise/"), "HOLD: no clear call")
 
     def test_runs_the_day_when_it_has_not_run(self):

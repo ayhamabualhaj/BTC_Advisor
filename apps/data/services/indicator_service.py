@@ -13,6 +13,8 @@ PRICE_HISTORY_DAYS = 260
 MAX_STALE_DAYS = 5
 # NFCI is weekly and published 5 days after its week ends, so it is up to 13 days old.
 WEEKLY_STALE_DAYS = 14
+# The Nasdaq's previous close may be up to a long weekend back.
+NASDAQ_GAP_DAYS = 4
 # The long/short ratio is judged against its own recent average.
 LS_HISTORY_DAYS = 90
 
@@ -121,5 +123,22 @@ def stress_snapshot(date):
         "move": move[-1] if move else None,
         "move_change_20d_pct": trend.pct_change(move, 20),
         "nfci": nfci[-1] if nfci else None,
+    }
+    return {key: rounded(value) for key, value in snapshot.items()}
+
+
+def riskon_snapshot(date):
+    """Today's move of Bitcoin and of the Nasdaq; the Nasdaq's is None unless it traded on `date`.
+
+    The Nasdaq closes at 20:00-21:00 UTC, before Bitcoin's daily close at 24:00 UTC, so both
+    are known by the end of `date`.
+    """
+    btc = series("binance", "close", date, 2)
+    nasdaq = series("yahoo", "nasdaq_close", date, 2)
+    btc_known = len(btc) == 2 and btc[-1][0] == date and (date - btc[0][0]).days == 1
+    nasdaq_known = len(nasdaq) == 2 and nasdaq[-1][0] == date and (date - nasdaq[0][0]).days <= NASDAQ_GAP_DAYS
+    snapshot = {
+        "btc_change_1d_pct": (btc[1][1] / btc[0][1] - 1) * 100 if btc_known else None,
+        "nasdaq_change_1d_pct": (nasdaq[1][1] / nasdaq[0][1] - 1) * 100 if nasdaq_known else None,
     }
     return {key: rounded(value) for key, value in snapshot.items()}

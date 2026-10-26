@@ -15,10 +15,13 @@ AGENT_ORDER = AgentName.values
 def today(request, advice=None):
     context = report_service.today()
     runs = {run.agent: run for run in context["agent_runs"]}
-    context["cards"] = [(agent, runs.get(agent)) for agent in AGENT_ORDER]
+    context["cards"] = [(agent, AgentName(agent).label, runs.get(agent)) for agent in AGENT_ORDER]
     decision = context["decision"]
     context["decision_rule_text"] = combining_service.describe(decision.rule) if decision and decision.rule else ""
     context["advice"] = advice
+    # The vote shown is the advice's when the button was pressed, else the latest decision's.
+    shown = advice.decision if advice and advice.decision else decision
+    context["breakdown"] = report_service.vote_breakdown(shown) if shown and shown.group_calls else None
     return render(request, "dashboard/today.html", context)
 
 

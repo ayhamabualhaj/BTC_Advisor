@@ -35,7 +35,7 @@ class DailyRunTests(TestCase):
     def test_without_credentials_runs_rules_only(self):
         report = daily_run_service.run(DAY, collect=False)
         self.assertFalse(report.used_opus)
-        self.assertEqual(AgentRun.objects.filter(date=DAY, opus_score__isnull=True).count(), 4)
+        self.assertEqual(AgentRun.objects.filter(date=DAY, opus_score__isnull=True).count(), 5)
         self.assertEqual(Decision.objects.count(), 1)
 
     def test_same_day_twice_needs_force(self):

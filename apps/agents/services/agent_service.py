@@ -1,7 +1,7 @@
 """Runs a day's agents: builds each domain's Brief, runs the Flow, saves one AgentRun per domain."""
 
 from ai.brief import Brief
-from ai.domains import DOMAINS, with_kind
+from ai.domains import DOMAINS, has, with_kind
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentRun
 from apps.agents.services import memory_service, prompt_service, rule_scoring_service
@@ -25,8 +25,10 @@ def make_brief(agent, date, cases=None, with_similar=False):
     saves reloading the memory for every day of a backtest."""
     snapshot = rule_scoring_service.snapshot(agent, date)
     setup = DOMAINS[agent].inputs.model_input(snapshot)
-    brief = Brief(agent, date, snapshot, setup, training=memory_service.training_cases(agent, date, cases),
-                  ml_features=DOMAINS[agent].ml.features(snapshot, setup))
+    brief = Brief(agent, date, snapshot, setup)
+    if has(agent, "ml"):
+        brief.training = memory_service.training_cases(agent, date, cases)
+        brief.ml_features = DOMAINS[agent].ml.features(snapshot, setup)
     if with_similar:
         brief.similar = memory_service.similar_summary(agent, date, setup)
     return brief
@@ -59,7 +61,7 @@ def save(brief, verdict, prompt, is_backtest):
     rules, ml, opus = verdict.rules, verdict.ml, verdict.opus
     answer = opus.data if opus and opus.data else {}
     key_data = {**brief.snapshot, "skipped": rules.skipped if rules else [], "rule_reasons": rules.reasons if rules else [],
-                "ml_reasons": ml.reasons}
+                "ml_reasons": ml.reasons if ml else []}
     # A domain without rules (financial stress) takes its direction and reasons from ML.
     fallback_direction = rules.direction if rules else ml_direction(ml.score)
     fallback_reasons = rules.reasons if rules else ml.reasons
@@ -69,7 +71,7 @@ def save(brief, verdict, prompt, is_backtest):
         date=brief.date,
         agent=brief.agent,
         rule_score=rules.score if rules else None,
-        ml_score=ml.score,
+        ml_score=ml.score if ml else None,
         opus_score=answer.get("opus_score"),
         # Without a valid Opus reply the run falls back to the rules' direction and reasons.
         direction=answer.get("direction", fallback_direction),

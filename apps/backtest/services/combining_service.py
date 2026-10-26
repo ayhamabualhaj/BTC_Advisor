@@ -5,8 +5,8 @@ to choose. Candidates and the way to pick are fixed here, before looking at the 
 the highest 7-day hit rate of the vote's Buy and Sell calls, among candidates with at
 least MIN_CALLS calls (ties: more calls).
 
-Opus has no scores before mid-2026, so the choice is made on the Rules and ML votes
-agreeing; live, the Opus vote must agree too.
+The LLM has no scores before 2025, so on 2019-2024 the overall vote has four voters (Rules,
+ML, financial stress, risk-on day) and still needs three of them; live, five vote.
 """
 
 import datetime
@@ -21,9 +21,9 @@ TUNE_END = datetime.date(2024, 12, 31)
 TEST_START = datetime.date(2025, 1, 1)
 GROUP_LEADS = [1, 2, 3]
 MIN_CALLS = 100
-# Round 2 is fixed: every group vote must agree. Stored with the rule so a choice saved
+# Round 2 is fixed: 3 of the 5 voters must agree. Stored with the rule so a choice saved
 # under an older round 2 is not reused.
-OVERALL = "all agree"
+OVERALL = "3 of 5"
 DEFAULT_RULE = {"group_lead": 1, "overall": OVERALL}
 RULE_NAME = "combining_rule"
 
@@ -138,6 +138,9 @@ def describe(rule):
     if "overall_lead" in rule:  # the first two-round vote
         return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
                 f"{rule['group_lead']}+), then those 3 votes vote (Buy when Buy leads by {rule['overall_lead']}+)")
-    return (f"the Rules, ML and LLM agents each vote among their domains (3 rules; ML: macro and financial "
-            f"stress; 3 LLM; Buy when Buy leads by {rule['group_lead']}+); the overall vote calls only when "
-            f"all those votes agree")
+    if rule.get("overall") == "all agree":  # Oct 2026: three group votes that all had to agree
+        return (f"the Rules, ML and LLM agents each vote among their domains (Buy when Buy leads by "
+                f"{rule['group_lead']}+); the overall vote calls only when all those votes agree")
+    return (f"five voters: the Rules vote (technical, derivatives, macro), the ML vote (macro), the LLM vote "
+            f"(3 domains; in each group Buy when Buy leads by {rule['group_lead']}+), financial stress ML and "
+            f"the risk-on day; the overall vote says Buy or Sell when 3 of the 5 agree")

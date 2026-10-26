@@ -2,8 +2,9 @@
 
 A local multi-agent tool that advises on daily Bitcoin trades. Three domains (technical
 analysis, derivatives, macro) each have three independent agents, run together by a CrewAI
-Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent. The ML
-vote is the macro and stress ML agents (technical and derivatives ML are shown but do not vote):
+Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent; a fifth,
+the risk-on day (Bitcoin and the Nasdaq both up today -> Sell for tomorrow), only a rules
+agent. The ML vote is the macro ML agent (technical and derivatives ML are shown but do not vote):
 
 - a **rules** agent: a score computed in code from explicit criteria (start at 50, criteria add or subtract);
 - an **ML** agent: logistic regression on the domain's numbers, retrained every day on past
@@ -11,9 +12,11 @@ vote is the macro and stress ML agents (technical and derivatives ML are shown b
 - an **Opus** agent: Claude Opus 5.5's confidence (0-100) that the price is higher in
   7 days, with 3-5 reasons and a suggested stop loss.
 
-A buy comes from a two-round vote: the rules, ML and Opus agents each vote among their three
-domains, and the overall vote calls only when those votes all agree (chosen on 2019-2024,
-tested on 2025 onward). The system only advises; it never places trades.
+A buy comes from a two-round vote: the rules, ML and Opus agents each vote among their
+domains; then five voters (those three votes, the financial stress agent and the risk-on day)
+give the overall vote, Buy or Sell when 3 of the 5 agree (group lead chosen on 2019-2024,
+tested on 2025 onward). The Today page shows who voted what. The system only advises; it
+never places trades.
 
 The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 
@@ -117,7 +120,7 @@ already known.
 
 Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
 (score chart, data used, live/backtest runs), **Signals** (month by month since 2019 and an all-months overview: every Buy/Sell/Hold call from
-each domain's rules, ML and Opus agent, the Rules / ML / Opus votes and the overall vote, with confidence and result, green when right and red when wrong after 1, 3 or 7 days), **Profit** (what following each of the 10 agents and the 4 votes would have earned vs buy-and-hold, any period, stay out or go short on Sell, filter by agent and kind), **Models** (Opus vs Haiku on the same questions, one tab per agent), **Backtests** (profit vs buy-and-hold,
+each domain's rules, ML and Opus agent, the Rules / ML / Opus votes and the overall 3-of-5 vote, with confidence and result, green when right and red when wrong after 1, 3 or 7 days), **Profit** (what following each of the 11 agents and the 4 votes would have earned vs buy-and-hold, any period, stay out or go short on Sell, filter by agent and kind), **Models** (Opus vs Haiku on the same questions, one tab per agent), **Backtests** (profit vs buy-and-hold,
 calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
 prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
 version automatically on the next run.
