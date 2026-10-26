@@ -7,10 +7,11 @@
   <h1>Profit <span class="muted">if you had followed each agent</span></h1>
 </div>
 
+{% if links %}
 <form method="get" class="controls profit-controls" data-period-form>
   <div class="toggle" role="group" aria-label="Period">
-    {% for key, label in presets %}
-      <a href="?period={{ key }}{% if short %}&short=1{% endif %}" class="{% if key == preset %}active{% endif %}">{{ label }}</a>
+    {% for key, label, url in links.periods %}
+      <a href="{{ url }}" class="{% if key == preset %}active{% endif %}">{{ label }}</a>
     {% endfor %}
   </div>
   <div class="date-range">
@@ -18,21 +19,31 @@
     <input type="date" id="start" name="start" value="{{ start|date:'Y-m-d' }}" min="2019-01-01">
     <label class="tile-label" for="end">to</label>
     <input type="date" id="end" name="end" value="{{ end|date:'Y-m-d' }}">
-    {% if short %}<input type="hidden" name="short" value="1">{% endif %}
+    {% for name, value in links.hidden.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
     <button type="submit">Show</button>
+  </div>
+  <div class="toggle" role="group" aria-label="Hold each call for">
+    <span class="tile-label">Hold each call</span>
+    {% for n, url in links.days %}<a href="{{ url }}" class="{% if n == hold_days %}active{% endif %}">{{ n }} day{{ n|pluralize }}</a>{% endfor %}
   </div>
   <div class="toggle" role="group" aria-label="Sell calls">
     <span class="tile-label">Sell calls</span>
-    <a href="?{% if preset == 'custom' %}start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}{% else %}period={{ preset }}{% endif %}" class="{% if not short %}active{% endif %}">Stay out</a>
-    <a href="?{% if preset == 'custom' %}start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}{% else %}period={{ preset }}{% endif %}&short=1" class="{% if short %}active{% endif %}">Go short</a>
+    {% for on, label, url in links.sell %}<a href="{{ url }}" class="{% if on == short %}active{% endif %}">{{ label }}</a>{% endfor %}
+  </div>
+  <div class="toggle" role="group" aria-label="Between calls">
+    <span class="tile-label">Between calls</span>
+    {% for on, label, url in links.between %}<a href="{{ url }}" class="{% if on == hold_between %}active{% endif %}">{{ label }}</a>{% endfor %}
   </div>
 </form>
+{% endif %}
 
 <details class="panel help">
   <summary>How this is calculated</summary>
   <ul>
-    <li>Each agent is a strategy: on a <strong>▲ Buy</strong> day (score 55 or more) you buy at that day's close and sell at the next
-      day's close. Days in a row are one trade. {% if short %}On a <strong>▼ Sell</strong> day you go short instead (you gain when the price falls).{% else %}On Sell and Hold days you hold nothing; the system never shorts.{% endif %}</li>
+    <li>Each agent is a strategy: on a <strong>▲ Buy</strong> day (score 55 or more) you buy at that day's close and hold for
+      {{ hold_days }} day{{ hold_days|pluralize }} (a new Buy or Sell before then replaces it). Days in a row are one trade.
+      {% if short %}On a <strong>▼ Sell</strong> day you go short for {{ hold_days }} day{{ hold_days|pluralize }} instead (you gain when the price falls).{% else %}A <strong>▼ Sell</strong> means hold nothing for {{ hold_days }} day{{ hold_days|pluralize }}.{% endif %}
+      {% if hold_between %}With no call running you <strong>hold Bitcoin</strong>: this is how to judge an agent that only sells, like the risk-on day.{% else %}With no call running you hold nothing.{% endif %}</li>
     <li><strong>Profit</strong> is what 100 would have become, minus 100, with every gain reinvested. No fees or slippage.
       <strong>vs holding</strong> compares with simply buying on the first day and holding to the last.</li>
     <li><strong>Worst drop</strong> is the largest fall of the account from a high point: the pain on the way.

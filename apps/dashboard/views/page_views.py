@@ -1,4 +1,5 @@
 import datetime
+from urllib.parse import urlencode
 
 from django.http import Http404
 from django.shortcuts import redirect, render
@@ -134,11 +135,38 @@ def parse_date(value):
         return None
 
 
+def profit_links(data):
+    """Each control's link: the page's current settings with one of them changed."""
+    current = {"period": data["preset"] if data.get("preset") != "custom" else None,
+               "start": data["start"].isoformat() if data.get("preset") == "custom" else None,
+               "end": data["end"].isoformat() if data.get("preset") == "custom" else None,
+               "short": "1" if data["short"] else None, "days": str(data["hold_days"]) if data["hold_days"] != 1 else None,
+               "between": "hold" if data["hold_between"] else None}
+
+    def link(**changes):
+        return "?" + urlencode({key: value for key, value in {**current, **changes}.items() if value})
+
+    return {
+        "periods": [(key, label, link(period=key, start=None, end=None)) for key, label in data["presets"]],
+        "sell": [(False, "Stay out", link(short=None)), (True, "Go short", link(short="1"))],
+        "days": [(days, link(days=str(days) if days != 1 else None)) for days in profit_service.HOLD_DAYS],
+        "between": [(False, "Stay out", link(between=None)), (True, "Hold Bitcoin", link(between="hold"))],
+        "hidden": {key: current[key] for key in ("short", "days", "between") if current[key]},
+    }
+
+
 def profit(request):
+    try:
+        days = int(request.GET.get("days", 1))
+    except ValueError:
+        days = 1
     data = profit_service.profit_page(request.GET.get("period"), parse_date(request.GET.get("start")),
-                                      parse_date(request.GET.get("end")), request.GET.get("short") == "1")
+                                      parse_date(request.GET.get("end")), request.GET.get("short") == "1",
+                                      days, request.GET.get("between") == "hold")
     groups = [{"agent": agent.value, "label": agent.label} for agent in AgentName] + [{"agent": "vote", "label": "Votes"}]
-    return render(request, "dashboard/profit.html", {**data, "groups": groups, "sources": signal_service.sources()})
+    links = profit_links(data) if "preset" in data else None
+    return render(request, "dashboard/profit.html",
+                  {**data, "groups": groups, "sources": signal_service.sources(), "links": links})
 
 
 def backtests(request):

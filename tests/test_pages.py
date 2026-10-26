@@ -171,6 +171,24 @@ class ProfitPageTests(TestCase):
         self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], expected, places=3)
         self.assertEqual(rows["macro:opus"]["days_short"], 1)
 
+    def test_calls_held_for_several_days_and_bitcoin_held_between_calls(self):
+        from apps.dashboard.services.profit_service import positions
+
+        signals = ["buy", "hold", "hold", "hold", "sell", "none", "hold"]
+        self.assertEqual(positions(signals, short=False), [1, 0, 0, 0, 0, 0, 0])
+        self.assertEqual(positions(signals, short=False, days=3), [1, 1, 1, 0, 0, 0, 0])
+        self.assertEqual(positions(signals, short=True, days=3), [1, 1, 1, 0, -1, -1, -1])
+        # A Sell-only agent kept in Bitcoin except on its Sell days.
+        self.assertEqual(positions(signals, short=False, hold_between=True), [1, 1, 1, 1, 0, 1, 1])
+        self.assertEqual(positions(["buy", "buy", "sell", "hold"], short=False, days=7), [1, 1, 0, 0])
+
+    def test_page_links_keep_the_other_settings(self):
+        page = self.client.get("/profit/?period=2025&days=3&between=hold").content.decode()
+        for text in ("Hold each call", "Between calls", "Hold Bitcoin", "3 days (a new Buy",
+                     "?period=2025&amp;days=7&amp;between=hold", "?period=2025&amp;short=1&amp;days=3&amp;between=hold"):
+            self.assertIn(text, page)
+        self.assertEqual(self.client.get("/profit/?days=5&between=junk").status_code, 200)
+
     def test_page_shows_filters_table_and_chart(self):
         page = self.client.get("/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
         for text in ("data-filter-agent", "data-filter-source", "data-profit-table", "profit-chart-data",

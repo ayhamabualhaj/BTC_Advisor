@@ -187,7 +187,10 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
 ## Profit page
 - `/profit/?period=since-2025|2026|2025|90d|2019-2024|all` or `?start=&end=`, `&short=1`:
   each Signals column (11 agents, Rules / ML / LLM votes, overall vote) as a strategy: Buy =
-  long close D to close D+1; Sell = flat, or short with `short`. Profit, vs holding, worst
+  long close D to close D+1; Sell = flat, or short with `short`. `&days=3|7` holds each call that
+  many days (a new Buy / Sell replaces it); `&between=hold` holds Bitcoin when no call runs (how
+  to judge the Sell-only risk-on day: from 2025 +52.7% at 1 day, +77.9% at 3, +14.9% at 7, vs
+  hold -15.3%; with "stay out" it never trades, 0%). Profit, vs holding, worst
   drop, trades, trades won, coverage, and one chart line per agent. `profit_service.py` builds
   it from score_store + LLM runs; math in `metrics.py` (positions 1 / 0 / -1). Filters and sort
   are client-side in `static/js/profit.js` (localStorage "profit-filters"). Free.

@@ -2,8 +2,10 @@
 
 Every column of the Signals page (10 agents, the Rules / ML / LLM votes and the overall
 vote) becomes a strategy. A Buy (score >= 55, or the vote's Buy) at the close of day D holds
-to the close of D + 1; with `short`, a Sell does the opposite; anything else stays out.
-Compared with buying and holding over the same days. All math is apps/backtest/metrics.py.
+for `days` days (1, 3 or 7; a new call replaces it); with `short`, a Sell does the opposite,
+else it stays out. Between calls you stay out, or with `hold_between` keep holding Bitcoin
+(the way to use an agent that only sells, like the risk-on day). Compared with buying and
+holding over the same days. All math is apps/backtest/metrics.py.
 """
 
 import datetime
@@ -27,6 +29,7 @@ PRESETS = [
 DEFAULT_PRESET = "since-2025"
 # The chart keeps at most about this many points per line (weekly beyond it), so years load fast.
 MAX_CHART_POINTS = 400
+HOLD_DAYS = (1, 3, 7)
 
 
 def period(preset, start, end, last):
@@ -64,9 +67,18 @@ def daily_signals(days):
     return signals
 
 
-def positions(signals, short):
+def positions(signals, short, days=1, hold_between=False):
+    """Position per day: the latest Buy or Sell of the last `days` days, else the between-calls one."""
     side = {"buy": 1, "sell": -1 if short else 0}
-    return [side.get(signal, 0) for signal in signals]
+    idle = 1 if hold_between else 0
+    held, last, age = [], None, 0
+    for signal in signals:
+        if signal in side:
+            last, age = side[signal], 0
+        else:
+            age += 1
+        held.append(last if last is not None and age < days else idle)
+    return held
 
 
 def curve_points(days, curve):
@@ -78,9 +90,9 @@ def curve_points(days, curve):
     return [days[i].isoformat() for i in picked], [round((curve[i] - 1) * 100, 2) for i in picked]
 
 
-def row(column, signals, market, hold, short):
+def row(column, signals, market, hold, short, days, hold_between):
     scored = sum(1 for signal in signals if signal != "none")
-    held = positions(signals, short)
+    held = positions(signals, short, days, hold_between)
     performance = metrics.performance(held, market.next_day_returns)
     curve = metrics.equity_curve(held, market.next_day_returns)
     return {
@@ -99,9 +111,11 @@ def row(column, signals, market, hold, short):
     }
 
 
-def profit_page(preset=None, start=None, end=None, short=False):
+def profit_page(preset=None, start=None, end=None, short=False, days=1, hold_between=False):
     last = price_repository.latest_close_date()
-    page = {"presets": [(key, label) for key, label, _, _ in PRESETS], "short": short, "rows": []}
+    days = days if days in HOLD_DAYS else 1
+    page = {"presets": [(key, label) for key, label, _, _ in PRESETS], "short": short, "hold_days": days,
+            "hold_between": hold_between, "rows": []}
     if last is None:
         return page
     # The last day has no next-day price yet, so it cannot be scored.
@@ -112,7 +126,7 @@ def profit_page(preset=None, start=None, end=None, short=False):
         return page
     hold = metrics.performance([1] * len(market.days), market.next_day_returns)
     signals = daily_signals(market.days)
-    rows = [row(column, signals[column.key], market, hold, short) for column in signal_service.columns()]
+    rows = [row(column, signals[column.key], market, hold, short, days, hold_between) for column in signal_service.columns()]
     labels, hold_curve = curve_points(market.days, metrics.equity_curve([1] * len(market.days), market.next_day_returns))
     rule = combining_service.current_rule()
     return {**page, "rows": sorted(rows, key=lambda r: -r["profit_pct"]), "hold": hold,
