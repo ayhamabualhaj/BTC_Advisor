@@ -256,3 +256,4 @@ tr.total th, tr.total td { font-weight: 600; }
 .vote-sell { background: var(--critical-bg); color: var(--critical); }
 .vote-hold { background: var(--pending-bg); color: var(--text-2); }
 @media (max-width: 640px) { .vote-table td:last-child { white-space: normal; } }
+a.tab { text-decoration: none; gap: 6px; }

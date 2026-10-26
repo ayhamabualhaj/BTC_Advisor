@@ -41,6 +41,15 @@ class FilledPagesTests(TestCase):
                      "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote"):
             self.assertIn(text, page)
 
+    def test_agents_link_opens_one_page_with_a_tab_per_agent(self):
+        self.assertRedirects(self.client.get("/agents/"), "/agents/technical/")
+        page = self.client.get("/agents/riskon/?backtest=1").content.decode()
+        for name in ("Technical analysis", "Derivatives", "Macro", "Financial stress", "Risk-on day"):
+            self.assertIn(name, page)
+        self.assertIn('href="/agents/macro/?backtest=1"', page)  # tabs keep the live / backtest choice
+        self.assertIn('href="/agents/">Agents</a>', page)
+        self.assertNotIn('href="/agents/macro/">Macro</a>', page)  # no longer one menu link per agent
+
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
         page = self.client.get("/agents/technical/").content.decode()
         for text in ("Opus 5.5 reasoning", "Price above 50-day average", "rsi_14", 'id="score-data"'):

@@ -5,6 +5,7 @@ from .views import page_views
 urlpatterns = [
     path("", page_views.today, name="today"),
     path("advise/", page_views.advise, name="advise"),
+    path("agents/", page_views.agents, name="agents"),
     path("agents/<str:agent>/", page_views.agent_detail, name="agent_detail"),
     path("signals/", page_views.signals, name="signals"),
     path("signals/overview/", page_views.signals_overview, name="signals_overview"),

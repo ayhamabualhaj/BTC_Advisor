@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ label }} · BTC Advisor{% endblock %}
 {% block content %}
+<nav class="tabs" aria-label="Agents">
+  {% for key, name in tabs %}
+  <a class="tab" href="{% url 'agent_detail' key %}{% if is_backtest %}?backtest=1{% endif %}"{% if key == agent %} aria-selected="true" aria-current="page"{% endif %}><span class="dot dot-{{ key }}"></span> {{ name }}</a>
+  {% endfor %}
+</nav>
 <h1>{{ label }} agent</h1>
 <p class="toggle">
   <a href="?backtest=0" {% if not is_backtest %}class="active"{% endif %}>Live runs</a>

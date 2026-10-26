@@ -161,7 +161,8 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
 - Today's "What should I do today?" button (POST /advise/, `daily_run_service.advice()`): runs
   daily_run for yesterday UTC if it has not run (paid LLM calls, ~$0.002 with Haiku), else
   only reads the saved Decision; shows BUY / SELL / HOLD from the overall vote and who voted.
-- Nav links every agent page (Technical, Derivatives, Macro, Stress, Risk-on).
+- One "Agents" menu link (/agents/ opens the first agent); each agent page has a tab per agent
+  (keeps the live / backtest choice), so the top bar stays short as agents are added.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
 ## Signals pages (after step 14)

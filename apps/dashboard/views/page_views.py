@@ -1,7 +1,7 @@
 import datetime
 
 from django.http import Http404
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
 from ai.opus_client import model_label
@@ -31,6 +31,11 @@ def advise(request):
     return today(request, daily_run_service.advice())
 
 
+def agents(request):
+    """The Agents menu link: opens the first agent's tab."""
+    return redirect("agent_detail", AGENT_ORDER[0])
+
+
 def agent_detail(request, agent):
     if agent not in AGENT_ORDER:
         raise Http404("Unknown agent")
@@ -46,6 +51,7 @@ def agent_detail(request, agent):
     return render(request, "dashboard/agent.html", {
         "agent": agent,
         "label": AgentName(agent).label,
+        "tabs": [(choice.value, choice.label) for choice in AgentName],
         "latest": history[-1] if history else None,
         "history": list(reversed(history))[:30],
         "is_backtest": is_backtest,
