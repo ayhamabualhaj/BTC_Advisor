@@ -157,8 +157,9 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - The rules lean bearish (technical sells unless the long trend is deeply down; macro sells
   on any CPI print not cooler than trend). Expect them to be wrong in a strong rally.
 - Earlier reworks (mean reversion for technical, dropping OI/crowd rules for derivatives)
-  are replaced; the Opus prompts v2 still describe those findings. The technical Opus
-  backtest runs were made with prompt v1.
+  are replaced. The edited technical and derivatives prompt.md files still describe those
+  findings and are not saved as a version yet: the next Opus run makes them v3. The saved
+  Opus backtest runs used v2 (the text before those edits).
 - choose_combining_rule now stores the default rule when none qualifies, so an older
   choice made on other scores does not stay in force.
 
@@ -204,4 +205,4 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow. Pending for the user: ETF CSV, crontab; optionally rerun the Opus backtests with prompt v2 (paid, ~$0.45 each).
+**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow. Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
