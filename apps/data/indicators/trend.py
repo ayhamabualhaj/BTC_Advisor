@@ -33,3 +33,12 @@ def rolling_sum(values, period):
     if period <= 0 or len(values) < period:
         return None
     return sum(values[-period:])
+
+
+def volatility(values, period):
+    """Standard deviation of the last `period` daily percent changes (population)."""
+    if period <= 0 or len(values) <= period:
+        return None
+    changes = [(values[i] / values[i - 1] - 1) * 100 for i in range(len(values) - period, len(values))]
+    mean = sum(changes) / period
+    return (sum((c - mean) ** 2 for c in changes) / period) ** 0.5

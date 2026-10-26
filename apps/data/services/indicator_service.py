@@ -42,13 +42,14 @@ def technical_snapshot(date):
         "macd_cross_3d": momentum.macd_cross(closes, 3),
         "change_7d_pct": trend.pct_change(closes, 7),
         "change_30d_pct": trend.pct_change(closes, 30),
+        "volatility_14d_pct": trend.volatility(closes, 14),
         **levels.support_resistance(highs, lows, close),
     }
     return {key: rounded(value) for key, value in snapshot.items()}
 
 
 def derivatives_snapshot(date):
-    funding = values("bybit", "funding_rate", date, 7)
+    funding = values("bybit", "funding_rate", date, 30)
     open_interest = values("bybit", "open_interest", date, 8)
     closes = values("binance", "close", date, 8)
     long_ratio = values("bybit", "long_account_ratio", date, LS_HISTORY_DAYS)
@@ -57,6 +58,7 @@ def derivatives_snapshot(date):
     snapshot = {
         "funding_rate": funding[-1] if funding else None,
         "funding_rate_7d_avg": trend.sma(funding, 7),
+        "funding_rate_30d_avg": trend.sma(funding, 30),
         "open_interest_change_3d_pct": trend.pct_change(open_interest, 3),
         "price_change_3d_pct": trend.pct_change(closes, 3),
         "long_account_ratio": long_ratio[-1] if long_ratio else None,
@@ -83,6 +85,9 @@ def macro_snapshot(date):
         "dxy_change_2w_pct": trend.pct_change(dxy, 10),
         "nasdaq": nasdaq[-1] if nasdaq else None,
         "nasdaq_sma_50": trend.sma(nasdaq, 50),
+        # In trading days: a week and about a month.
+        "nasdaq_change_5d_pct": trend.pct_change(nasdaq, 5),
+        "nasdaq_change_20d_pct": trend.pct_change(nasdaq, 20),
         "fed_target_upper": target[-1] if target else None,
         "fed_rate_change_60d": macro.last_rate_change(target, 60) if target else None,
         "treasury_2y": treasury_2y[-1] if treasury_2y else None,

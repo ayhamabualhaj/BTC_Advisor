@@ -33,6 +33,12 @@ class TrendTests(SimpleTestCase):
         self.assertEqual(trend.rolling_sum([5, -2, 3], 2), 1)
 
 
+    def test_volatility_of_daily_moves(self):
+        # Daily moves of +10% and -10% alternate: standard deviation 10.
+        self.assertAlmostEqual(trend.volatility([100, 110, 99, 108.9, 98.01], 4), 10.0)
+        self.assertIsNone(trend.volatility([100, 101], 2))
+
+
 class MomentumTests(SimpleTestCase):
     def test_rsi_matches_wilders_example(self):
         self.assertAlmostEqual(momentum.rsi(WILDER_CLOSES), 70.53, delta=0.1)
@@ -135,6 +141,7 @@ class SnapshotTests(TestCase):
         self.assertIsNone(snapshot["sma_200"])
         self.assertEqual(snapshot["sma_50"], None)
         self.assertEqual(snapshot["sma_20"], 100.0)
+        self.assertEqual(snapshot["volatility_14d_pct"], 0.0)
 
     def test_stale_series_is_ignored(self):
         self.save_daily("bybit", "funding_rate", [0.0001] * 7)

@@ -149,6 +149,43 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
   5 closest as `similar_past_setups` (no dates). `build_memory` (free); daily_run adds new cases.
 
+## Rule search (after step 14)
+- All three rule sets were chosen by a search on Jan 2025 - Sep 23 2026 (no 7-day outcome
+  reaches October), October held out. A rule set was kept only if its Buy (>= 55) / Sell
+  (<= 45) calls were right >= 60% over 7 days on the whole period and ~55%+ in 2025 and
+  2026 separately. Each rule is a full call (10 points); opposite rules cancel to Hold.
+- Tuning hit rates: technical 63.5%, derivatives 60.1% (fragile to the funding
+  thresholds), macro 63.1%. October, applied once: 82%, 82%, 80%, but every agent said
+  Sell nearly every day and October fell, so it is one bearish call, not 17 wins.
+- The rules lean bearish (technical sells unless the long trend is deeply down; macro sells
+  on any CPI print not cooler than trend). Expect them to be wrong in a strong rally.
+- Earlier reworks (mean reversion for technical, dropping OI/crowd rules for derivatives)
+  are replaced; the Opus prompts v2 still describe those findings.
+- choose_combining_rule now stores the default rule when none qualifies, so an older
+  choice made on other scores does not stay in force.
+
+## Signals page (after step 14)
+- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules and an
+  Opus column per agent plus the combining rule. Score >= 55 is Buy, <= 45 Sell, else Hold
+  (never judged). A call is green when the price after 1/3/7 days (`?horizon=`) moved its
+  way, red when not, gray while waiting. Rules are scored fresh (current rules); Opus uses
+  the newest saved run per day. Filters: `?start= &end= &opus=1` (only days with Opus).
+
+## Daily run (step 13)
+- `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
+  last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else
+  rules only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
+  agent). Refuses a date that already ran unless --force, so retries never pay twice.
+- Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
+  `collect_data --source okx` every 4 hours for liquidations.
+
+## RAG memory (step 14)
+- `apps/agents/memory/`: a MemoryCase per agent and day = the agent's model input (as
+  setup_summary JSON) + its 7-day return. The setup's own numbers are the embedding
+  (standardized distance, missing features count as 2 std apart); no embedding service.
+- Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
+  5 closest as `similar_past_setups` (no dates). `build_memory` (free); daily_run adds new cases.
+
 ## Technical agent rework (after step 14)
 - Tuned on Aug 2025 - Jun 2026 only (before the test period). Trend-following signals
   (above 50/200-day average, golden cross, MACD cross) had no 7-day edge; stretched short
@@ -177,4 +214,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, technical and derivatives agents reworked, Signals page. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical and derivatives backtests with prompt v2 (paid, ~$0.45 each).
+**Current step:** done through 14, rule search for all agents, Signals page. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical and derivatives backtests with prompt v2 (paid, ~$0.45 each).

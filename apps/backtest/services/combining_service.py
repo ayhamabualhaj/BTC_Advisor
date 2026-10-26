@@ -54,11 +54,21 @@ def best(candidates):
     return max(eligible, key=lambda c: (round(c.performance.total_profit_pct, 6), -c.performance.max_drawdown_pct))
 
 
+def default_candidate(candidates):
+    return next(c for c in candidates if c.threshold == DEFAULT_RULE["threshold"]
+                and c.agents_required == DEFAULT_RULE["agents_required"])
+
+
 def choose(score_type, scores_by_day, market, save=True):
-    """Sweep, pick, and store the chosen rule. Returns (candidates, chosen or None)."""
+    """Sweep, pick, and store the chosen rule. Returns (candidates, chosen or None).
+
+    When no rule has enough trades the default rule is stored, so an older choice made on
+    other scores does not stay in force.
+    """
     candidates = sweep(scores_by_day, market)
     chosen = best(candidates)
-    if save and chosen:
+    if save:
+        record = chosen or default_candidate(candidates)
         hold = metrics.performance([True] * len(market.days), market.next_day_returns)
         BacktestRun.objects.create(
             name=f"{score_type}:combining_rule",
@@ -66,21 +76,22 @@ def choose(score_type, scores_by_day, market, save=True):
             end_date=market.days[-1],
             settings={
                 "score_type": score_type,
-                "threshold": chosen.threshold,
-                "agents_required": chosen.agents_required,
-                "first_half_pct": chosen.first_half_pct,
-                "second_half_pct": chosen.second_half_pct,
-                "days_in_market": chosen.performance.days_in_market,
+                "threshold": record.threshold,
+                "agents_required": record.agents_required,
+                "is_default": chosen is None,
+                "first_half_pct": record.first_half_pct,
+                "second_half_pct": record.second_half_pct,
+                "days_in_market": record.performance.days_in_market,
                 "candidates": [
                     {"threshold": c.threshold, "agents_required": c.agents_required,
                      "trades": c.performance.trade_count, "profit_pct": c.performance.total_profit_pct}
                     for c in candidates
                 ],
             },
-            trade_count=chosen.performance.trade_count,
-            win_rate=chosen.performance.win_rate,
-            total_profit_pct=chosen.performance.total_profit_pct,
-            max_drawdown_pct=chosen.performance.max_drawdown_pct,
+            trade_count=record.performance.trade_count,
+            win_rate=record.performance.win_rate,
+            total_profit_pct=record.performance.total_profit_pct,
+            max_drawdown_pct=record.performance.max_drawdown_pct,
             buy_and_hold_pct=hold.total_profit_pct,
         )
     return candidates, chosen

@@ -53,6 +53,14 @@ class ChooseAndDecideTests(TestCase):
         self.assertEqual(saved.settings["threshold"], chosen.threshold)
         self.assertEqual(len(saved.settings["candidates"]), 12)
 
+    def test_no_qualifying_rule_stores_the_default_over_an_older_choice(self):
+        combining_service.choose("rules", self.scores, self.market)
+        quiet = {d: {"technical": 50, "derivatives": 50, "macro": 50} for d in self.market.days}
+        _, chosen = combining_service.choose("rules", quiet, self.market)
+        self.assertIsNone(chosen)
+        self.assertEqual(combining_service.current_rule(),
+                         {"score_type": "rules", "threshold": 60, "agents_required": 3})
+
     def test_current_rule_defaults_and_prefers_opus(self):
         self.assertEqual(combining_service.current_rule(),
                          {"score_type": "opus", "threshold": 60, "agents_required": 3})

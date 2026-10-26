@@ -1,56 +1,40 @@
+"""Macro rules, chosen by search on Jan 2025 - Sep 23 2026 (October held out).
+
+Each rule was kept only if the set was right at least 60% of the time over 7 days on the
+whole tuning period and in 2025 and 2026 separately. Stock sell-offs were followed by
+Bitcoin rebounds; low inflation helped; a CPI print no cooler than its recent trend hurt.
+The dollar, Fed and ETF-flow rules did not hold up and were dropped (they stay in the
+Opus input).
+"""
+
 from apps.agents.scoring import RuleScore, has
 
-# Moves smaller than these count as flat, so noise does not swing the score.
-DXY_TREND_PCT = 0.5
-CPI_SURPRISE_PCT = 0.05
-
-DXY_POINTS = 10
-NASDAQ_POINTS = 10
-FED_CUT_POINTS = 10
-FED_HIKE_POINTS = -15
-CPI_POINTS = 5
-ETF_POINTS = 10
+CALL_POINTS = 10
+NASDAQ_DROP_5D_PCT = -4
+NASDAQ_DROP_20D_PCT = -3
+LOW_INFLATION_PCT = 2.7      # CPI year on year
+CPI_NOT_COOLER_PCT = -0.04   # latest monthly change minus the previous 3 months' average
 
 
 def score(snapshot):
     result = RuleScore()
-    if not has(snapshot, "dxy_change_2w_pct"):
-        result.skip("Dollar index trend")
-    elif snapshot["dxy_change_2w_pct"] < -DXY_TREND_PCT:
-        result.add("Dollar index falling over 2 weeks", DXY_POINTS)
-    elif snapshot["dxy_change_2w_pct"] > DXY_TREND_PCT:
-        result.add("Dollar index rising over 2 weeks", -DXY_POINTS)
+    if not has(snapshot, "nasdaq_change_5d_pct"):
+        result.skip("Nasdaq 5-day change")
+    elif snapshot["nasdaq_change_5d_pct"] < NASDAQ_DROP_5D_PCT:
+        result.add(f"Nasdaq down {-snapshot['nasdaq_change_5d_pct']:.1f}% in a week: rebound likely", CALL_POINTS)
 
-    if not has(snapshot, "nasdaq", "nasdaq_sma_50"):
-        result.skip("Nasdaq trend")
-    elif snapshot["nasdaq"] > snapshot["nasdaq_sma_50"]:
-        result.add("Nasdaq above its 50-day average", NASDAQ_POINTS)
-    else:
-        result.add("Nasdaq below its 50-day average", -NASDAQ_POINTS)
+    if not has(snapshot, "nasdaq_change_20d_pct"):
+        result.skip("Nasdaq 20-day change")
+    elif snapshot["nasdaq_change_20d_pct"] < NASDAQ_DROP_20D_PCT:
+        result.add(f"Nasdaq down {-snapshot['nasdaq_change_20d_pct']:.1f}% in a month: rebound likely", CALL_POINTS)
 
-    score_fed(snapshot, result)
+    if not has(snapshot, "cpi_yoy_pct"):
+        result.skip("Inflation")
+    elif snapshot["cpi_yoy_pct"] < LOW_INFLATION_PCT:
+        result.add(f"Inflation low at {snapshot['cpi_yoy_pct']:.1f}%", CALL_POINTS)
 
     if not has(snapshot, "cpi_surprise_pct"):
         result.skip("CPI")
-    elif snapshot["cpi_surprise_pct"] < -CPI_SURPRISE_PCT:
-        result.add("CPI cooler than its recent trend", CPI_POINTS)
-    elif snapshot["cpi_surprise_pct"] > CPI_SURPRISE_PCT:
-        result.add("CPI hotter than its recent trend", -CPI_POINTS)
-
-    if not has(snapshot, "etf_net_flow_5d_musd"):
-        result.skip("ETF flows")
-    elif snapshot["etf_net_flow_5d_musd"] > 0:
-        result.add("Spot ETF net inflows over 5 days", ETF_POINTS)
-    elif snapshot["etf_net_flow_5d_musd"] < 0:
-        result.add("Spot ETF net outflows over 5 days", -ETF_POINTS)
+    elif snapshot["cpi_surprise_pct"] > CPI_NOT_COOLER_PCT:
+        result.add("Latest CPI no cooler than its recent trend", -CALL_POINTS)
     return result
-
-
-def score_fed(snapshot, result):
-    change = snapshot.get("fed_rate_change_60d")
-    if change is None and snapshot.get("cuts_expected") is None:
-        result.skip("Fed policy")
-    elif change == 1:
-        result.add("Fed hiked rates recently", FED_HIKE_POINTS)
-    elif change == -1 or snapshot.get("cuts_expected"):
-        result.add("Fed rate cut just happened or expected", FED_CUT_POINTS)

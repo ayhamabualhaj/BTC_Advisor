@@ -129,7 +129,7 @@ class AgentRunTests(TestCase):
         self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro"])
         self.assertEqual(len(client.calls), 3)
         run = AgentRun.objects.get(agent="technical")
-        self.assertEqual((run.rule_score, run.opus_score, run.direction), (40, 62, "bullish"))
+        self.assertEqual((run.rule_score, run.opus_score, run.direction), (60, 62, "bullish"))
         self.assertEqual(run.prompt_version.version, 1)
         self.assertEqual(run.suggested_stop_loss, round(159.0 * 0.95, 2))
         self.assertEqual((run.input_tokens, run.output_tokens), (1000, 500))
@@ -148,7 +148,7 @@ class AgentRunTests(TestCase):
         client = FakeClient(response("broken"))
         [run] = agent_service.run_agents(DAY, ["technical"], client=client)
         self.assertIsNone(run.opus_score)
-        self.assertEqual(run.direction, "bearish")  # the rule direction stands in
+        self.assertEqual(run.direction, "bullish")  # the rule direction stands in
         self.assertIn("Invalid reply", run.error)
         self.assertEqual(run.input_tokens, 2000)
 

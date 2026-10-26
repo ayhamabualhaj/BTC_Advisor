@@ -32,68 +32,61 @@ class RuleScoreTests(SimpleTestCase):
 
 
 class TechnicalRuleTests(SimpleTestCase):
-    def test_sharp_drop_into_support_is_bullish(self):
-        snapshot = {"close": 90, "sma_20": 100, "sma_200": 80, "rsi_14": 25, "change_7d_pct": -8,
-                    "near_support": True, "near_resistance": False}
-        self.assertEqual(technical_rules.score(snapshot).score, 50 + 3 + 5 + 3 + 5 + 3)
+    def test_normal_trend_is_a_mild_sell(self):
+        snapshot = {"close": 100, "sma_50": 98, "sma_200": 95, "change_30d_pct": 4, "volatility_14d_pct": 2}
+        self.assertEqual(technical_rules.score(snapshot).score, 40)
 
-    def test_stretched_rally_into_resistance_is_bearish(self):
-        snapshot = {"close": 110, "sma_20": 100, "sma_200": 120, "rsi_14": 75, "change_7d_pct": 8,
-                    "near_support": False, "near_resistance": True}
-        self.assertEqual(technical_rules.score(snapshot).score, 50 - 3 - 5 - 5 - 5 - 3)
+    def test_strong_rally_or_high_volatility_overrides_the_sell(self):
+        snapshot = {"close": 100, "sma_50": 98, "sma_200": 95, "change_30d_pct": 20, "volatility_14d_pct": 3.5}
+        self.assertEqual(technical_rules.score(snapshot).score, 50 - 10 + 10 + 10)
 
-    def test_an_uptrend_alone_is_barely_bullish(self):
-        # Above every average with normal momentum: the trend is context, not a buy signal.
-        result = technical_rules.score({"close": 100, "sma_20": 98, "sma_50": 95, "sma_200": 80,
-                                        "rsi_14": 60, "change_7d_pct": 2, "macd_cross_3d": "bullish"})
-        self.assertEqual((result.score, result.direction), (53, "neutral"))
+    def test_deep_downtrend_far_below_200_day_is_a_buy(self):
+        snapshot = {"close": 70, "sma_50": 85, "sma_200": 100, "change_30d_pct": -10, "volatility_14d_pct": 2}
+        result = technical_rules.score(snapshot)
+        self.assertEqual((result.score, result.direction), (60, "bullish"))
 
     def test_missing_data_is_skipped_not_counted(self):
         result = technical_rules.score({"close": None})
         self.assertEqual(result.score, 50)
-        self.assertEqual(result.skipped, ["200-day average", "20-day average", "7-day change", "RSI"])
+        self.assertEqual(result.skipped, ["50- vs 200-day average", "30-day change", "Volatility", "200-day average"])
 
 
 class DerivativesRuleTests(SimpleTestCase):
-    def test_very_high_funding_is_bearish(self):
-        self.assertEqual(derivatives_rules.score({"funding_rate": 0.0005}).score, 45)
+    def test_crowded_funding_and_open_interest_collapse_are_bearish(self):
+        snapshot = {"funding_rate_30d_avg": 0.00005, "funding_rate_7d_avg": 0.00004,
+                    "price_change_3d_pct": -3, "open_interest_change_3d_pct": -12}
+        self.assertEqual(derivatives_rules.score(snapshot).score, 30)
 
-    def test_negative_funding_and_a_flush_are_bullish(self):
-        snapshot = {"funding_rate": -0.0001, "long_liquidations_usd_1d": 30_000_000}
-        self.assertEqual(derivatives_rules.score(snapshot).score, 50 + 5 + 5)
+    def test_quiet_funding_price_jump_and_flush_are_bullish(self):
+        snapshot = {"funding_rate_30d_avg": 0.00002, "funding_rate_7d_avg": 0.000001,
+                    "price_change_3d_pct": 7, "open_interest_change_3d_pct": 1,
+                    "long_liquidations_usd_1d": 30_000_000}
+        self.assertEqual(derivatives_rules.score(snapshot).score, 50 + 10 + 10 + 5)
 
-    def test_open_interest_and_crowd_no_longer_move_the_score(self):
-        # Both failed on the tuning period: OI rising into a falling price was not bearish
-        # and fading an extreme crowd pointed the wrong way.
-        snapshot = {"funding_rate": 0.0001, "open_interest_change_3d_pct": 5, "price_change_3d_pct": -2,
-                    "long_liquidations_usd_1d": 1_000_000,
-                    "long_account_ratio": 0.72, "long_account_ratio_90d_avg": 0.60}
+    def test_normal_market_stays_neutral(self):
+        snapshot = {"funding_rate_30d_avg": 0.00002, "funding_rate_7d_avg": 0.00002,
+                    "price_change_3d_pct": 1, "open_interest_change_3d_pct": 1, "long_liquidations_usd_1d": 1_000_000}
         result = derivatives_rules.score(snapshot)
         self.assertEqual((result.score, result.skipped), (50, []))
 
     def test_missing_data_is_skipped(self):
-        self.assertEqual(derivatives_rules.score({}).skipped, ["Funding rate", "Liquidations"])
+        self.assertEqual(derivatives_rules.score({}).skipped,
+                         ["30-day funding", "7-day funding", "3-day price change", "Open interest", "Liquidations"])
 
 
 class MacroRuleTests(SimpleTestCase):
-    def test_supportive_macro(self):
-        snapshot = {"dxy_change_2w_pct": -1.2, "nasdaq": 110, "nasdaq_sma_50": 100,
-                    "fed_rate_change_60d": -1, "cpi_surprise_pct": -0.1, "etf_net_flow_5d_musd": 500}
-        self.assertEqual(macro_rules.score(snapshot).score, 50 + 10 + 10 + 10 + 5 + 10)
+    def test_stock_selloff_and_low_inflation_are_bullish(self):
+        snapshot = {"nasdaq_change_5d_pct": -5, "nasdaq_change_20d_pct": -6,
+                    "cpi_yoy_pct": 2.4, "cpi_surprise_pct": -0.1}
+        self.assertEqual(macro_rules.score(snapshot).score, 80)
 
-    def test_hostile_macro(self):
-        snapshot = {"dxy_change_2w_pct": 1.2, "nasdaq": 90, "nasdaq_sma_50": 100,
-                    "fed_rate_change_60d": 1, "cuts_expected": True,
-                    "cpi_surprise_pct": 0.1, "etf_net_flow_5d_musd": -500}
-        # A hike outweighs cut expectations.
-        self.assertEqual(macro_rules.score(snapshot).score, 50 - 10 - 10 - 15 - 5 - 10)
+    def test_cpi_no_cooler_than_trend_is_bearish(self):
+        snapshot = {"nasdaq_change_5d_pct": 1, "nasdaq_change_20d_pct": 2, "cpi_yoy_pct": 3.1, "cpi_surprise_pct": 0}
+        self.assertEqual(macro_rules.score(snapshot).score, 40)
 
-    def test_expected_cuts_count_like_a_cut(self):
-        result = macro_rules.score({"fed_rate_change_60d": 0, "cuts_expected": True})
-        self.assertEqual(result.score, 60)
-
-    def test_small_dollar_move_is_flat(self):
-        self.assertEqual(macro_rules.score({"dxy_change_2w_pct": 0.3}).score, 50)
+    def test_missing_data_is_skipped(self):
+        result = macro_rules.score({})
+        self.assertEqual((result.score, len(result.skipped)), (50, 4))
 
 
 class RuleScoringServiceTests(TestCase):
@@ -107,11 +100,9 @@ class RuleScoringServiceTests(TestCase):
 
         self.assertEqual(set(results), {"technical", "derivatives", "macro"})
         run = AgentRun.objects.get(agent="technical")
-        # A steady climb: 6.4% above the 20-day average (-5) and RSI 100 (-5); the 7-day
-        # gain of 4.6% is under the cutoff and 60 days are too few for the 200-day average.
-        self.assertEqual(run.rule_score, 40)
-        self.assertEqual(run.reasons, ["Price 6.4% above 20-day average: stretched (-5)",
-                                       "RSI 100: overbought (-5)"])
+        # A steady climb of 23% in 30 days (+10); 60 days are too few for the 200-day average.
+        self.assertEqual(run.rule_score, 60)
+        self.assertEqual(run.reasons, ["Up 23% in 30 days: strong momentum (+10)"])
         self.assertIsNone(run.opus_score)
         self.assertIn("200-day average", run.key_data["skipped"])
         self.assertEqual(AgentRun.objects.count(), 3)
