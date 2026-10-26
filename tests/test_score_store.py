@@ -1,6 +1,7 @@
 import datetime
 from unittest import mock
 
+from django.core.cache import cache
 from django.test import TestCase
 
 from apps.backtest.models import DailyScore
@@ -35,3 +36,16 @@ class ScoreStoreTests(TestCase):
         recent = [datetime.date.today() - datetime.timedelta(days=2)]
         score_store.scores(recent)
         self.assertFalse(DailyScore.objects.filter(date=recent[0]).exists())
+
+    def test_recent_days_are_kept_in_memory_until_new_data_arrives(self):
+        cache.clear()
+        recent = [datetime.date.today() - datetime.timedelta(days=2)]
+        score_store.scores(recent)
+        with mock.patch("apps.backtest.services.score_history.rule_and_ml_scores") as compute:
+            score_store.scores(recent)
+        compute.assert_not_called()
+        market_data_repository.save_points("binance", [Point(recent[0], "close", 1.0)])
+        with mock.patch("apps.backtest.services.score_history.rule_and_ml_scores",
+                        return_value=({recent[0]: {}}, {recent[0]: {}})) as compute:
+            score_store.scores(recent)
+        compute.assert_called_once()

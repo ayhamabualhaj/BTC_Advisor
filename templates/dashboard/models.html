@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Models · BTC Advisor{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Model comparison{% if model %} <span class="muted">{{ reference_label }} vs {{ other_label }}</span>{% endif %}</h1>
+  {% if model %}
+  <div class="toggle" role="group" aria-label="Judge after">
+    <span class="tile-label">Judge after</span>
+    {% for h in horizons %}<a href="?model={{ model }}&horizon={{ h }}" class="{% if h == horizon %}active{% endif %}">{{ h }} day{{ h|pluralize }}</a>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+{% if not model %}
+  <p class="empty">No other model has answered yet. Run <code>python manage.py compare_models --estimate</code>, then
+    <code>compare_models --max-cost 0.50</code> (paid).</p>
+{% else %}
+<details class="panel help">
+  <summary>How this works</summary>
+  <ul>
+    <li>{{ other_label }} was asked <strong>exactly</strong> what {{ reference_label }} was asked in its backtest: the same prompt version
+      and the same numbers, day by day. So any difference is the model, not the question.</li>
+    <li>Scores and calls are read like the Signals page: 55+ is ▲ Buy, 45 or less ▼ Sell, in between Hold (not judged);
+      a call is <span class="call-right inline">right</span> when the price moved its way after {{ horizon }} day{{ horizon|pluralize }}.</li>
+    <li><strong>Brier</strong>: how far the scores were from what happened (0.25 = always saying 50; lower is better).</li>
+    <li>{{ total.reference.days }} questions per model is little: read this as "do they answer alike", not "which one is good".</li>
+  </ul>
+</details>
+
+{% if models|length > 1 %}
+<form method="get" class="controls">
+  <input type="hidden" name="horizon" value="{{ horizon }}">
+  <label class="tile-label" for="model-pick">Compare with</label>
+  <select id="model-pick" name="model" onchange="this.form.submit()">
+    {% for key, name in models %}<option value="{{ key }}" {% if key == model %}selected{% endif %}>{{ name }}</option>{% endfor %}
+  </select>
+</form>
+{% endif %}
+
+<div class="tabs" role="tablist" aria-label="Agent" data-tabs>
+  <button type="button" role="tab" class="tab" id="tab-all" aria-controls="panel-all" data-tab="all">All agents</button>
+  {% for agent in agents %}
+  <button type="button" role="tab" class="tab" id="tab-{{ agent.key }}" aria-controls="panel-{{ agent.key }}" data-tab="{{ agent.key }}">
+    <span class="dot dot-{{ agent.key }}"></span>{{ agent.label }}</button>
+  {% endfor %}
+</div>
+
+<section class="panel" role="tabpanel" id="panel-all" aria-labelledby="tab-all" data-panel="all">
+  <table class="data">
+    <thead>
+      <tr><th>Agent</th><th class="num">Questions</th><th>Hit rate ({{ horizon }}d)</th><th class="num">Brier</th>
+        <th class="num">Same call</th><th class="num">Mean score gap</th><th class="num">Cost</th></tr>
+    </thead>
+    <tbody>
+    {% for agent in agents %}
+      {% include "dashboard/_model_summary_row.html" with name=agent.label key=agent.key s=agent.summary %}
+    {% endfor %}
+    {% include "dashboard/_model_summary_row.html" with name="All" key="" s=total %}
+    </tbody>
+  </table>
+  <p class="small muted">Each row shows {{ reference_label }} on top, {{ other_label }} below. Click an agent to see its days.</p>
+</section>
+
+{% for agent in agents %}
+<section role="tabpanel" id="panel-{{ agent.key }}" aria-labelledby="tab-{{ agent.key }}" data-panel="{{ agent.key }}" hidden>
+  <div class="cards">
+    {% include "dashboard/_model_card.html" with name=reference_label t=agent.summary.reference %}
+    {% include "dashboard/_model_card.html" with name=other_label t=agent.summary.other %}
+    <article class="card">
+      <h2>Agreement</h2>
+      <div class="hit-rate">{{ agent.summary.same_side }} / {{ agent.summary.reference.days }}</div>
+      <p class="small muted">days with the same call (Buy, Sell or Hold)</p>
+      <p class="small">Mean score gap <strong>{{ agent.summary.gap|floatformat:1 }}</strong> points</p>
+    </article>
+  </div>
+
+  <div class="panel">
+    <h2>Scores day by day <span class="muted">50 = no edge; above = expects a rise</span></h2>
+    <div class="chart-box"><canvas id="chart-{{ agent.key }}" role="img"
+      aria-label="{{ reference_label }} and {{ other_label }} scores for the {{ agent.label }} agent"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <table class="data signals">
+      <thead><tr><th>Day</th><th class="num">BTC after {{ horizon }}d</th><th>{{ reference_label }}</th><th>{{ other_label }}</th>
+        <th>Same call</th><th class="num">Gap</th></tr></thead>
+      <tbody>
+      {% for row in agent.rows %}
+        <tr>
+          <th>{{ row.date|date:"D j M Y" }}</th>
+          <td class="num {% if row.return_pct > 0 %}up{% elif row.return_pct < 0 %}down{% endif %}">
+            {% if row.return_pct is not None %}{{ row.return_pct|floatformat:2 }}%{% else %}<span class="muted">waiting</span>{% endif %}</td>
+          {% include "dashboard/_model_call.html" with call=row.reference reasons=row.reference_reasons %}
+          {% include "dashboard/_model_call.html" with call=row.other reasons=row.other_reasons %}
+          <td>{% if row.same_side %}✓ yes{% else %}<strong>✗ no</strong>{% endif %}</td>
+          <td class="num">{{ row.gap|floatformat:0 }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">Gap = {{ other_label }}'s score minus {{ reference_label }}'s. Hover a call for the model's reasons.</p>
+  </div>
+</section>
+{% endfor %}
+{{ chart|json_script:"model-chart-data" }}
+{{ reference_label|json_script:"model-reference-label" }}
+{{ other_label|json_script:"model-other-label" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/models.js' %}"></script>{% endblock %}

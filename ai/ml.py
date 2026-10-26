@@ -12,11 +12,6 @@ import datetime
 import math
 from dataclasses import dataclass, field
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 # Fewer past days than this is too little to learn from; the agent abstains (no score).
 MIN_CASES = 120
@@ -56,7 +51,14 @@ def monthly_cutoff(date):
     return date.replace(day=1) - datetime.timedelta(days=HORIZON_DAYS + 1)
 
 
+# scikit-learn is imported inside the builders: it takes a second to load, and pages that
+# read stored scores never train a model.
 def logistic(regularization=REGULARIZATION):
+    from sklearn.impute import SimpleImputer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
     # A feature missing on a past day is filled with that feature's median; one never seen
     # in training is kept as a constant column so the inputs keep their order.
     return make_pipeline(SimpleImputer(strategy="median", keep_empty_features=True), StandardScaler(),
@@ -64,6 +66,10 @@ def logistic(regularization=REGULARIZATION):
 
 
 def forest():
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import make_pipeline
+
     # add_indicator: a flag column per feature that was missing, so a gap is not read as the median.
     return make_pipeline(SimpleImputer(strategy="median", add_indicator=True, keep_empty_features=True),
                          RandomForestClassifier(FOREST_TREES, max_depth=FOREST_DEPTH, min_samples_leaf=FOREST_MIN_LEAF,

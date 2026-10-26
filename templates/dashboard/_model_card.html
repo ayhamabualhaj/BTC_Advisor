@@ -1,0 +1,15 @@
+<article class="card">
+  <h2>{{ name }}</h2>
+  <div class="hit-head">
+    <span class="tile-label">Hit rate</span>
+    <span class="hit-rate">{% if t.hit_rate is not None %}{{ t.hit_rate|floatformat:0 }}%{% else %}–{% endif %}</span>
+  </div>
+  {% if t.calls %}
+  <div class="hit-bar" role="img" aria-label="{{ t.right }} right, {{ t.wrong_calls }} wrong">
+    {% if t.right %}<span class="hit-right" style="flex-grow: {{ t.right }}"></span>{% endif %}
+    {% if t.wrong_calls %}<span class="hit-wrong" style="flex-grow: {{ t.wrong_calls }}"></span>{% endif %}
+  </div>
+  {% endif %}
+  <p class="small muted">{% if t.calls %}✓ {{ t.right }} · ✗ {{ t.wrong_calls }} of {{ t.days }} days{% else %}no Buy or Sell calls{% endif %}</p>
+  <p class="small">Brier <strong>{{ t.brier|floatformat:3 }}</strong> · cost <strong>${{ t.cost_usd|floatformat:4 }}</strong></p>
+</article>

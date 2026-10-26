@@ -190,3 +190,18 @@ tr.period-row th, tr.period-row td { border-bottom: 2px solid var(--border); }
 .down { color: var(--critical); }
 /* The signals table has 13 columns: let those pages use the whole window. */
 main.wide { max-width: 1680px; }
+
+/* Tabs (Model comparison page) */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+.tab {
+  display: inline-flex; align-items: center; padding: 8px 14px; margin-bottom: -1px; cursor: pointer;
+  font: inherit; color: var(--text-2); background: none; border: 1px solid transparent; border-radius: 6px 6px 0 0;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); font-weight: 600; background: var(--surface); border-color: var(--border); border-bottom-color: var(--surface); }
+.tab:focus-visible, .link-button:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.link-button { font: inherit; font-weight: 600; color: var(--link); background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; align-items: center; }
+.link-button:hover { text-decoration: underline; }
+tr.model-pair td, tr.model-pair th { border-bottom: 0; }
+tr.model-pair .tile-label, tr.model-pair-2 .tile-label { display: inline-block; min-width: 72px; }
+tr.total th, tr.total td { font-weight: 600; }

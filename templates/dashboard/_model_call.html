@@ -1,0 +1,8 @@
+<td class="call call-{{ call.outcome }} call-{{ call.signal }}" title="{% for reason in reasons %}{{ reason }}{% if not forloop.last %} · {% endif %}{% endfor %}">
+  {% if call.signal == "none" %}<span class="muted">–</span>
+  {% elif call.signal == "hold" %}<span class="call-main">Hold</span><span class="call-sub">{{ call.score|floatformat:0 }}</span>
+  {% else %}
+    <span class="call-main">{% if call.signal == "buy" %}▲ Buy{% else %}▼ Sell{% endif %} <span class="conf">{{ call.confidence }}%</span></span>
+    <span class="call-sub">{% if call.outcome == "right" %}✓ won +{{ call.result_pct|floatformat:1 }}%{% elif call.outcome == "wrong" %}✗ lost {{ call.result_pct|floatformat:1 }}%{% elif call.outcome == "pending" %}… waiting{% else %}flat{% endif %}</span>
+  {% endif %}
+</td>

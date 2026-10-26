@@ -1,0 +1,3 @@
+<span class="tile-label">{{ model }}</span>
+<strong>{% if t.hit_rate is not None %}{{ t.hit_rate|floatformat:1 }}%{% else %}–{% endif %}</strong>
+<span class="small muted">{% if t.calls %}{{ t.right }} of {{ t.calls }} calls{% else %}no calls{% endif %}</span>

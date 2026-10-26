@@ -5,7 +5,7 @@ from django.shortcuts import render
 
 from apps.agents.models import AgentName
 from apps.backtest.services import combining_service
-from apps.dashboard.services import report_service, signal_service
+from apps.dashboard.services import model_service, report_service, signal_service
 
 AGENT_ORDER = AgentName.values
 
@@ -100,6 +100,12 @@ def signals_overview(request):
         **data, "groups": column_groups(columns), "horizon": horizon, "horizons": signal_service.HORIZONS,
         "sources": signal_service.SOURCES,
     })
+
+
+def models(request):
+    horizon = parse_horizon(request)
+    data = model_service.comparison(request.GET.get("model"), horizon)
+    return render(request, "dashboard/models.html", {**data, "horizon": horizon, "horizons": signal_service.HORIZONS})
 
 
 def backtests(request):

@@ -63,3 +63,17 @@ class ReplayTests(TestCase):
         self.assertEqual((row["other"].calls, row["other"].hit_rate), (2, 100))
         self.assertEqual(row["same_side"], 1)
         self.assertEqual(row["gap"], 20)
+
+
+class ModelPageTests(TestCase):
+    def test_empty_until_another_model_answered(self):
+        page = self.client.get("/models/").content.decode()
+        self.assertIn("compare_models --estimate", page)
+
+    def test_all_agents_on_one_page_with_tabs(self):
+        ReplayTests.setUp(self)
+        mcs.replay(HAIKU, Decimal("1"), client=FakeClient(response({**GOOD_VERDICT, "opus_score": 60})))
+        page = self.client.get("/models/?horizon=1").content.decode()
+        for text in ("Opus 5.5 vs Haiku 5.5", 'data-tab="all"', 'data-tab="macro"', 'id="panel-macro"',
+                     "model-chart-data", "▲ Buy", "✓ won", "1 / 2"):
+            self.assertIn(text, page)

@@ -1,6 +1,5 @@
 """Runs a day's agents: builds each domain's Brief, runs the Flow, saves one AgentRun per domain."""
 
-from ai import flow
 from ai.brief import Brief
 from ai.domains import DOMAINS
 from apps.agents.models import AgentRun
@@ -42,6 +41,9 @@ def run_agents(date, agents=None, use_opus=True, client=None, is_backtest=False)
         briefs[agent] = make_brief(agent, date, with_similar=use_opus)
         if use_opus:
             briefs[agent].prompt_text = prompts[agent].prompt_text
+    # Imported here: CrewAI takes seconds to load, and the web pages only need make_brief.
+    from ai import flow
+
     verdicts = flow.run(briefs, use_opus, client)
     return [save(briefs[verdict.agent], verdict, prompts.get(verdict.agent), is_backtest) for verdict in verdicts]
 

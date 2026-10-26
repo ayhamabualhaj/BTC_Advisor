@@ -1,0 +1,14 @@
+<tr class="model-pair{% if not key %} total{% endif %}">
+  <th rowspan="2">{% if key %}<button type="button" class="link-button" data-tab-link="{{ key }}"><span class="dot dot-{{ key }}"></span>{{ name }}</button>{% else %}{{ name }}{% endif %}</th>
+  <td class="num" rowspan="2">{{ s.reference.days }}</td>
+  <td>{% include "dashboard/_model_rate.html" with t=s.reference model=reference_label %}</td>
+  <td class="num">{{ s.reference.brier|floatformat:3 }}</td>
+  <td class="num" rowspan="2">{{ s.same_side }} / {{ s.reference.days }}</td>
+  <td class="num" rowspan="2">{{ s.gap|floatformat:1 }}</td>
+  <td class="num">${{ s.reference.cost_usd|floatformat:4 }}</td>
+</tr>
+<tr class="model-pair-2{% if not key %} total{% endif %}">
+  <td>{% include "dashboard/_model_rate.html" with t=s.other model=other_label %}</td>
+  <td class="num">{{ s.other.brier|floatformat:3 }}</td>
+  <td class="num">${{ s.other.cost_usd|floatformat:4 }}</td>
+</tr>

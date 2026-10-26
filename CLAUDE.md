@@ -147,8 +147,14 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   `static/js/signals.js`, remembered in localStorage.
 - Scores come from `apps/backtest/services/score_store.py`: DailyScore rows (rule + ML per
   day and agent) tagged with a hash of the agent code; changing rules / ML / inputs /
-  indicators re-scores. The last 14 days are never stored. `python manage.py build_scores`
-  fills it (~2 minutes from 2019); pages fill missing days themselves.
+  indicators re-scores (`SOURCE_FILES`: only files that change rule/ML scores, so editing the
+  Opus client, prompts or Flow keeps them). The last 14 days are never stored; they are kept
+  in the process's memory for an hour, cleared by new data. `python manage.py build_scores`
+  fills it (~6 minutes from 2019, free); run it after editing any SOURCE_FILES, or the pages
+  rescore missing days themselves (slow: the overview then rescores every day since 2019).
+- Speed: CrewAI (~3.5 s) and scikit-learn are imported only when agents run or a model is
+  trained, so pages start fast. Stored months load in ~0.05 s, the current month ~2 s once
+  per hour (recent days are scored live), the overview ~0.25 s.
 
 ## Daily run (step 13)
 - `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
@@ -239,6 +245,10 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   hit rate 33.3% of 33 calls vs Opus 35.5% of 31, Brier 0.262 vs 0.260. Cost $0.048 vs
   $1.38 (~29x cheaper). Both did badly on these mostly falling days; 90 answers is too few
   to call either good, only that Haiku answers almost the same.
+- Page `/models/` (`apps/dashboard/services/model_service.py`, `static/js/models.js`): tabs
+  for All agents / Technical / Derivatives / Macro switched in the browser (remembered, and
+  `#macro` links work); per agent both models' hit rate, Brier, cost, agreement, a score
+  chart and every day's two calls side by side. `?horizon=1|3|7`, `?model=` if several.
 
 ## Progress
 - [x] 1. Project setup

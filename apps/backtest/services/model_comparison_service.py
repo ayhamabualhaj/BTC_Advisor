@@ -97,6 +97,10 @@ class Tally:
         return self.right / self.calls * 100 if self.calls else None
 
     @property
+    def wrong_calls(self):
+        return self.calls - self.right
+
+    @property
     def brier(self):
         return self.brier_sum / self.brier_days if self.brier_days else None
 
@@ -112,24 +116,42 @@ class Tally:
                 self.right += (score >= 55) == went_up
 
 
-def compare(model, horizon=7):
-    """{agent or "all": {"reference": Tally, "other": Tally, "same_side": n, "gap": mean |diff|}}
-    over the days both models answered."""
+def compared_models():
+    """Models with answers to compare against AI_MODEL, e.g. ["claude-haiku-5-5"]."""
+    return sorted(set(AgentRun.objects.filter(is_backtest=True, opus_score__isnull=False)
+                      .exclude(model__in=["", settings.AI_MODEL]).values_list("model", flat=True)))
+
+
+def pairs(model):
+    """[(reference run, other model's run)] for every question both answered, oldest first."""
     others = {(run.date, run.agent, run.prompt_version_id): run
               for run in AgentRun.objects.filter(is_backtest=True, model=model, opus_score__isnull=False)}
-    pairs = [(ref, others[key]) for ref in reference_runs()
-             if (key := (ref.date, ref.agent, ref.prompt_version_id)) in others]
-    if not pairs:
+    return [(ref, others[key]) for ref in reference_runs()
+            if (key := (ref.date, ref.agent, ref.prompt_version_id)) in others]
+
+
+def moves(found, horizon):
+    """{date: price change after `horizon` days} for the compared days (missing while waiting)."""
+    if not found:
         return {}
-    days = sorted({ref.date for ref, _ in pairs})
+    days = sorted({ref.date for ref, _ in found})
     closes = price_repository.closes(days[0], days[-1] + datetime.timedelta(days=horizon))
-    moves = forward_returns(days, closes, horizon)
+    return forward_returns(days, closes, horizon)
+
+
+def compare(model, horizon=7, found=None):
+    """{agent or "all": {"reference": Tally, "other": Tally, "same_side": n, "gap": mean |diff|}}
+    over the days both models answered."""
+    found = pairs(model) if found is None else found
+    if not found:
+        return {}
+    moves_by_day = moves(found, horizon)
     result = {}
-    for ref, other in pairs:
+    for ref, other in found:
         for key in (ref.agent, "all"):
             row = result.setdefault(key, {"reference": Tally(), "other": Tally(), "same_side": 0, "gap_sum": 0.0})
-            row["reference"].add(ref.opus_score, moves.get(ref.date), ref.cost_usd)
-            row["other"].add(other.opus_score, moves.get(ref.date), other.cost_usd)
+            row["reference"].add(ref.opus_score, moves_by_day.get(ref.date), ref.cost_usd)
+            row["other"].add(other.opus_score, moves_by_day.get(ref.date), other.cost_usd)
             row["same_side"] += side(ref.opus_score) == side(other.opus_score)
             row["gap_sum"] += abs(ref.opus_score - other.opus_score)
     for row in result.values():
