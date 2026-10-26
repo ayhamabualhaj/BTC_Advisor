@@ -230,7 +230,7 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
   `choose_combining_rule --scores ml`.
 
-## Prompts v3 (Oct 2026, not yet run: the next Opus/Haiku call saves them as v3)
+## Prompts v3 (Oct 2026, saved as PromptVersion v3)
 - The "what history showed" lessons are now measured on 2017-2024 only (2025 on is the
   test): a pattern is taught only if, against each block's own base rate (2017-19,
   2020-21, 2022, 2023-24), the share of up weeks after it moved the same way in every
@@ -255,6 +255,18 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   independent weeks); these are tendencies, not edges proven at a high bar. Note the rules
   (tuned on 2025-Sep 2026) lean bearish where these 2017-24 patterns lean bullish: the
   test period may simply be a different market.
+- `python manage.py compare_prompts [--model] [--old 2 --new 3] [--start --end] [--estimate]
+  [--max-cost 3] [--report]` (paid): the same model asks every day with both versions, v2
+  with its own old input (`ai/inputs_v2.py`, 5 raw similar setups), v3 with the new one;
+  8 calls in parallel, resumable. Runs are saved with model = the asked model, so Opus pages
+  never show them.
+- Result, Haiku 5.5, Jan 2025 - Oct 17 2026 (655 days x 3 agents x 2 versions, $2.05),
+  7-day horizon: v3 56.8% of 454 calls vs v2 48.5% of 852 ("always up": 51.8% in 2025,
+  48.3% in 2026). Per year v3 58.9% / 55.3%, v2 48.3% / 48.8%; every agent better (technical
+  56.9 vs 44.8, derivatives 55.6 vs 49.6, macro 57.2 vs 50.3). Brier 0.2502 vs 0.2537: v3
+  stops being worse than "always 50" but is barely better (macro 0.2487). v3 holds far more
+  (70-90% of days) and almost never sells on derivatives. At 1 day v3 is no better (48.5%);
+  it was written for 7 days. Overlapping weeks: ~1/7 as many independent calls.
 
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - `AgentRun.model` records the Claude model asked (old runs back-filled as Opus 5.5). Opus
