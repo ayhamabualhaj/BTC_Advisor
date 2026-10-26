@@ -144,6 +144,9 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   combining rule), Costs, Prompts. Views in `apps/dashboard/views/page_views.py` use the same
   report_service as the API. Templates in `templates/`, CSS tokens (light + dark) in
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
+- Today's "What should I do today?" button (POST /advise/, `daily_run_service.advice()`): runs
+  daily_run for yesterday UTC if it has not run (paid LLM calls, ~$0.002 with Haiku), else
+  only reads the saved Decision; shows BUY / SELL / HOLD from the overall vote.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
 ## Signals pages (after step 14)

@@ -1,10 +1,12 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
 from django.test import TestCase, override_settings
 
 from apps.agents.models import AgentRun, PromptVersion
 from apps.backtest.models import BacktestRun, Decision
+from apps.backtest.services import daily_run_service
 
 DAY = datetime.date(2026, 7, 1)
 
@@ -165,3 +167,38 @@ class ProfitPageTests(TestCase):
                      "Go short", "Overall vote", "Macro"):
             self.assertIn(text, page)
         self.assertEqual(self.client.get("/profit/?period=junk&start=bad").status_code, 200)
+
+
+class AdviceButtonTests(TestCase):
+    """The Today page button: runs the last full day only when it has not run, then shows the call."""
+
+    def setUp(self):
+        self.day = datetime.date(2026, 7, 2)
+        patcher = mock.patch("apps.backtest.services.daily_run_service.last_full_day", return_value=self.day)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def save_decision(self, calls):
+        AgentRun.objects.create(date=self.day, agent="technical", rule_score=60)
+        Decision.objects.create(date=self.day, signal="no_trade", rule={"group_lead": 1}, group_calls=calls)
+
+    def test_buy_when_every_group_says_buy(self):
+        self.save_decision({"rules": "buy", "ml": "buy", "opus": "buy"})
+        with mock.patch("apps.backtest.services.daily_run_service.run") as run:
+            self.assertContains(self.client.post("/advise/"), "BUY")
+        run.assert_not_called()
+
+    def test_sell_and_hold(self):
+        self.save_decision({"rules": "sell", "ml": "sell", "opus": "none"})
+        self.assertContains(self.client.post("/advise/"), "SELL")
+        Decision.objects.update(group_calls={"rules": "buy", "ml": "sell", "opus": "none"})
+        self.assertContains(self.client.post("/advise/"), "HOLD: no clear call")
+
+    def test_runs_the_day_when_it_has_not_run(self):
+        with mock.patch("apps.backtest.services.daily_run_service.run",
+                        side_effect=daily_run_service.DailyRunError("No BTC close yet")) as run:
+            self.assertContains(self.client.post("/advise/"), "No BTC close yet")
+        run.assert_called_once_with(self.day)
+
+    def test_get_is_not_allowed(self):
+        self.assertEqual(self.client.get("/advise/").status_code, 405)

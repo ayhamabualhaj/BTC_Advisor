@@ -1,6 +1,30 @@
 {% extends "base.html" %}
 {% block title %}Today · BTC Advisor{% endblock %}
 {% block content %}
+<form method="post" action="{% url 'advise' %}" class="advise" onsubmit="this.querySelector('button').disabled = true; this.querySelector('.advise-wait').hidden = false;">
+  {% csrf_token %}
+  <button type="submit">What should I do today?</button>
+  <span class="muted small advise-wait" hidden>Collecting data and asking the agents, this can take a minute…</span>
+</form>
+{% if advice %}
+  <section class="advice advice-{{ advice.call }}">
+    {% if advice.error %}
+      <div class="advice-label">No advice yet</div>
+      <div class="muted">{{ advice.error }}</div>
+    {% elif advice.call == "buy" %}
+      <div class="advice-label">BUY</div>
+      <div>Every group of agents says Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
+    {% elif advice.call == "sell" %}
+      <div class="advice-label">SELL</div>
+      <div>Every group of agents says Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
+    {% else %}
+      <div class="advice-label">HOLD: no clear call</div>
+      <div>The agents do not agree for the day that closed on {{ advice.date }}. Do nothing: keep what you have, open nothing new.</div>
+    {% endif %}
+    {% if advice.decision %}<div class="muted small">Rules vote: {{ advice.decision.group_calls.rules|capfirst }} · ML vote: {{ advice.decision.group_calls.ml|capfirst }} · {{ llm_label }} vote: {{ advice.decision.group_calls.opus|capfirst }}. Advice only: you place the trade yourself.</div>{% endif %}
+  </section>
+{% endif %}
+
 <h1>Daily decision{% if date %} <span class="muted">for {{ date }}</span>{% endif %}</h1>
 {% if not date %}
   <p class="empty">No agent runs yet. Run <code>python manage.py daily_run</code>.</p>

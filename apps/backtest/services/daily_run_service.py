@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from django.conf import settings
 
 from apps.agents.models import AgentRun
+from apps.backtest.decision_rule import overall_call
+from apps.backtest.models import Decision
 from ai.domains import DOMAINS
 from apps.agents.services import agent_service, memory_service
 from apps.backtest.repositories import price_repository
@@ -62,3 +64,28 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
         report.memory_cases += memory_service.build_cases(
             agent, domain.inputs.model_input, date - datetime.timedelta(days=COLLECT_DAYS + 7), date)
     return report
+
+
+@dataclass
+class Advice:
+    date: datetime.date
+    call: str = "none"  # "buy", "sell", "hold" or "none" (could not decide)
+    decision: object = None
+    error: str = ""
+
+
+def advice():
+    """The overall call for the last full day, running the day first if it has not run.
+
+    A day that already ran is only read back, so asking again never pays twice.
+    """
+    date = last_full_day()
+    decision = Decision.objects.filter(date=date).order_by("-created_at").first()
+    try:
+        if decision is None and already_ran(date):
+            decision = decision_service.make_decision(date)
+        elif decision is None:
+            decision = run(date).decision
+    except DailyRunError as error:
+        return Advice(date=date, error=str(error))
+    return Advice(date=date, call=overall_call(decision.group_calls), decision=decision)

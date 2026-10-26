@@ -2,22 +2,30 @@ import datetime
 
 from django.http import Http404
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
 from ai.opus_client import model_label
 from apps.agents.models import AgentName
-from apps.backtest.services import combining_service
+from apps.backtest.services import combining_service, daily_run_service
 from apps.dashboard.services import model_service, profit_service, report_service, signal_service
 
 AGENT_ORDER = AgentName.values
 
 
-def today(request):
+def today(request, advice=None):
     context = report_service.today()
     runs = {run.agent: run for run in context["agent_runs"]}
     context["cards"] = [(agent, runs.get(agent)) for agent in AGENT_ORDER]
     decision = context["decision"]
     context["decision_rule_text"] = combining_service.describe(decision.rule) if decision and decision.rule else ""
+    context["advice"] = advice
     return render(request, "dashboard/today.html", context)
+
+
+@require_POST
+def advise(request):
+    """The "What should I do?" button: runs yesterday's agents if they have not run yet."""
+    return today(request, daily_run_service.advice())
 
 
 def agent_detail(request, agent):

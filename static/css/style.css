@@ -91,6 +91,22 @@ h3 { font-size: 14px; margin: 16px 0 6px; color: var(--text-2); }
 .signal-buy { border-color: var(--good); background: var(--good-bg); }
 .signal-buy .signal-label::before { content: "▲ "; color: var(--good); }
 
+.advise { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
+.advise button {
+  font: inherit; font-size: 16px; font-weight: 600; padding: 10px 20px; border-radius: 8px; cursor: pointer;
+  background: var(--text); color: var(--surface); border: 1px solid var(--text);
+}
+.advise button:disabled { opacity: .6; cursor: wait; }
+.advice {
+  background: var(--surface); border: 2px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px;
+}
+.advice > div + div { margin-top: 6px; }
+.advice-label { font-size: 36px; font-weight: 800; }
+.advice-buy { border-color: var(--good); background: var(--good-bg); }
+.advice-buy .advice-label { color: var(--good); }
+.advice-sell { border-color: var(--critical); background: var(--critical-bg); }
+.advice-sell .advice-label { color: var(--critical); }
+
 .tiles { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; }
 .tile-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .score { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
