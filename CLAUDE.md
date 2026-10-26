@@ -281,6 +281,20 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   (70-90% of days) and almost never sells on derivatives. At 1 day v3 is no better (48.5%);
   it was written for 7 days. Overlapping weeks: ~1/7 as many independent calls.
 
+## Agents tested and not added (Oct 26 2026)
+- Bar fixed before each test; scripts were throwaway, nothing is in the code.
+- Market regime (rules only; bull/bear/sideways from 200-day average, its slope, 50/200
+  cross), used as a switch on the overall vote (bull: hold unless Sell; bear: vote only or
+  stay out) or alone. 9 setups chosen on 2019-22 by profit / worst drop (R3 strict: +461%,
+  drop 61%). Needed: beat the current vote's profit and buy-and-hold's worst drop in 2023-24
+  and 2025+. Got +129% (vote +26%) but a 27.3% drop (hold 26.2%) in 2023-24, and -1.9% vs
+  the vote's +20.7% from 2025. As a 7-day caller 45-53%. Not added.
+- Fear & Greed index (alternative.me, free, from Feb 2018): with the v3 bar on 2018-24 two
+  patterns held (extreme fear <= 20 +8.6 pts, a 7-day jump of 20+ +11.5 pts). Needed >= 55%
+  at 7 days on 2025+ and above "always up" in each year. Rules: 50.0% of 48 (2025), 50.9%
+  of 114 (2026). Logistic ML: 1 call at C = 0.003, 42.9% of 63 at C = 1. Not added, and
+  not given to the LLM either.
+
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from
   it (`ai.opus_client.model_label`, context processor `llm_label`); internal keys and the
