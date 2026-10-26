@@ -341,6 +341,16 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   shift p 0.019; per year 2021-24 50.5 / 60.6 / 60.2 / 66.7% (2021 below fair). BTC's
   20-day move alone: 52.4% of 21, only 7 days shared, so oil does change the days. ML 36.4%.
   Not added; worth re-checking once 2027 adds calls.
+- Markets that move with BTC (Oct 27 2026; 30 Yahoo series: crypto, crypto stocks, US
+  indexes, tech, bonds, metals, energy, FX, VIX, Asia). Same-day links: IBIT +0.91, ETH
+  +0.78, COIN / MSTR / SOL ~+0.55, Nasdaq / S&P ~+0.3 (+0.45 since 2025), VIX -0.25; none
+  predicts BTC the next day or week (after their worst days BTC is down 42-53% vs 49%).
+  Agents per market (5/20/60-day move, vs 50-day, BTC 20d minus it, 60-day corr; rules +
+  logistic ML, 60 strategies, must beat every circular shift): none passed. Closest: HYG
+  rules 65.5% of 148 (21 episodes, p 0.006, also 55/52/53/61% in 2021-24), USD/JPY rules
+  62.8% of 218 (p 0.017), 10y-yield ML 72.4% of 98 (p 0.014, 2021 48%). With 60 tries one
+  p ~0.006 is expected by luck. "BTC 20d beat the market by > ~20 pts -> Buy" was kept for
+  nearly every market: it is BTC momentum, not the market.
 
 ## Financial stress domain (Oct 26 2026)
 - `ai/stress/`: only `inputs.py` and `ml.py` (`rules = None`, `opus = None` in
