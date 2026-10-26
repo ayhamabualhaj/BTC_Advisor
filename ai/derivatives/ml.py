@@ -3,5 +3,13 @@
 from ai import ml, similarity
 
 
+def features(snapshot, setup):
+    return similarity.encode(setup)
+
+
+def training_cutoff(date):
+    return ml.daily_cutoff(date)
+
+
 def score(brief):
-    return ml.score(similarity.encode(brief.setup), brief.training)
+    return ml.score(brief.ml_features, brief.training)

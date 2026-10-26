@@ -4,6 +4,7 @@ import datetime
 import json
 
 from ai import similarity
+from ai.domains import DOMAINS
 from apps.agents.models import MemoryCase
 from apps.agents.services import rule_scoring_service
 from apps.backtest.calibration import HORIZON_DAYS
@@ -30,10 +31,12 @@ def build_cases(agent, model_input, start, end):
         if day in closes and later in closes:
             snapshot, _ = rule_scoring_service.score_agent(agent, day)
             setup = model_input(snapshot)
+            ml_features = DOMAINS[agent].ml.features(snapshot, setup)
             return_pct = (closes[later] / closes[day] - 1) * 100
             MemoryCase.objects.update_or_create(date=day, agent=agent, defaults={
                 "setup_summary": json.dumps(setup, sort_keys=True),
                 "embedding": similarity.encode(setup),
+                "ml_features": ml_features,
                 "outcome": outcome_text(return_pct),
                 "return_7d_pct": round(return_pct, 2),
             })
@@ -64,17 +67,18 @@ def similar_cases(agent, date, model_input, limit=SIMILAR_CASES):
 
 
 def known_cases(agent):
-    """Every case of an agent with a known outcome, oldest first: [(date, features, return_7d_pct)]."""
+    """Every case of an agent with a known outcome, oldest first: [(date, ml_features, return_7d_pct)]."""
     rows = MemoryCase.objects.filter(agent=agent, return_7d_pct__isnull=False).order_by("date")
-    return list(rows.values_list("date", "embedding", "return_7d_pct"))
+    return list(rows.values_list("date", "ml_features", "return_7d_pct"))
 
 
 def training_cases(agent, date, cases=None):
     """What the ML agent may learn from on `date`: [(features, went_up)].
 
-    Same cutoff as similar_cases: a case's outcome is known 7 days after its date.
+    Same cutoff as similar_cases: a case's outcome is known 7 days after its date. A domain
+    whose model is retrained once a month moves the cutoff back to before the month began.
     """
-    cutoff = date - datetime.timedelta(days=HORIZON_DAYS)
+    cutoff = DOMAINS[agent].ml.training_cutoff(date)
     cases = known_cases(agent) if cases is None else cases
     return [(features, return_pct > 0) for day, features, return_pct in cases
             if day <= cutoff and len(features) >= MIN_TRAINING_FEATURES]

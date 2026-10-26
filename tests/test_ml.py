@@ -47,6 +47,17 @@ class MLModelTests(SimpleTestCase):
         result = ml.score({"x": 3.0, "brand_new": 7.0}, cases(200))
         self.assertIsNotNone(result.score)
 
+    def test_the_forest_learns_too_and_names_its_main_features(self):
+        training = cases(400)
+        up = ml.score({"x": 3.0, "noise": 1.0}, training, build=ml.forest)
+        down = ml.score({"x": -3.0, "noise": 1.0}, training, build=ml.forest)
+        self.assertGreater(up.score, down.score)
+        self.assertIn("x = 3", up.reasons[1])
+
+    def test_monthly_cutoff_is_before_the_month_began(self):
+        self.assertEqual(ml.monthly_cutoff(datetime.date(2026, 3, 20)), datetime.date(2026, 2, 21))
+        self.assertEqual(ml.daily_cutoff(datetime.date(2026, 3, 20)), datetime.date(2026, 3, 13))
+
     def test_one_sided_history_gives_no_score(self):
         training = [({"x": 1.0}, True)] * ml.MIN_CASES
         self.assertIsNone(ml.score({"x": 1.0}, training).score)
@@ -56,14 +67,23 @@ class TrainingCutoffTests(TestCase):
     def test_only_cases_with_a_known_outcome_are_learned_from(self):
         for n in range(30):
             MemoryCase.objects.create(date=day(n), agent="technical", setup_summary="{}",
-                                      embedding={"x": float(n), "y": 1.0, "z": 2.0}, outcome="",
+                                      ml_features={"x": float(n), "y": 1.0, "z": 2.0}, outcome="",
                                       return_7d_pct=1.0)
-        MemoryCase.objects.filter(date=day(5)).update(embedding={})  # a day with no numbers
+        MemoryCase.objects.filter(date=day(5)).update(ml_features={})  # a day with no numbers
         training = memory_service.training_cases("technical", day(20))
         # Cases dated day 0..13 (the outcome of day 13 is known at the close of day 20),
         # minus day 5, which has no numbers to learn from.
         self.assertEqual(len(training), 13)
         self.assertEqual(max(features["x"] for features, _ in training), 13.0)
+
+    def test_macro_learns_only_from_before_the_month(self):
+        for n in range(30):
+            MemoryCase.objects.create(date=day(n), agent="macro", setup_summary="{}",
+                                      ml_features={"x": float(n), "y": 1.0, "z": 2.0}, return_7d_pct=1.0)
+        # Decision on Jan 30: the month began Jan 1, so only cases up to Dec 24 count: none.
+        self.assertEqual(memory_service.training_cases("macro", day(29)), [])
+        # Decision on Feb 1: cases up to Jan 24.
+        self.assertEqual(len(memory_service.training_cases("macro", day(31))), 24)
 
 
 class AdvisorFlowTests(TestCase):
@@ -85,7 +105,7 @@ class AdvisorFlowTests(TestCase):
     def test_ml_scores_once_there_is_memory(self):
         for n, (features, went_up) in enumerate(cases(200)):
             MemoryCase.objects.create(date=day(-300 + n), agent="technical", setup_summary="{}",
-                                      embedding=features, outcome="", return_7d_pct=1.0 if went_up else -1.0)
+                                      ml_features=features, outcome="", return_7d_pct=1.0 if went_up else -1.0)
         [run] = agent_service.run_agents(day(59), ["technical"], use_opus=False)
         self.assertIsNotNone(run.ml_score)
 

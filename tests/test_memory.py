@@ -50,6 +50,8 @@ class MemoryServiceTests(TestCase):
         self.assertAlmostEqual(case.return_7d_pct, round((117 / 110 - 1) * 100, 2))
         self.assertIn("rose", case.outcome)
         self.assertIn("rsi_14", json.loads(case.setup_summary))
+        # Technical ML learns from the same numbers it is compared by.
+        self.assertEqual(case.ml_features, case.embedding)
 
     def test_retrieval_never_uses_unfinished_cases(self):
         memory_service.build_cases("technical", technical_inputs.model_input, day(0), day(79))

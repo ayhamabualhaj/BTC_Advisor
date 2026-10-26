@@ -9,8 +9,10 @@ class MemoryCase(models.Model):
     date = models.DateField()
     agent = models.CharField(max_length=20, choices=AgentName.choices)
     setup_summary = models.TextField()
-    # {feature: float} from memory/features.py: the setup's own numbers serve as its embedding.
+    # {feature: float} from ai/similarity.py: the setup's own numbers serve as its embedding.
     embedding = models.JSONField(default=list, blank=True)
+    # {feature: float} the domain's ML agent learns from (ai/<domain>/ml.py features()).
+    ml_features = models.JSONField(default=dict, blank=True)
     outcome = models.TextField(blank=True)
     return_7d_pct = models.FloatField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

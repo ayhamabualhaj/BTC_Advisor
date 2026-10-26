@@ -1,8 +1,8 @@
 # BTC Advisor — notes for Claude Code
 
 A local Django tool that advises Ayham on daily Bitcoin trades. Three domains (technical,
-derivatives, macro) each have three independent agents: rules (code), ML (logistic
-regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayham places trades manually. Full plan:
+derivatives, macro) each have three independent agents: rules (code), ML (walk-forward:
+logistic regression, random forest for macro) and Opus 5.5 (judgment). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -80,8 +80,8 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - `ai/<domain>/prompt.md` + shared `ai/output_instructions.md` = the system prompt.
   `apps/agents/services/prompt_service.py` makes a new PromptVersion whenever that text changes.
 - `ai/<domain>/inputs.py` — `model_input(snapshot)`: relative numbers only (no
-  absolute prices, levels or dates, so the asset and the year stay hidden). ML and Opus
-  both use it.
+  absolute prices, levels or dates, so the asset and the year stay hidden). Opus uses it;
+  ML uses it for technical and derivatives (macro ML has its own features, see ML agents).
 - `ai/opus_client.py` — the only Anthropic API call: structured JSON output,
   effort from AI_EFFORT, one retry on invalid output, tokens and cost on every call.
   Prices ($4 / $20 per M tokens for Opus 5.5) are constants there.
@@ -108,8 +108,8 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - `python manage.py choose_combining_rule` (free): candidates rules / rules + ML, lead 1-3,
   chosen on 2019-2024 only (highest 7-day hit rate with >= 100 calls), then tested once on
   2025 onward. Saved as BacktestRun "combining_rule" (test-period numbers in the fields,
-  tuning in settings). Chosen (Oct 2026): rules + ML, lead 2 -> 55.2% on 2019-24,
-  62.9% on 2025-26 (+99.5% on buy days vs -14.5% buy-and-hold). The rules were tuned on
+  tuning in settings). Chosen (Oct 26 2026, macro ML = forest): rules + ML, lead 2 ->
+  53.7% on 2019-24, 62.4% on 2025-26 (+93.3% on buy days vs -14.5% buy-and-hold). The rules were tuned on
   2025-Sep 2026, so only Oct 2026 on is clean for everything.
 - `decision_service.make_decision(date)` applies `combining_service.current_rule()` (default
   rules, lead 1) to the day's live AgentRuns; the Decision stores the rule and net votes.
@@ -191,17 +191,31 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
   anonymous telemetry, tracing and version check off before crewai is imported.
 
 ## ML agents (after step 14)
-- `ai/ml.py`: logistic regression (scikit-learn) on the domain's setup numbers (the same
-  `model_input` Opus sees, encoded by `ai/similarity.py`), score = chance (0-100) that the
-  price is higher in 7 days. Retrained for every day on MemoryCases dated <= day - 7
-  (walk-forward); fewer than 120 cases -> no score. Changing `model_input` needs `build_memory`.
+- `ai/ml.py`: the models; `ai/<domain>/ml.py`: `features(snapshot, setup)` (stored per day
+  as `MemoryCase.ml_features`), `training_cutoff(date)` and `score(brief)`. score = chance
+  (0-100) that the price is higher in 7 days; fewer than 120 cases -> no score. Changing
+  features needs `build_memory`, then `build_scores`.
+- Technical, derivatives: logistic regression (C = 0.003) on the Opus setup numbers,
+  retrained every day on cases dated <= day - 7.
+- Macro: random forest (300 trees, depth 6, leaves >= 50, missing-value flags) on 11 macro
+  moves (dollar 2w/1m, Nasdaq vs 50-day / 5d / 20d, S&P 20d, Fed move, 2y - fed funds,
+  2y 20-day change, CPI yoy, CPI surprise). Retrained monthly on cases dated <= month
+  start - 8 days, cached in-process, so a backtest fits one forest per month.
+- Model study (Oct 2026): 12 models per domain (logistic C 0.01-1, forests, extra trees,
+  boosting, kNN, MLPs), train before 2025, choose on 2025, test once on 2026. Only macro
+  held up: forest 59.4% on 2025 -> 60.7% on 2026. Technical forest 58.3% -> 45.1% and
+  derivatives MLP 54.4% -> 41.4% failed, so they stay on the cautious logistic model.
+  In the project (stored scores): macro ML 50.2% on 2019-24 (little history to learn from
+  early), 56.0% on 2025, 59.3% on 2026.
+- A rule search on 2017-2024 (tested on 2025) also failed: 66.7 / 65.7 / 61.4% when tuned,
+  42 / 39 / 51% on 2025. The 2025-Sep 2026 rules were kept.
 - History: data since Aug 2017 (Binance, Yahoo, FRED) and Aug 2020 (Bybit) is stored;
   memory has ~3,350 days per domain. Days with fewer than 3 numbers are not trained on.
 - With 2025-26 data only, walk-forward ML was 41-48% for technical and derivatives (what
   one period taught reversed in the next). With the 2017+ history it is ~47-56% per period
   (2019-22, 2023-24, 2025, 2026) and Brier ~0.25: no longer confidently wrong, but no
   stable edge in any setting (C 0.003-0.3; 1-year, 2-year, full windows). Kept C = 0.003
-  on the full history (best Brier, stays near 50). A third opinion, not yet useful.
+  on the full history (best Brier, stays near 50).
 - Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
   `choose_combining_rule --scores ml`.
 
@@ -222,4 +236,4 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow. Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
+**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest. Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

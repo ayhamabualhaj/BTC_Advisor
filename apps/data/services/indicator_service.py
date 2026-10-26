@@ -73,9 +73,10 @@ def derivatives_snapshot(date):
 def macro_snapshot(date):
     dxy = values("yahoo", "dxy_close", date, 30)
     nasdaq = values("yahoo", "nasdaq_close", date, 60)
+    sp500 = values("yahoo", "sp500_close", date, 30)
     target = values("fred", "fed_target_upper", date, 60)
     fed_funds = values("fred", "fed_funds_effective", date, 5)
-    treasury_2y = values("fred", "treasury_2y", date, 5)
+    treasury_2y = values("fred", "treasury_2y", date, 30)
     # Monthly series are only refreshed once a month, so they are not checked for staleness.
     cpi = [value for _, value in series("fred", "cpi", date, 13)]
     etf = values("farside", "etf_net_flow_musd", date, 5)
@@ -83,15 +84,19 @@ def macro_snapshot(date):
         "dxy": dxy[-1] if dxy else None,
         # Ten trading days is two calendar weeks.
         "dxy_change_2w_pct": trend.pct_change(dxy, 10),
+        "dxy_change_1m_pct": trend.pct_change(dxy, 20),
         "nasdaq": nasdaq[-1] if nasdaq else None,
         "nasdaq_sma_50": trend.sma(nasdaq, 50),
         # In trading days: a week and about a month.
         "nasdaq_change_5d_pct": trend.pct_change(nasdaq, 5),
         "nasdaq_change_20d_pct": trend.pct_change(nasdaq, 20),
+        "sp500_change_20d_pct": trend.pct_change(sp500, 20),
         "fed_target_upper": target[-1] if target else None,
         "fed_rate_change_60d": macro.last_rate_change(target, 60) if target else None,
         "treasury_2y": treasury_2y[-1] if treasury_2y else None,
         "fed_funds_effective": fed_funds[-1] if fed_funds else None,
+        # In percentage points over about a month of trading days.
+        "treasury_2y_change_20d": treasury_2y[-1] - treasury_2y[-21] if len(treasury_2y) >= 21 else None,
         "cuts_expected": macro.cuts_expected(
             treasury_2y[-1] if treasury_2y else None, fed_funds[-1] if fed_funds else None
         ),

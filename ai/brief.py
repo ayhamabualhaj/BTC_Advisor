@@ -14,6 +14,7 @@ class Brief:
     snapshot: dict          # indicator values known on `date` (for the rules)
     setup: dict             # the same as relative numbers (for ML and Opus)
     training: list = field(default_factory=list)  # [(features, went_up)] known by `date`
+    ml_features: dict = field(default_factory=dict)  # today's numbers for the ML agent
     similar: list = field(default_factory=list)   # closest past setups, for Opus
     prompt_text: str = ""   # empty when Opus is not asked
 
