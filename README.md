@@ -14,10 +14,10 @@ The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE
 
 ## Setup
 
-Python 3.12 or newer and a running PostgreSQL server.
+Python 3.13 (CrewAI does not support 3.14 yet) and a running PostgreSQL server.
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```

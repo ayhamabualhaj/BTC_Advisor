@@ -16,6 +16,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load .env before any setting reads from it.
 load_dotenv(BASE_DIR / ".env")
 
+# CrewAI reports anonymous usage and checks for updates unless told not to; this tool
+# stays local, so both are off before crewai is first imported.
+for flag in ("CREWAI_DISABLE_TELEMETRY", "OTEL_SDK_DISABLED", "CREWAI_DISABLE_VERSION_CHECK"):
+    os.environ.setdefault(flag, "true")
+os.environ.setdefault("CREWAI_TRACING_ENABLED", "false")
+
 
 # Required: fails immediately with KeyError if missing from .env.
 SECRET_KEY = os.environ["SECRET_KEY"]

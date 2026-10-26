@@ -14,7 +14,9 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Ask before adding new libraries or paid services.
 
 ## Conventions
-- No CrewAI or other agent framework: plain Python calls to the Anthropic API.
+- CrewAI Flows orchestrate the agents (plain Python steps, no CrewAI LLM agents). Opus is
+  called only through `ai/opus_client.py`, so every call keeps its cost logging.
+- Python 3.13 (CrewAI does not support 3.14 yet).
 - Layering: View → Service → Repository/AI → Database. Models split into separate files
   under `apps/<app>/models/`.
 - Each agent has its own folder `apps/agents/<name>/` with `prompt.md`, `rules.py`
