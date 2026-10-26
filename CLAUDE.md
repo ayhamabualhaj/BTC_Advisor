@@ -46,7 +46,9 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
 ## Data (step 3)
 - `python manage.py collect_data [--start --end --source]` pulls and saves, then lists gaps.
 - Dating rule: a MarketData date is the last UTC day by whose end the value was known
-  (FRED daily +1 day, CPI dated by its release, funding by settlement). Keeps backtests honest.
+  (FRED daily +1 day, funding by settlement). Keeps backtests honest. CPI, core CPI and NFCI
+  are revised after release, so they are stored as first published (ALFRED initial release),
+  dated by the publication day; two published the same day -> the later one a day late.
 - Sources: binance (OHLCV), bybit (funding_rate, open_interest, long_account_ratio),
   okx (liquidations), yahoo (dxy/nasdaq/sp500 closes; direct chart API, no yfinance),
   fred (needs FRED_API_KEY), farside ETF flows via `import_etf_flows <csv>`.
@@ -337,19 +339,36 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   Opus backtests, prompt comparisons, Signals and Profit columns skip kinds a domain lacks.
   AgentRun / DailyScore `rule_score` may be empty; Outcome has `stress_correct`, judged on
   the ML score when there is no rules or LLM score.
-- Data: FRED VIXCLS (`vix`, +1 day) and NFCI (`nfci`, weekly, dated +6 days: Friday's week
-  is published Wednesday), Yahoo ^MOVE (`move_close`). `stress_snapshot`: VIX, its 20-day
+- Data: FRED VIXCLS (`vix`, +1 day) and NFCI (`nfci`, weekly, first print, dated by its
+  Wednesday publication), Yahoo ^MOVE (`move_close`). `stress_snapshot`: VIX, its 20-day
   change, MOVE 20-day % change, NFCI (stale after 14 days).
 - ML: logistic regression C = 0.1 on those 4 numbers, retrained monthly (as the macro
-  forest). In the project (stored scores): 48.8% of 1017 calls in 2019-22, 28.2% of 71 in
-  2023-24 (mostly wrong Sells), 62.8% of 86 in 2025, 61.1% of 54 in 2026 (all Buys).
-- It votes in the ML group (4 voters). Vote re-chosen: group lead 1, all agree -> 52.6% of
-  572 on 2019-24; 2025 on 72.4% of 134 calls, +35.0% (rules + ML; was 75.3% of 93, +21.7%),
-  with Haiku 69.3% of 88, +13.9%.
+  forest). In the project (stored scores, NFCI as first published): 50.3% of 1056 calls in
+  2019-22, 46.3% of 231 in 2023-24, 70.4% of 54 in 2025, 60.0% of 25 in 2026. (With revised
+  NFCI it had looked like 48.8 / 28.2 / 62.8% of 86 / 61.1% of 54.)
+- It votes in the ML group (4 voters). Vote re-chosen after the first-print fix: group lead 1,
+  all agree -> 53.8% of 617 on 2019-24; 2025 on 70.8% of 89 calls, +34.8% (rules + ML), with
+  Haiku 69.6% of 56, +19.7% (hold -14.5%).
 - build_memory defaults to 2025: a new agent needs `build_memory --agent X --start
   2017-08-17`. Memory is not in the score fingerprint, so after rebuilding memory delete
   all DailyScore rows and run build_scores (deleting one agent's rows is not enough: a day
   with any stored row counts as done).
+
+## Data audit, ETF flows and volatility (Oct 26 2026; scripts in the session scratchpad)
+- Audit: no missing Binance days or impossible prices; Binance and Coinbase give the same
+  7-day up/down on 99.2% of days; gaps are US holidays and the Oct 2025 shutdown (no October
+  CPI). Bybit OI jumps > 30% on 12 days, mostly 2020-21. Found and fixed: CPI and NFCI were
+  today's revised values (NFCI revisions: median 0.09, often bigger than a week's move), and
+  January CPI was dated by February's seasonal-revision day, 2-5 days before its release.
+  Now first prints dated by publication (see Data). Macro barely moved; stress made fewer calls.
+- ETF flows (Jan 2024 on, learned on 2024 only): rules 50.1% of 351 (fair 50.2), ML 49.9% /
+  walk-forward 45.4%; macro forest + flows 56.7% of 215 vs 57.9% of 202 without. Flows follow
+  price (corr 0.51 with the past week). No edge; they stay only in the macro LLM input.
+- Volatility instead of direction: HAR + VIX / MOVE / DVOL / funding / OI predicts next week's
+  volatility ~25% better than "same as last month" (2025 and 2026), but sizing positions by it
+  did not beat holding on Sharpe in 2019-24 (1.14 vs 1.15; worst drop 74.5 vs 76.6%) and only
+  a little from 2025 (-7.6% vs -13.2%). Big-drop (>= 8% in a week) warning: AUC 0.52 in 2025,
+  0.25 in 2026. Not added.
 
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from

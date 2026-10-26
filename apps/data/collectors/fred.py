@@ -1,6 +1,5 @@
 """US rates, inflation, VIX and financial conditions from the FRED API (free key in FRED_API_KEY)."""
 
-import bisect
 import datetime
 
 from django.conf import settings
@@ -17,16 +16,17 @@ DAILY_SERIES = {
     "DGS2": "treasury_2y",
     "VIXCLS": "vix",
 }
-# Weekly series, dated by when they were known: NFCI covers the week to Friday and is
-# published the next Wednesday, so it is dated 6 days after its observation date.
-WEEKLY_SERIES = {
-    "NFCI": ("nfci", 6),
-}
-# Monthly series: an observation for June is only released in mid-July.
-MONTHLY_SERIES = {
+# Weekly and monthly series are revised after release (CPI's seasonal factors every February
+# for five years back, NFCI every week for its whole history), so they are taken as first
+# published (ALFRED's initial release) and dated by the publication day: a backtest then
+# sees only what was known that day. Both come out at 8:30 New York time.
+FIRST_RELEASE_SERIES = {
     "CPIAUCSL": "cpi",
     "CPILFESL": "core_cpi",
+    "NFCI": "nfci",
 }
+# Fetch a year earlier so year-over-year inflation can be computed.
+FIRST_RELEASE_HISTORY = datetime.timedelta(days=400)
 
 
 def collect(start, end):
@@ -35,14 +35,8 @@ def collect(start, end):
     points = []
     for series, field in DAILY_SERIES.items():
         points.extend(parse_daily(fetch_observations(series, start, end), field))
-    for series, (field, lag_days) in WEEKLY_SERIES.items():
-        points.extend(parse_daily(fetch_observations(series, start - datetime.timedelta(days=14), end), field, lag_days))
-    # Fetch monthly data from a year earlier so year-over-year inflation can be computed.
-    monthly_start = start.replace(year=start.year - 1)
-    for series, field in MONTHLY_SERIES.items():
-        observations = fetch_observations(series, monthly_start, end)
-        release_dates = fetch_release_dates(series, monthly_start)
-        points.extend(parse_monthly(observations, release_dates, field))
+    for series, field in FIRST_RELEASE_SERIES.items():
+        points.extend(parse_first_release(fetch_first_releases(series, start - FIRST_RELEASE_HISTORY, end), field))
     return [p for p in points if p.date <= end]
 
 
@@ -55,35 +49,33 @@ def fetch_observations(series, start, end):
                 observation_start=start.isoformat(), observation_end=end.isoformat())["observations"]
 
 
-def fetch_release_dates(series, start):
-    dates = call("series/vintagedates", series_id=series, realtime_start=start.isoformat())["vintage_dates"]
-    return sorted(datetime.date.fromisoformat(d) for d in dates)
+def fetch_first_releases(series, start, end):
+    """Each observation's value as first published, with its publication day (realtime_start)."""
+    return call("series/observations", series_id=series, observation_start=start.isoformat(),
+                observation_end=end.isoformat(), realtime_start="1776-07-04", realtime_end="9999-12-31",
+                output_type=4)["observations"]
 
 
-def parse_daily(observations, field, lag_days=1):
+def parse_daily(observations, field):
     points = []
     for row in observations:
         if row["value"] == ".":
             continue  # FRED's marker for a missing day
-        day = datetime.date.fromisoformat(row["date"]) + datetime.timedelta(days=lag_days)
+        day = datetime.date.fromisoformat(row["date"]) + datetime.timedelta(days=1)
         points.append(Point(day, field, float(row["value"])))
     return points
 
 
-def parse_monthly(observations, release_dates, field):
-    """Date each monthly value by the first release after its month ended.
-
-    Values are the latest revision, which can differ slightly from the first print; the
-    release date is what matters to avoid look-ahead.
-    """
+def parse_first_release(observations, field):
+    """Sometimes several observations come out the same day (October and November 2025 CPI after
+    the shutdown, NFCI after holidays). A day holds one value, so each later one moves to the
+    next free day: a day late, never early."""
     points = []
-    for row in observations:
+    for row in sorted(observations, key=lambda row: row["date"]):
         if row["value"] == ".":
             continue
-        month = datetime.date.fromisoformat(row["date"])
-        month_end = (month.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
-        index = bisect.bisect_left(release_dates, month_end)
-        if index == len(release_dates):
-            continue  # not released yet
-        points.append(Point(release_dates[index], field, float(row["value"])))
+        day = datetime.date.fromisoformat(row["realtime_start"])
+        if points and day <= points[-1].date:
+            day = points[-1].date + datetime.timedelta(days=1)
+        points.append(Point(day, field, float(row["value"])))
     return points

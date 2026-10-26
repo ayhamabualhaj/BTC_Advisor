@@ -18,8 +18,9 @@ DAY = datetime.date(2026, 3, 2)
 
 class StressDataTests(SimpleTestCase):
     def test_weekly_nfci_is_dated_when_it_was_published(self):
-        points = fred.parse_daily([{"date": "2026-02-20", "value": "-0.5"}], "nfci", 6)
-        self.assertEqual(points[0].date, datetime.date(2026, 2, 26))
+        # The week to Friday Feb 20, first published on Wednesday Feb 25.
+        points = fred.parse_first_release([{"date": "2026-02-20", "realtime_start": "2026-02-25", "value": "-0.5"}], "nfci")
+        self.assertEqual(points[0].date, datetime.date(2026, 2, 25))
 
     def test_stress_has_only_an_ml_agent(self):
         self.assertTrue(has("stress", "ml"))

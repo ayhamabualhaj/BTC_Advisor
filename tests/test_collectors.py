@@ -96,11 +96,17 @@ class FredTests(SimpleTestCase):
         self.assertEqual(fred.parse_daily(rows, "fed_funds_effective"),
                          [Point(D(2026, 7, 2), "fed_funds_effective", 4.33)])
 
-    def test_monthly_value_is_dated_by_its_release(self):
-        rows = [{"date": "2026-06-01", "value": "320.1"}, {"date": "2026-07-01", "value": "321.0"}]
-        releases = [D(2026, 6, 11), D(2026, 7, 15)]
-        # June's CPI comes out on July 15; July's has no release yet so it is left out.
-        self.assertEqual(fred.parse_monthly(rows, releases, "cpi"), [Point(D(2026, 7, 15), "cpi", 320.1)])
+    def test_revised_series_use_the_first_print_dated_by_its_release(self):
+        # June's CPI as first published on July 15 (later revisions are not used).
+        rows = [{"date": "2026-06-01", "realtime_start": "2026-07-15", "value": "320.1"},
+                {"date": "2026-07-01", "realtime_start": "2026-08-12", "value": "."}]
+        self.assertEqual(fred.parse_first_release(rows, "cpi"), [Point(D(2026, 7, 15), "cpi", 320.1)])
+
+    def test_two_months_published_together_keep_both_the_later_a_day_late(self):
+        rows = [{"date": "2025-11-01", "realtime_start": "2025-12-18", "value": "325.0"},
+                {"date": "2025-10-01", "realtime_start": "2025-12-18", "value": "324.0"}]
+        self.assertEqual(fred.parse_first_release(rows, "cpi"), [Point(D(2025, 12, 18), "cpi", 324.0),
+                                                                 Point(D(2025, 12, 19), "cpi", 325.0)])
 
     @override_settings(FRED_API_KEY="")
     def test_missing_key_is_a_clear_error(self):
