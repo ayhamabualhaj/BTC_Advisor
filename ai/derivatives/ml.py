@@ -3,8 +3,12 @@
 from ai import ml, similarity
 
 
+# Added to the Opus input with prompt v3; the ML model keeps the numbers it was tested on.
+OPUS_ONLY = {"funding_rate_30d_avg_pct"}
+
+
 def features(snapshot, setup):
-    return similarity.encode(setup)
+    return similarity.encode({key: value for key, value in setup.items() if key not in OPUS_ONLY})
 
 
 def training_cutoff(date):

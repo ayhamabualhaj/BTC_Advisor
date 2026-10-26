@@ -15,11 +15,11 @@ class Brief:
     setup: dict             # the same as relative numbers (for ML and Opus)
     training: list = field(default_factory=list)  # [(features, went_up)] known by `date`
     ml_features: dict = field(default_factory=dict)  # today's numbers for the ML agent
-    similar: list = field(default_factory=list)   # closest past setups, for Opus
+    similar: dict | None = None  # summary of the closest past days, for Opus
     prompt_text: str = ""   # empty when Opus is not asked
 
     def opus_input(self):
-        return {**self.setup, "similar_past_setups": self.similar}
+        return {**self.setup, "similar_past_days": self.similar}
 
 
 @dataclass

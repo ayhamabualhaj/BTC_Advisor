@@ -185,9 +185,7 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - The rules lean bearish (technical sells unless the long trend is deeply down; macro sells
   on any CPI print not cooler than trend). Expect them to be wrong in a strong rally.
 - Earlier reworks (mean reversion for technical, dropping OI/crowd rules for derivatives)
-  are replaced. The edited technical and derivatives prompt.md files still describe those
-  findings and are not saved as a version yet: the next Opus run makes them v3. The saved
-  Opus backtest runs used v2 (the text before those edits).
+  are replaced. The saved Opus backtest runs used prompt v2; see "Prompts v3" below.
 - choose_combining_rule now stores the default rule when none qualifies, so an older
   choice made on other scores does not stay in force.
 
@@ -231,6 +229,32 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   on the full history (best Brier, stays near 50).
 - Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
   `choose_combining_rule --scores ml`.
+
+## Prompts v3 (Oct 2026, not yet run: the next Opus/Haiku call saves them as v3)
+- The "what history showed" lessons are now measured on 2017-2024 only (2025 on is the
+  test): a pattern is taught only if, against each block's own base rate (2017-19,
+  2020-21, 2022, 2023-24), the share of up weeks after it moved the same way in every
+  block with >= 30 such days, and by >= 4 points overall. Mixed ones are named as such.
+- Technical: momentum continued, the opposite of v2's mean reversion: RSI > 70 +9 pts,
+  30-day rally > 20% +7, 7-day rally > 10% +7, > 8% above the 20-day +7; > 20% below the
+  200-day +6; within 3% under resistance -6. No edge: 50/200-day position and cross,
+  MACD, RSI 30-70, sharp drops, near support.
+- Derivatives (2020-24): OI 3-day < -10% +5, OI and price both down > 3% +8, 7-day
+  funding negative +5, 30-day funding > 0.02% -6. No edge: OI up with price down, crowd vs
+  90-day average, one day of high funding. Liquidations untested (no history).
+- Macro: only a Fed hike in the last 60 days held (-5). CPI cooler than trend, dollar up
+  > 2% in a month and a Nasdaq 5-day drop are mixed (flip by period). Everything else: no edge.
+- Base rate stated (54% up after 7 days on 2017-24); 55+ / 45- are acted on as calls, so
+  the model gives one only with a tested pattern, else 46-54; rarely beyond 35-65.
+- `similar_past_days` (memory_service.similar_summary): instead of 5 raw cases, the 50
+  closest past days summarized in code: share up after 7 days, median move, all-days share.
+- Inputs: macro adds dollar 1-month, Nasdaq 5-day, S&P 20-day and 2-year 20-day changes and
+  drops `cuts_expected`; derivatives adds 30-day funding (Opus only; `OPUS_ONLY` keeps the
+  derivatives ML on the numbers it was tested with).
+- Caveat: overlapping 7-day windows make the counts look bigger than they are (~1/7 as many
+  independent weeks); these are tendencies, not edges proven at a high bar. Note the rules
+  (tuned on 2025-Sep 2026) lean bearish where these 2017-24 patterns lean bullish: the
+  test period may simply be a different market.
 
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - `AgentRun.model` records the Claude model asked (old runs back-filled as Opus 5.5). Opus

@@ -11,6 +11,10 @@ from apps.backtest.calibration import HORIZON_DAYS
 from apps.backtest.repositories import price_repository
 
 SIMILAR_CASES = 5
+# The model sees a summary of this many closest past days: 5 single cases were mostly noise.
+SIMILAR_DAYS = 50
+# Fewer comparable past days than this and the summary is left out.
+MIN_SIMILAR_DAYS = 20
 # A day with fewer numbers than this (e.g. derivatives before Bybit's history starts in
 # 2020) teaches the ML agent nothing but its label, so it is left out of training.
 MIN_TRAINING_FEATURES = 3
@@ -84,9 +88,19 @@ def training_cases(agent, date, cases=None):
             if day <= cutoff and len(features) >= MIN_TRAINING_FEATURES]
 
 
-def as_model_input(cases):
-    """What Opus sees about each similar case: the setup and what happened, no date."""
-    return [
-        {"setup": json.loads(case.setup_summary), "return_after_7d_pct": case.return_7d_pct}
-        for case in cases
-    ]
+def similar_summary(agent, date, model_input):
+    """What the model sees about the past days most like today, computed here (never by
+    the model): how often the price rose in the next 7 days, against all known days."""
+    cases = similar_cases(agent, date, model_input, limit=SIMILAR_DAYS)
+    if len(cases) < MIN_SIMILAR_DAYS:
+        return None
+    cutoff = date - datetime.timedelta(days=HORIZON_DAYS)
+    every = list(MemoryCase.objects.filter(agent=agent, date__lte=cutoff, return_7d_pct__isnull=False)
+                 .values_list("return_7d_pct", flat=True))
+    moves = sorted(case.return_7d_pct for case in cases)
+    return {
+        "days_compared": len(cases),
+        "share_up_after_7d_pct": round(sum(move > 0 for move in moves) / len(moves) * 100, 1),
+        "median_move_7d_pct": round(moves[len(moves) // 2], 2),
+        "all_past_days_share_up_pct": round(sum(move > 0 for move in every) / len(every) * 100, 1),
+    }

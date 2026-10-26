@@ -61,17 +61,20 @@ class MemoryServiceTests(TestCase):
         self.assertEqual(len(found), 5)
         self.assertTrue(all(case.date <= decision_day - datetime.timedelta(days=7) for case in found))
 
-    def test_opus_sees_similar_cases_without_dates(self):
+    def test_opus_sees_a_summary_of_similar_days_without_dates(self):
         memory_service.build_cases("technical", technical_inputs.model_input, day(0), day(79))
         client = FakeClient()
         agent_service.run_agents(day(70), ["technical"], client=client)
         sent = json.loads(client.calls[0]["messages"][0]["content"])
-        self.assertEqual(len(sent["similar_past_setups"]), 5)
-        self.assertEqual(set(sent["similar_past_setups"][0]), {"setup", "return_after_7d_pct"})
+        summary = sent["similar_past_days"]
+        # Up to 50 of the 64 finished cases (those sharing enough numbers); the price rose every day.
+        self.assertTrue(memory_service.MIN_SIMILAR_DAYS <= summary["days_compared"] <= memory_service.SIMILAR_DAYS)
+        self.assertEqual((summary["share_up_after_7d_pct"], summary["all_past_days_share_up_pct"]), (100.0, 100.0))
+        self.assertGreater(summary["median_move_7d_pct"], 0)
         self.assertNotIn("2026", client.calls[0]["messages"][0]["content"])
-        self.assertIn("similar_past_setups", AgentRun.objects.get().key_data["model_input"])
+        self.assertIn("similar_past_days", AgentRun.objects.get().key_data["model_input"])
 
-    def test_no_memory_means_an_empty_list(self):
+    def test_too_little_memory_means_no_summary(self):
         client = FakeClient()
         agent_service.run_agents(day(70), ["technical"], client=client)
-        self.assertEqual(json.loads(client.calls[0]["messages"][0]["content"])["similar_past_setups"], [])
+        self.assertIsNone(json.loads(client.calls[0]["messages"][0]["content"])["similar_past_days"])

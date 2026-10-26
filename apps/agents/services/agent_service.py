@@ -27,7 +27,7 @@ def make_brief(agent, date, cases=None, with_similar=False):
     brief = Brief(agent, date, snapshot, setup, training=memory_service.training_cases(agent, date, cases),
                   ml_features=DOMAINS[agent].ml.features(snapshot, setup))
     if with_similar:
-        brief.similar = memory_service.as_model_input(memory_service.similar_cases(agent, date, setup))
+        brief.similar = memory_service.similar_summary(agent, date, setup)
     return brief
 
 

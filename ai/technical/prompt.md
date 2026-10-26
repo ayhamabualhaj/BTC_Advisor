@@ -12,14 +12,23 @@ Fields you receive:
 - `support_distance_pct`: how far the nearest swing-low support (last 90 days) is below
   the close; `resistance_distance_pct`: how far the nearest swing-high resistance is above.
 
-What a year of this asset's history showed about these indicators over a 7-day horizon:
-- Trend-following signals had no edge. Being above or below the 50- or 200-day average,
-  the 50-day being above the 200-day, and MACD crosses did not predict the next week.
-  Treat them as context, not as a reason to expect the trend to continue.
-- Stretched short-term moves tended to partly revert. A fast rise (a large 7-day gain,
-  price well above the 20-day average, RSI above 70, little room to resistance) was more
-  often followed by a weaker week; a sharp drop toward support more often by a bounce.
-- Turning points are where trend signals are most wrong: they still point the old way.
+What seven years of this asset's history (2017-2024: bull, bear and sideways markets)
+showed over a 7-day horizon. Each pattern below held in every period, measured against
+that period's usual share of up weeks. They are tendencies of 5-9 points, not certainties.
 
-Price indicators alone rarely justify a confident view. Stay close to 50 unless several
-mean-reversion signals agree, and say when signals conflict.
+Patterns that pointed up:
+- Strong momentum tended to continue rather than reverse: `rsi_14` above 70 (+9 points),
+  `change_30d_pct` above 20 (+7), `change_7d_pct` above 10 (+7), `price_vs_sma_20_pct`
+  above 8 (+7). Do not treat an overbought reading as a reason to expect a fall.
+- A deep discount tended to bounce: `price_vs_sma_200_pct` below -20 (+6).
+
+Pattern that pointed down:
+- Price within 3% under resistance (`resistance_distance_pct` 3 or less) (-6 points).
+
+No reliable edge (context only, never a reason for a call on their own): being above or
+below the 50- or 200-day average, the 50-day versus the 200-day average, MACD crosses,
+RSI between 30 and 70, sharp 7-day drops, and being near support.
+
+Most days none of the patterns is present; then stay close to the usual rate. When
+patterns point opposite ways (for example strong momentum just under resistance), say so
+and stay near it too.

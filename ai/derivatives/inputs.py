@@ -9,6 +9,7 @@ def model_input(snapshot):
     return {
         "funding_rate_8h_pct": scaled(snapshot.get("funding_rate"), 100, 4),
         "funding_rate_7d_avg_pct": scaled(snapshot.get("funding_rate_7d_avg"), 100, 4),
+        "funding_rate_30d_avg_pct": scaled(snapshot.get("funding_rate_30d_avg"), 100, 4),
         "open_interest_change_3d_pct": scaled(snapshot.get("open_interest_change_3d_pct"), 1, 2),
         "price_change_3d_pct": scaled(snapshot.get("price_change_3d_pct"), 1, 2),
         "long_account_share": snapshot.get("long_account_ratio"),
