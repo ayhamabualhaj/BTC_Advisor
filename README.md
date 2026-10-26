@@ -42,7 +42,7 @@ history and build the memory:
 ```bash
 bash scripts/setup_postgres.sh
 python manage.py migrate
-python manage.py collect_data            # Jan 2025 to yesterday, all sources (~20 s)
+python manage.py collect_data            # Aug 2017 to yesterday, all sources (~2 min)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
 python manage.py test                    # 149 tests, no network, no API calls
 ```

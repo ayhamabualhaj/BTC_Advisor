@@ -10,6 +10,9 @@ from apps.backtest.calibration import HORIZON_DAYS
 from apps.backtest.repositories import price_repository
 
 SIMILAR_CASES = 5
+# A day with fewer numbers than this (e.g. derivatives before Bybit's history starts in
+# 2020) teaches the ML agent nothing but its label, so it is left out of training.
+MIN_TRAINING_FEATURES = 3
 
 
 def outcome_text(return_pct):
@@ -73,7 +76,8 @@ def training_cases(agent, date, cases=None):
     """
     cutoff = date - datetime.timedelta(days=HORIZON_DAYS)
     cases = known_cases(agent) if cases is None else cases
-    return [(features, return_pct > 0) for day, features, return_pct in cases if day <= cutoff]
+    return [(features, return_pct > 0) for day, features, return_pct in cases
+            if day <= cutoff and len(features) >= MIN_TRAINING_FEATURES]
 
 
 def as_model_input(cases):

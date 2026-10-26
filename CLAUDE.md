@@ -151,8 +151,11 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
   reaches October), October held out. A rule set was kept only if its Buy (>= 55) / Sell
   (<= 45) calls were right >= 60% over 7 days on the whole period and ~55%+ in 2025 and
   2026 separately. Each rule is a full call (10 points); opposite rules cancel to Hold.
-- Tuning hit rates: technical 63.5%, derivatives 60.1% (fragile to the funding
-  thresholds), macro 63.1%. October, applied once: 82%, 82%, 80%, but every agent said
+- Tuning hit rates when chosen (data from Jan 2025, so no 200-day average until Jul 2025):
+  technical 63.5%, derivatives 60.1% (fragile to the funding thresholds), macro 63.1%.
+  With the 2017+ history the same period gives 56.5% / 59.3% / 63.3% (technical's early-2025
+  days now have a 200-day average). Never tuned on 2019-2024, a true holdout:
+  55.0% / 47.8% / 53.1%. October, applied once: 82%, 82%, 80%, but every agent said
   Sell nearly every day and October fell, so it is one bearish call, not 17 wins.
 - The rules lean bearish (technical sells unless the long trend is deeply down; macro sells
   on any CPI print not cooler than trend). Expect them to be wrong in a strong rally.
@@ -180,11 +183,13 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
   `model_input` Opus sees, encoded by `ai/similarity.py`), score = chance (0-100) that the
   price is higher in 7 days. Retrained for every day on MemoryCases dated <= day - 7
   (walk-forward); fewer than 120 cases -> no score. Changing `model_input` needs `build_memory`.
-- Tuned on Jan 2025 - Sep 23 2026 (C 0.003-3, 120-day to full windows): walk-forward hit
-  rates were below 50% for technical and derivatives in every setting (41-48%) and 44-58%
-  for macro (one setting reached 58%, its neighbours did not); what one period taught reversed in the next. Adding the rule-search
-  features did not help. Kept C = 0.003 (best Brier, stays near 50). Treat ML as a third
-  opinion that is not yet useful; it is scored on the Signals page.
+- History: data since Aug 2017 (Binance, Yahoo, FRED) and Aug 2020 (Bybit) is stored;
+  memory has ~3,350 days per domain. Days with fewer than 3 numbers are not trained on.
+- With 2025-26 data only, walk-forward ML was 41-48% for technical and derivatives (what
+  one period taught reversed in the next). With the 2017+ history it is ~47-56% per period
+  (2019-22, 2023-24, 2025, 2026) and Brier ~0.25: no longer confidently wrong, but no
+  stable edge in any setting (C 0.003-0.3; 1-year, 2-year, full windows). Kept C = 0.003
+  on the full history (best Brier, stays near 50). A third opinion, not yet useful.
 - Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
   `choose_combining_rule --scores ml`.
 

@@ -19,7 +19,7 @@ def day(n):
 
 def cases(count):
     """A pattern to learn: the price rose after every day with a positive x."""
-    return [({"x": float(x), "noise": float(i % 3)}, x > 0)
+    return [({"x": float(x), "noise": float(i % 3), "flat": 1.0}, x > 0)
             for i, x in enumerate([(-1) ** i * (1 + i % 4) for i in range(count)])]
 
 
@@ -56,10 +56,13 @@ class TrainingCutoffTests(TestCase):
     def test_only_cases_with_a_known_outcome_are_learned_from(self):
         for n in range(30):
             MemoryCase.objects.create(date=day(n), agent="technical", setup_summary="{}",
-                                      embedding={"x": float(n)}, outcome="", return_7d_pct=1.0)
+                                      embedding={"x": float(n), "y": 1.0, "z": 2.0}, outcome="",
+                                      return_7d_pct=1.0)
+        MemoryCase.objects.filter(date=day(5)).update(embedding={})  # a day with no numbers
         training = memory_service.training_cases("technical", day(20))
-        # Cases dated day 0..13: the outcome of day 13 is known at the close of day 20.
-        self.assertEqual(len(training), 14)
+        # Cases dated day 0..13 (the outcome of day 13 is known at the close of day 20),
+        # minus day 5, which has no numbers to learn from.
+        self.assertEqual(len(training), 13)
         self.assertEqual(max(features["x"] for features, _ in training), 13.0)
 
 

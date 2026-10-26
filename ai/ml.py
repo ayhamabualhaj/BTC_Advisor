@@ -18,10 +18,9 @@ from sklearn.preprocessing import StandardScaler
 MIN_CASES = 120
 # Inverse regularization strength. Small = strong pull toward "no edge" (50), because
 # neighbouring days share most of their 7-day window and look like more evidence than they are.
-# Chosen on Jan 2025 - Sep 23 2026 from 0.003-3 and 120-day to full training windows: every
-# setting was right on fewer than half its 7-day calls for technical and derivatives (what
-# one period taught reversed in the next), so the one with the best Brier score, which stays
-# closest to 50, was kept.
+# Chosen walk-forward on 2019 - Sep 23 2026 (history from Aug 2017) from C 0.003-0.3 and
+# 1-year, 2-year and full training windows: no setting beat a coin flip in every period, so
+# the one with the best Brier score, which stays closest to 50, was kept (full history).
 REGULARIZATION = 0.003
 TOP_REASONS = 3
 

@@ -138,4 +138,4 @@ AI_EFFORT = os.getenv("AI_EFFORT", "medium")
 FRED_API_KEY = os.getenv("FRED_API_KEY", "")
 
 # First day the data collectors pull history from.
-DATA_START_DATE = os.getenv("DATA_START_DATE", "2025-01-01")
+DATA_START_DATE = os.getenv("DATA_START_DATE", "2017-08-17")
