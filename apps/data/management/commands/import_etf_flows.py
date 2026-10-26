@@ -8,7 +8,7 @@ from apps.data.repositories import market_data_repository
 
 
 class Command(BaseCommand):
-    help = "Import spot Bitcoin ETF daily net flows from a CSV saved from farside.co.uk."
+    help = "Import spot Bitcoin ETF daily net flows from farside.co.uk's table (CSV or pasted text)."
 
     def add_arguments(self, parser):
         parser.add_argument("csv_file")

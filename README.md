@@ -51,8 +51,9 @@ python manage.py test                    # 179 tests, no network, no API calls
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
 https://farside.co.uk/bitcoin-etf-flow-all-data/ in a browser, select the whole table
-(header row with "Total" included), copy it, paste it into a spreadsheet (LibreOffice Calc)
-and save it as CSV. Each day's flow is dated the next day (it is complete only after the
+(header row with "Total" included), copy it, paste it into a text editor and save it (e.g.
+`~/Downloads/etf_flows.txt`). A CSV or the pasted text both work; days where no fund
+reported (holidays, today) are skipped. Each day's flow is dated the next day (it is complete only after the
 US close). Then:
 
 ```bash

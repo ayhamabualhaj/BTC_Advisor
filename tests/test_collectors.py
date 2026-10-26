@@ -124,6 +124,18 @@ class EtfFlowTests(SimpleTestCase):
             Point(D(2026, 7, 3), "etf_net_flow_musd", -1234.0),
         ])
 
+    def test_table_pasted_one_cell_per_line(self):
+        # What a browser copies from Farside: every cell on its own line, header up to "Total".
+        pasted = ["Date    ", "IBIT", "FBTC", "Total",
+                  "12 Mar 2024    ", "849.0", "(51.6)", "1,045.0",
+                  "15 Jan 2024    ", "-", "-", "0.0",   # no fund reported: skipped, not a 0
+                  "Total    ", "66,134", "10,348", "57,251"]
+        self.assertEqual(etf_flows.parse_csv(pasted), [Point(D(2024, 3, 13), "etf_net_flow_musd", 1045.0)])
+
+    def test_tab_separated_rows(self):
+        pasted = ["Date\tIBIT\tTotal", "01 Jul 2026\t10.0\t(5.0)"]
+        self.assertEqual(etf_flows.parse_csv(pasted), [Point(D(2026, 7, 2), "etf_net_flow_musd", -5.0)])
+
     def test_csv_without_total_column_is_rejected(self):
         with self.assertRaises(CollectorError):
             etf_flows.parse_csv(["Date,IBIT", "01 Jul 2026,1"])
