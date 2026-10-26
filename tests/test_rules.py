@@ -2,12 +2,12 @@ import datetime
 
 from django.test import SimpleTestCase, TestCase
 
-from apps.agents.derivatives import rules as derivatives_rules
-from apps.agents.macro import rules as macro_rules
+from ai.derivatives import rules as derivatives_rules
+from ai.macro import rules as macro_rules
+from ai.scoring import RuleScore
+from ai.technical import rules as technical_rules
 from apps.agents.models import AgentRun
-from apps.agents.scoring import RuleScore
 from apps.agents.services import rule_scoring_service
-from apps.agents.technical import rules as technical_rules
 from apps.data.collectors.base import Point
 from apps.data.repositories import market_data_repository
 

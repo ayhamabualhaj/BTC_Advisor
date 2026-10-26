@@ -1,7 +1,9 @@
 """Daily agent scores over a period, for backtests: {date: {agent: score}}."""
 
-from apps.agents.models import AgentRun
-from apps.agents.services import rule_scoring_service
+from ai.domains import DOMAINS
+from apps.agents.models import AgentName, AgentRun
+from apps.agents.services import agent_service, memory_service, rule_scoring_service
+from apps.backtest.services import opus_backtest_service
 
 
 def rule_scores(days):
@@ -11,6 +13,27 @@ def rule_scores(days):
         results = rule_scoring_service.run_rules(day)
         history[day] = {agent: rule_score.score for agent, (_, rule_score) in results.items()}
     return history
+
+
+def rule_and_ml_scores(days):
+    """Both free scores in one pass, so each day's snapshot is built once.
+
+    The ML agent is retrained for every day on the cases known by then (walk-forward);
+    the memory is read once per agent and cut by date in memory_service.training_cases.
+    """
+    cases = {agent: memory_service.known_cases(agent) for agent in DOMAINS}
+    rules, ml = {}, {}
+    for day in days:
+        rules[day], ml[day] = {}, {}
+        for agent, domain in DOMAINS.items():
+            brief = agent_service.make_brief(agent, day, cases[agent])
+            rules[day][agent] = domain.rules.score(brief.snapshot).score
+            ml[day][agent] = domain.ml.score(brief).score
+    return rules, ml
+
+
+def ml_scores(days):
+    return rule_and_ml_scores(days)[1]
 
 
 def opus_scores(days, prompt_versions):
@@ -24,3 +47,12 @@ def opus_scores(days, prompt_versions):
         # A later run of the same day and version replaces an earlier one.
         history[run.date][run.agent] = run.opus_score
     return history
+
+
+def scores(score_type, days):
+    """Any kind of score by name. Opus only reads saved backtest runs, it never calls the API."""
+    if score_type == "rules":
+        return rule_scores(days)
+    if score_type == "ml":
+        return ml_scores(days)
+    return opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))

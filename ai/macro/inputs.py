@@ -1,12 +1,5 @@
-"""Macro agent: its Opus input and its Opus call."""
+"""Macro setup as relative numbers: what the ML and Opus agents see."""
 
-from pathlib import Path
-
-from apps.agents.ai import runner
-from apps.agents.models import AgentName
-
-AGENT = AgentName.MACRO
-PROMPT_FILE = Path(__file__).with_name("prompt.md")
 FED_MOVES = {1: "hike", -1: "cut", 0: "none"}
 
 
@@ -26,6 +19,3 @@ def model_input(snapshot):
         "spot_fund_net_flow_5d_musd": snapshot.get("etf_net_flow_5d_musd"),
     }
 
-
-def run(date, client=None, is_backtest=False):
-    return runner.run_agent(AGENT, PROMPT_FILE, model_input, date, client, is_backtest)

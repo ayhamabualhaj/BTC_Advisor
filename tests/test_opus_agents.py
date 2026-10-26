@@ -6,12 +6,12 @@ import anthropic
 import httpx2
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from apps.agents.ai import opus_client, prompts
-from apps.agents.derivatives import agent as derivatives_agent
-from apps.agents.macro import agent as macro_agent
+from ai import opus_client
+from ai.derivatives import inputs as derivatives_inputs
+from ai.macro import inputs as macro_inputs
+from ai.technical import inputs as technical_inputs, opus as technical_opus
 from apps.agents.models import AgentRun, PromptVersion
-from apps.agents.services import agent_service
-from apps.agents.technical import agent as technical_agent
+from apps.agents.services import agent_service, prompt_service
 from apps.data.collectors.base import Point
 from apps.data.repositories import market_data_repository
 from tests.fake_anthropic import GOOD_VERDICT, FakeClient, response
@@ -79,7 +79,7 @@ class ModelInputTests(SimpleTestCase):
         snapshot = {"close": 110.0, "sma_20": 105.0, "sma_50": 100.0, "sma_200": 88.0, "rsi_14": 55.0,
                     "macd_cross_3d": None, "change_7d_pct": 1.0, "change_30d_pct": 5.0,
                     "support": 104.5, "resistance": 121.0}
-        data = technical_agent.model_input(snapshot)
+        data = technical_inputs.model_input(snapshot)
         self.assertEqual(data["price_vs_sma_50_pct"], 10.0)
         self.assertEqual(data["price_vs_sma_20_pct"], 4.76)
         self.assertEqual(data["sma_50_vs_sma_200_pct"], 13.64)
@@ -88,29 +88,29 @@ class ModelInputTests(SimpleTestCase):
         self.assertNotIn(110.0, data.values())
 
     def test_inputs_survive_missing_data(self):
-        for module in (technical_agent, derivatives_agent, macro_agent):
+        for module in (technical_inputs, derivatives_inputs, macro_inputs):
             data = module.model_input({})
             self.assertTrue(all(value is None for value in data.values()), module.__name__)
 
     def test_derivatives_units(self):
-        data = derivatives_agent.model_input({"funding_rate": 0.0001, "long_liquidations_usd_1d": 25_000_000})
+        data = derivatives_inputs.model_input({"funding_rate": 0.0001, "long_liquidations_usd_1d": 25_000_000})
         self.assertEqual((data["funding_rate_8h_pct"], data["long_liquidations_musd_1d"]), (0.01, 25.0))
 
     def test_macro_spread_and_fed_move(self):
-        data = macro_agent.model_input({"treasury_2y": 3.5, "fed_funds_effective": 4.33, "fed_rate_change_60d": -1})
+        data = macro_inputs.model_input({"treasury_2y": 3.5, "fed_funds_effective": 4.33, "fed_rate_change_60d": -1})
         self.assertEqual((data["two_year_minus_fed_funds_pct"], data["fed_last_move_60d"]), (-0.83, "cut"))
 
 
 class PromptVersionTests(TestCase):
     def test_same_text_reuses_the_version(self):
-        first = prompts.current_version("technical", technical_agent.PROMPT_FILE)
-        again = prompts.current_version("technical", technical_agent.PROMPT_FILE)
+        first = prompt_service.current_version("technical", technical_opus.PROMPT_FILE)
+        again = prompt_service.current_version("technical", technical_opus.PROMPT_FILE)
         self.assertEqual((first.pk, first.version), (again.pk, 1))
         self.assertIn("How to answer", first.prompt_text)
 
     def test_changed_text_creates_a_new_version(self):
         PromptVersion.objects.create(agent="technical", version=1, prompt_text="an older prompt")
-        current = prompts.current_version("technical", technical_agent.PROMPT_FILE)
+        current = prompt_service.current_version("technical", technical_opus.PROMPT_FILE)
         self.assertEqual(current.version, 2)
         self.assertEqual(PromptVersion.objects.get(version=1).prompt_text, "an older prompt")
 
@@ -156,7 +156,7 @@ class AgentRunTests(TestCase):
         [run] = agent_service.run_agents(DAY, ["technical"], client=FakeClient())
         output = run.as_output()
         self.assertEqual(set(output), {
-            "agent", "date", "rule_score", "opus_score", "direction", "reasons", "key_data",
+            "agent", "date", "rule_score", "ml_score", "opus_score", "direction", "reasons", "key_data",
             "suggested_stop_loss", "prompt_version", "input_tokens", "output_tokens", "cost_usd",
         })
         self.assertEqual(output["date"], "2026-07-31")

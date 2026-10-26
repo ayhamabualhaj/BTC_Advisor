@@ -11,13 +11,14 @@
 {% else %}
   <section class="panel">
     <h2>Scores over time</h2>
-    <div class="chart-box"><canvas id="score-chart" aria-label="Rule and Opus scores by date" role="img"></canvas></div>
+    <div class="chart-box"><canvas id="score-chart" aria-label="Rule, ML and Opus scores by date" role="img"></canvas></div>
   </section>
 
   <section class="panel">
     <h2>Latest run <span class="muted">{{ latest.date }}</span></h2>
     <div class="tiles">
       <div><div class="tile-label">Opus score</div>{% include "dashboard/_score.html" with score=latest.opus_score %}</div>
+      <div><div class="tile-label">ML score</div>{% include "dashboard/_score.html" with score=latest.ml_score %}</div>
       <div><div class="tile-label">Rule score</div>{% include "dashboard/_score.html" with score=latest.rule_score %}</div>
       <div><div class="tile-label">Direction</div><span class="pill">{{ latest.direction|default:"–" }}</span></div>
       <div><div class="tile-label">Stop loss</div>{% if latest.suggested_stop_loss %}${{ latest.suggested_stop_loss|floatformat:0 }}{% else %}–{% endif %}</div>
@@ -33,12 +34,16 @@
         <h3>Rule criteria</h3>
         <ul class="reasons">{% for reason in latest.key_data.rule_reasons %}<li>{{ reason }}</li>{% empty %}<li class="muted">None fired.</li>{% endfor %}</ul>
         {% if latest.key_data.skipped %}<p class="muted small">No data for: {{ latest.key_data.skipped|join:", " }}</p>{% endif %}
+        {% if latest.key_data.ml_reasons %}
+        <h3>ML model</h3>
+        <ul class="reasons">{% for reason in latest.key_data.ml_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        {% endif %}
       </div>
       <div>
         <h3>Data</h3>
         <table class="data">
           {% for key, value in latest.key_data.items %}
-            {% if key != "model_input" and key != "rule_reasons" and key != "skipped" %}
+            {% if key != "model_input" and key != "rule_reasons" and key != "ml_reasons" and key != "skipped" %}
             <tr><th>{{ key }}</th><td>{{ value|default_if_none:"–" }}</td></tr>
             {% endif %}
           {% endfor %}
@@ -51,10 +56,10 @@
   <section class="panel">
     <h2>Recent runs</h2>
     <table class="data">
-      <thead><tr><th>Date</th><th>Rules</th><th>Opus</th><th>Direction</th><th>Prompt</th><th>Cost</th></tr></thead>
+      <thead><tr><th>Date</th><th>Rules</th><th>ML</th><th>Opus</th><th>Direction</th><th>Prompt</th><th>Cost</th></tr></thead>
       <tbody>
       {% for run in history %}
-        <tr><td>{{ run.date }}</td><td>{{ run.rule_score|floatformat:0 }}</td><td>{{ run.opus_score|default_if_none:"–" }}</td>
+        <tr><td>{{ run.date }}</td><td>{{ run.rule_score|floatformat:0 }}</td><td>{{ run.ml_score|floatformat:0|default:"–" }}</td><td>{{ run.opus_score|default_if_none:"–" }}</td>
           <td>{{ run.direction }}</td><td>v{{ run.prompt_version.version|default:"–" }}</td><td>${{ run.cost_usd|floatformat:4 }}</td></tr>
       {% endfor %}
       </tbody>

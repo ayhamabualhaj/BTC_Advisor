@@ -3,9 +3,9 @@ import datetime
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from apps.agents.memory import memory_service
 from apps.agents.models import AgentName
-from apps.agents.services.agent_service import AGENT_MODULES
+from ai.domains import DOMAINS
+from apps.agents.services import memory_service
 
 
 class Command(BaseCommand):
@@ -21,5 +21,5 @@ class Command(BaseCommand):
         yesterday = datetime.datetime.now(datetime.UTC).date() - datetime.timedelta(days=1)
         end = datetime.date.fromisoformat(options["end"]) if options["end"] else yesterday
         for agent in options["agent"] or AgentName.values:
-            count = memory_service.build_cases(agent, AGENT_MODULES[agent].model_input, start, end)
+            count = memory_service.build_cases(agent, DOMAINS[agent].inputs.model_input, start, end)
             self.stdout.write(self.style.SUCCESS(f"{agent}: {count} memory cases"))

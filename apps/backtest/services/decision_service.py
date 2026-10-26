@@ -3,13 +3,15 @@ from apps.backtest.decision_rule import is_buy
 from apps.backtest.models import Decision
 from apps.backtest.services import combining_service
 
+SCORE_FIELDS = {"rules": "rule_score", "ml": "ml_score", "opus": "opus_score"}
+
 
 def latest_scores(date, score_type):
     """Each agent's live score for the date (the newest run if an agent ran twice)."""
     scores = {agent: None for agent in AgentName.values}
     runs = AgentRun.objects.filter(date=date, is_backtest=False).order_by("created_at")
     for run in runs:
-        scores[run.agent] = run.opus_score if score_type == "opus" else run.rule_score
+        scores[run.agent] = getattr(run, SCORE_FIELDS[score_type])
     return scores
 
 

@@ -1,16 +1,17 @@
-"""Every day's call from each agent's rules and Opus, judged against what the price did.
+"""Every day's call from each domain's rule, ML and Opus agent, judged against what the price did.
 
 A score of 55 or more is a Buy call and 45 or less a Sell call (the same cut-offs as the
 rule directions); in between is Hold, which is never judged. A Buy is right when the price
-is higher after the horizon, a Sell when it is lower. The combined column is the current
-combining rule, which only ever says Buy.
+is higher after the horizon, a Sell when it is lower. Rules and ML are scored fresh (ML
+walk-forward, from cases known on each day); Opus uses the saved runs. The combined
+columns apply the current combining rule, which only ever says Buy.
 """
 
 import datetime
 from dataclasses import dataclass
 
 from apps.agents.models import AgentName
-from apps.agents.scoring import BEARISH_AT, BULLISH_AT
+from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.backtest.calibration import forward_returns
 from apps.backtest.decision_rule import is_buy
 from apps.backtest.repositories import price_repository
@@ -20,6 +21,7 @@ from apps.dashboard.repositories import report_repository
 HORIZONS = (1, 3, 7)
 DEFAULT_HORIZON = 7
 TEST_START = datetime.date(2026, 7, 1)
+SOURCES = [("rules", "Rules"), ("ml", "ML"), ("opus", "Opus")]
 
 
 @dataclass
@@ -40,11 +42,9 @@ class Column:
 
 def columns():
     result = []
-    for agent in AgentName:
-        result.append(Column(f"{agent.value}:rules", agent.value, agent.label, "Rules"))
-        result.append(Column(f"{agent.value}:opus", agent.value, agent.label, "Opus"))
-    result.append(Column("combined:rules", "combined", "Combined", "Rules"))
-    result.append(Column("combined:opus", "combined", "Combined", "Opus"))
+    for agent, label in [(agent.value, agent.label) for agent in AgentName] + [("combined", "Combined")]:
+        for key, source in SOURCES:
+            result.append(Column(f"{agent}:{key}", agent, label, source))
     return result
 
 
@@ -84,12 +84,16 @@ def combined_call(scores, rule, forward_return):
     return Call(signal, outcome=judge(signal, forward_return))
 
 
-def day_calls(day, rule_scores, opus_runs, rule, forward_return):
+def score_call(score, forward_return):
+    return Call(signal_for(score), score, judge(signal_for(score), forward_return))
+
+
+def day_calls(day, rule_scores, ml_scores, opus_runs, rule, forward_return):
     calls = {}
     opus_scores = {}
     for agent in AgentName.values:
-        score = rule_scores.get(agent)
-        calls[f"{agent}:rules"] = Call(signal_for(score), score, judge(signal_for(score), forward_return))
+        calls[f"{agent}:rules"] = score_call(rule_scores.get(agent), forward_return)
+        calls[f"{agent}:ml"] = score_call(ml_scores.get(agent), forward_return)
         run = opus_runs.get(agent)
         opus_scores[agent] = run.opus_score if run else None
         if run:
@@ -99,6 +103,7 @@ def day_calls(day, rule_scores, opus_runs, rule, forward_return):
         else:
             calls[f"{agent}:opus"] = Call("none")
     calls["combined:rules"] = combined_call(rule_scores, rule, forward_return)
+    calls["combined:ml"] = combined_call(ml_scores, rule, forward_return)
     calls["combined:opus"] = combined_call(opus_scores, rule, forward_return)
     return calls
 
@@ -130,7 +135,7 @@ def signal_table(start=None, end=None, horizon=DEFAULT_HORIZON, opus_days_only=F
 
     closes = price_repository.closes(start, end + datetime.timedelta(days=horizon))
     returns = forward_returns(days, closes, horizon)
-    rules = score_history.rule_scores(days)
+    rules, ml = score_history.rule_and_ml_scores(days)
     rule = combining_service.current_rule()
 
     rows = []
@@ -140,7 +145,7 @@ def signal_table(start=None, end=None, horizon=DEFAULT_HORIZON, opus_days_only=F
             "date": day,
             "close": closes.get(day),
             "return_pct": forward_return * 100 if forward_return is not None else None,
-            "calls": day_calls(day, rules[day], opus.get(day, {}), rule, forward_return),
+            "calls": day_calls(day, rules[day], ml[day], opus.get(day, {}), rule, forward_return),
         })
     keys = [column.key for column in columns()]
     return {"rows": rows, "columns": columns(), "summary": summarize(rows, keys),

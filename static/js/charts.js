@@ -37,6 +37,8 @@ function scoreChart(id, data) {
           borderWidth: 2, pointRadius, pointHoverRadius: 5, spanGaps: false },
         { label: "Rule score", data: data.rule, borderColor: token("--derivatives"), backgroundColor: token("--derivatives"),
           borderWidth: 2, pointRadius, pointHoverRadius: 5, stepped: true },
+        { label: "ML score", data: data.ml, borderColor: token("--macro"), backgroundColor: token("--macro"),
+          borderWidth: 2, pointRadius, pointHoverRadius: 5, spanGaps: false },
       ],
     },
     options,

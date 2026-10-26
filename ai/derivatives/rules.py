@@ -5,7 +5,7 @@ whole tuning period and close to that in 2025 and 2026 separately. The funding
 thresholds are sensitive: small changes moved the hit rate between 58% and 60%.
 """
 
-from apps.agents.scoring import RuleScore, has
+from ai.scoring import RuleScore, has
 
 CALL_POINTS = 10
 # Funding per 8 hours, as a fraction (0.0001 = 0.01%, the usual neutral level).

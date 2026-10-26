@@ -23,6 +23,7 @@
       {% if run %}
         <div class="tiles">
           <div><div class="tile-label">Opus</div>{% include "dashboard/_score.html" with score=run.opus_score %}</div>
+          <div><div class="tile-label">ML</div>{% include "dashboard/_score.html" with score=run.ml_score %}</div>
           <div><div class="tile-label">Rules</div>{% include "dashboard/_score.html" with score=run.rule_score %}</div>
           <div><div class="tile-label">Direction</div><span class="pill">{{ run.direction|default:"–" }}</span></div>
         </div>

@@ -2,8 +2,7 @@ import datetime
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.agents.models import AgentName
-from apps.backtest.services import backtest_service, combining_service, opus_backtest_service, score_history
+from apps.backtest.services import backtest_service, combining_service, score_history
 
 from .backtest_rules import TEST_START
 
@@ -12,7 +11,7 @@ class Command(BaseCommand):
     help = "Try combining-rule thresholds (all three or two agents above X) and keep the best."
 
     def add_arguments(self, parser):
-        parser.add_argument("--scores", choices=["rules", "opus"], default="rules")
+        parser.add_argument("--scores", choices=["rules", "ml", "opus"], default="rules")
         parser.add_argument("--start", default=TEST_START)
         parser.add_argument("--end")
         parser.add_argument("--no-save", action="store_true")
@@ -23,10 +22,7 @@ class Command(BaseCommand):
         market = backtest_service.load_market(start, end)
         if not market.days:
             raise CommandError("No price data in this period; run collect_data first.")
-        if options["scores"] == "rules":
-            scores = score_history.rule_scores(market.days)
-        else:
-            scores = score_history.opus_scores(market.days, opus_backtest_service.prompt_versions(AgentName.values))
+        scores = score_history.scores(options["scores"], market.days)
 
         candidates, chosen = combining_service.choose(options["scores"], scores, market, save=not options["no_save"])
         self.stdout.write("rule            trades   win   profit  drawdown  1st half  2nd half")

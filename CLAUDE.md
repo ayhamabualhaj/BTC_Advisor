@@ -1,8 +1,8 @@
 # BTC Advisor — notes for Claude Code
 
-A local Django tool that advises Ayham on daily Bitcoin trades. Three independent agents
-(technical, derivatives, macro) each give a rule-based score (code) and an Opus judgment
-score. The system only advises; Ayham places trades manually. Full plan:
+A local Django tool that advises Ayham on daily Bitcoin trades. Three domains (technical,
+derivatives, macro) each have three independent agents: rules (code), ML (logistic
+regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -19,8 +19,9 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - Python 3.13 (CrewAI does not support 3.14 yet).
 - Layering: View → Service → Repository/AI → Database. Models split into separate files
   under `apps/<app>/models/`.
-- Each agent has its own folder `apps/agents/<name>/` with `prompt.md`, `rules.py`
-  (rule-based score) and `agent.py` (the Opus call).
+- The AI lives in the top-level `ai/` package, outside `apps/`. Each domain has its own
+  folder `ai/<domain>/` with `inputs.py` (setup as relative numbers), `rules.py`, `ml.py`,
+  `opus.py` and `prompt.md`. Nothing in `ai/` touches the database (see AI layer below).
 - Tests live in `tests/` at the root (`tests/test_<area>.py`).
 - No nested project folders; every app has `migrations/__init__.py` and `admin.py`;
   `.env.example` matches the settings exactly.
@@ -31,7 +32,9 @@ score. The system only advises; Ayham places trades manually. Full plan:
 ## Layout
 - `config/` — settings, urls.
 - `apps/data/` — MarketData (long date/source/field/value table), collectors, indicators.
-- `apps/agents/` — AgentRun, PromptVersion (text locked once saved), MemoryCase; per-agent rules and Opus calls.
+- `ai/` — the agents and the CrewAI Flow (no Django models, no database access).
+- `apps/agents/` — AgentRun (rule_score, ml_score, opus_score), PromptVersion (text locked
+  once saved), MemoryCase; services that build Briefs, run the Flow and save the runs.
 - `apps/backtest/` — Decision, Outcome, BacktestRun, ManualTrade.
 - `apps/dashboard/` — web pages (later).
 
@@ -60,7 +63,7 @@ score. The system only advises; Ayham places trades manually. Full plan:
   funds; "CPI vs expectations" = latest monthly change vs the previous 3 months' average.
 
 ## Rule scores (step 5)
-- `apps/agents/<agent>/rules.py` — `score(snapshot) -> RuleScore` (start 50, clamp 0-100;
+- `ai/<domain>/rules.py` — `score(snapshot) -> RuleScore` (start 50, clamp 0-100;
   bullish >= 55, bearish <= 45). Weights and thresholds are named constants at the top of
   each file, to be tuned by the backtest. Missing data skips a criterion (listed in
   `skipped`), it never counts as bullish or bearish.
@@ -74,11 +77,12 @@ score. The system only advises; Ayham places trades manually. Full plan:
   saves one BacktestRun per agent plus "combined", each compared with buy-and-hold.
 
 ## Opus agents (step 7)
-- `apps/agents/<agent>/prompt.md` + shared `apps/agents/output_instructions.md` = the system
-  prompt. `apps/agents/ai/prompts.py` makes a new PromptVersion whenever that text changes.
-- `apps/agents/<agent>/agent.py` — `model_input(snapshot)`: relative numbers only (no
-  absolute prices, levels or dates, so the asset and the year stay hidden), and `run()`.
-- `apps/agents/ai/opus_client.py` — the only Anthropic API call: structured JSON output,
+- `ai/<domain>/prompt.md` + shared `ai/output_instructions.md` = the system prompt.
+  `apps/agents/services/prompt_service.py` makes a new PromptVersion whenever that text changes.
+- `ai/<domain>/inputs.py` — `model_input(snapshot)`: relative numbers only (no
+  absolute prices, levels or dates, so the asset and the year stay hidden). ML and Opus
+  both use it.
+- `ai/opus_client.py` — the only Anthropic API call: structured JSON output,
   effort from AI_EFFORT, one retry on invalid output, tokens and cost on every call.
   Prices ($4 / $20 per M tokens for Opus 5.5) are constants there.
 - Opus never sees the rule score or other agents' results. opus_score = confidence (0-100)
@@ -120,32 +124,23 @@ score. The system only advises; Ayham places trades manually. Full plan:
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
-## Derivatives agent rework (after step 14)
-- Tuned on Aug 2025 - Jun 2026 only. Two old rules were wrong: OI rising while price fell
-  (-10) was not bearish (test period: up 71% of weeks), and fading an extreme long/short
-  crowd (+-10) pointed the wrong way. Both removed; open interest and the crowd stay in the
-  Opus input as context.
-- Kept, smaller: funding > 0.03% -5, funding negative +5 (tuning: 55% up vs 45% base),
-  long-liquidation flush +5 (no liquidation history yet). Brier test 0.269 -> 0.252.
-- Prompt v2 says what the tuning period showed. Model input unchanged.
-
 ## Signals page (after step 14)
-- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules and an
-  Opus column per agent plus the combining rule. Score >= 55 is Buy, <= 45 Sell, else Hold
+- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules, ML and
+  Opus column per domain plus the combining rule on each. Score >= 55 is Buy, <= 45 Sell, else Hold
   (never judged). A call is green when the price after 1/3/7 days (`?horizon=`) moved its
-  way, red when not, gray while waiting. Rules are scored fresh (current rules); Opus uses
+  way, red when not, gray while waiting. Rules and ML are scored fresh; Opus uses
   the newest saved run per day. Filters: `?start= &end= &opus=1` (only days with Opus).
 
 ## Daily run (step 13)
 - `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
   last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else
-  rules only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
+  rules and ML only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
   agent). Refuses a date that already ran unless --force, so retries never pay twice.
 - Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
   `collect_data --source okx` every 4 hours for liquidations.
 
 ## RAG memory (step 14)
-- `apps/agents/memory/`: a MemoryCase per agent and day = the agent's model input (as
+- `apps/agents/services/memory_service.py` + `ai/similarity.py`: a MemoryCase per agent and day = the agent's model input (as
   setup_summary JSON) + its 7-day return. The setup's own numbers are the embedding
   (standardized distance, missing features count as 2 std apart); no embedding service.
 - Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
@@ -162,42 +157,35 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - The rules lean bearish (technical sells unless the long trend is deeply down; macro sells
   on any CPI print not cooler than trend). Expect them to be wrong in a strong rally.
 - Earlier reworks (mean reversion for technical, dropping OI/crowd rules for derivatives)
-  are replaced; the Opus prompts v2 still describe those findings.
+  are replaced; the Opus prompts v2 still describe those findings. The technical Opus
+  backtest runs were made with prompt v1.
 - choose_combining_rule now stores the default rule when none qualifies, so an older
   choice made on other scores does not stay in force.
 
-## Signals page (after step 14)
-- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules and an
-  Opus column per agent plus the combining rule. Score >= 55 is Buy, <= 45 Sell, else Hold
-  (never judged). A call is green when the price after 1/3/7 days (`?horizon=`) moved its
-  way, red when not, gray while waiting. Rules are scored fresh (current rules); Opus uses
-  the newest saved run per day. Filters: `?start= &end= &opus=1` (only days with Opus).
+## AI layer and Flow (after step 14)
+- `ai/flow.py` — a CrewAI Flow (`AdvisorFlow`): the rule, ML and Opus agents of every domain
+  start together and never see each other's results; the last step returns one Verdict
+  per domain. No CrewAI LLM agents: Opus goes through `ai/opus_client.py` only.
+- CrewAI runs flow steps on a worker thread, where Django's database connection (and a
+  test's transaction) is not available. So `apps/agents/services/agent_service.py` builds
+  a `Brief` per domain (snapshot, setup, ML training cases, similar cases, prompt text)
+  before the Flow and saves the AgentRuns after it. Keep the Flow steps database-free.
+- `agent_service.run_agents(date, agents, use_opus, client, is_backtest)` is the one entry
+  point (daily_run, run_agents, backtest_opus). Telemetry: settings.py turns CrewAI's
+  anonymous telemetry, tracing and version check off before crewai is imported.
 
-## Daily run (step 13)
-- `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
-  last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else
-  rules only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
-  agent). Refuses a date that already ran unless --force, so retries never pay twice.
-- Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
-  `collect_data --source okx` every 4 hours for liquidations.
-
-## RAG memory (step 14)
-- `apps/agents/memory/`: a MemoryCase per agent and day = the agent's model input (as
-  setup_summary JSON) + its 7-day return. The setup's own numbers are the embedding
-  (standardized distance, missing features count as 2 std apart); no embedding service.
-- Retrieval only uses cases dated <= decision date - 7 days (outcome known). Opus gets the
-  5 closest as `similar_past_setups` (no dates). `build_memory` (free); daily_run adds new cases.
-
-## Technical agent rework (after step 14)
-- Tuned on Aug 2025 - Jun 2026 only (before the test period). Trend-following signals
-  (above 50/200-day average, golden cross, MACD cross) had no 7-day edge; stretched short
-  moves partly reverted. The old rules (+-10 per average) were confidently wrong at turns:
-  Brier 0.307 on the test period, 0.432 on Oct 4-13.
-- New rules score mean reversion with small points (200-day +-3, stretch vs 20-day average
-  +-5 at 5%, 7-day rally -5 / drop +3 at 5%, RSI 70/30 +-5, levels +-3). Brier 0.259 on the
-  test period; scores stay ~38-59, so technical alone rarely trades.
-- Prompt v2 adds `price_vs_sma_20_pct` and says what the tuning period showed. The Opus
-  technical backtest runs were made with v1 (rerunning them is paid).
+## ML agents (after step 14)
+- `ai/ml.py`: logistic regression (scikit-learn) on the domain's setup numbers (the same
+  `model_input` Opus sees, encoded by `ai/similarity.py`), score = chance (0-100) that the
+  price is higher in 7 days. Retrained for every day on MemoryCases dated <= day - 7
+  (walk-forward); fewer than 120 cases -> no score. Changing `model_input` needs `build_memory`.
+- Tuned on Jan 2025 - Sep 23 2026 (C 0.003-3, 120-day to full windows): walk-forward hit
+  rates were below 50% for technical and derivatives in every setting (41-48%) and 44-58%
+  for macro (one setting reached 58%, its neighbours did not); what one period taught reversed in the next. Adding the rule-search
+  features did not help. Kept C = 0.003 (best Brier, stays near 50). Treat ML as a third
+  opinion that is not yet useful; it is scored on the Signals page.
+- Free everywhere: `backtest_rules --scores ml`, `calibration --scores ml`,
+  `choose_combining_rule --scores ml`.
 
 ## Progress
 - [x] 1. Project setup
@@ -216,4 +204,4 @@ score. The system only advises; Ayham places trades manually. Full plan:
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, rule search for all agents, Signals page. Pending for the user: ETF CSV, crontab; optionally rerun the Opus technical and derivatives backtests with prompt v2 (paid, ~$0.45 each).
+**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow. Pending for the user: ETF CSV, crontab; optionally rerun the Opus backtests with prompt v2 (paid, ~$0.45 each).

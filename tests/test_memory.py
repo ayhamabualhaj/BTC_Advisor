@@ -3,10 +3,10 @@ import json
 
 from django.test import SimpleTestCase, TestCase
 
-from apps.agents.memory import features, memory_service
+from ai import similarity as features
+from ai.technical import inputs as technical_inputs
 from apps.agents.models import AgentRun, MemoryCase
-from apps.agents.services import agent_service
-from apps.agents.technical import agent as technical_agent
+from apps.agents.services import agent_service, memory_service
 from apps.data.collectors.base import Point
 from apps.data.repositories import market_data_repository
 from tests.fake_anthropic import FakeClient
@@ -44,7 +44,7 @@ class MemoryServiceTests(TestCase):
         market_data_repository.save_points("binance", points)
 
     def test_cases_only_for_days_with_a_known_7_day_outcome(self):
-        saved = memory_service.build_cases("technical", technical_agent.model_input, day(0), day(79))
+        saved = memory_service.build_cases("technical", technical_inputs.model_input, day(0), day(79))
         self.assertEqual(saved, 73)  # the last 7 days have no outcome yet
         case = MemoryCase.objects.get(agent="technical", date=day(10))
         self.assertAlmostEqual(case.return_7d_pct, round((117 / 110 - 1) * 100, 2))
@@ -52,7 +52,7 @@ class MemoryServiceTests(TestCase):
         self.assertIn("rsi_14", json.loads(case.setup_summary))
 
     def test_retrieval_never_uses_unfinished_cases(self):
-        memory_service.build_cases("technical", technical_agent.model_input, day(0), day(79))
+        memory_service.build_cases("technical", technical_inputs.model_input, day(0), day(79))
         decision_day = day(60)
         setup = json.loads(MemoryCase.objects.get(agent="technical", date=decision_day).setup_summary)
         found = memory_service.similar_cases("technical", decision_day, setup)
@@ -60,7 +60,7 @@ class MemoryServiceTests(TestCase):
         self.assertTrue(all(case.date <= decision_day - datetime.timedelta(days=7) for case in found))
 
     def test_opus_sees_similar_cases_without_dates(self):
-        memory_service.build_cases("technical", technical_agent.model_input, day(0), day(79))
+        memory_service.build_cases("technical", technical_inputs.model_input, day(0), day(79))
         client = FakeClient()
         agent_service.run_agents(day(70), ["technical"], client=client)
         sent = json.loads(client.calls[0]["messages"][0]["content"])

@@ -1,13 +1,5 @@
-from pathlib import Path
-
+from ai import prompts
 from apps.agents.models import PromptVersion
-
-OUTPUT_INSTRUCTIONS = Path(__file__).resolve().parent.parent / "output_instructions.md"
-
-
-def prompt_text(prompt_file):
-    """The full system prompt: the agent's prompt.md plus the shared answer format."""
-    return Path(prompt_file).read_text().strip() + "\n" + OUTPUT_INSTRUCTIONS.read_text()
 
 
 def current_version(agent, prompt_file):
@@ -16,7 +8,7 @@ def current_version(agent, prompt_file):
     Editing prompt.md (or the shared instructions) creates a new version on the next run,
     so every saved result stays linked to the exact text that produced it.
     """
-    text = prompt_text(prompt_file)
+    text = prompts.prompt_text(prompt_file)
     latest = PromptVersion.objects.filter(agent=agent).order_by("-version").first()
     if latest and latest.prompt_text == text:
         return latest

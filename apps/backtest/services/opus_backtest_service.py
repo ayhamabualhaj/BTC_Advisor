@@ -5,9 +5,9 @@ from decimal import Decimal
 
 from django.db.models import Avg
 
-from apps.agents.ai import prompts
+from ai.domains import DOMAINS
 from apps.agents.models import AgentRun
-from apps.agents.services.agent_service import AGENT_MODULES
+from apps.agents.services import agent_service, prompt_service
 
 # Used for estimates until real runs exist. Measured in October 2026 at effort "medium":
 # about 2,300 input and 300 output tokens, $0.016 per call.
@@ -23,7 +23,7 @@ class OpusBacktestProgress:
 
 
 def prompt_versions(agents):
-    return {agent: prompts.current_version(agent, AGENT_MODULES[agent].PROMPT_FILE) for agent in agents}
+    return {agent: prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE) for agent in agents}
 
 
 def pending_days(agent, prompt_version, days):
@@ -57,7 +57,7 @@ def run(agents, days, max_cost_usd, client=None, on_run=None):
             if progress.spent_usd + per_call > max_cost_usd:
                 progress.stopped_at_cap = True
                 return progress
-            agent_run = AGENT_MODULES[agent].run(day, client, is_backtest=True)
+            [agent_run] = agent_service.run_agents(day, [agent], client=client, is_backtest=True)
             progress.calls += 1
             progress.spent_usd += agent_run.cost_usd
             # Keep the estimate honest as real costs come in.

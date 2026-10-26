@@ -4,7 +4,8 @@
 <h1>Signals <span class="muted">every call, right or wrong</span></h1>
 <p class="muted small">A score of 55 or more is a <strong>Buy</strong> call, 45 or less a <strong>Sell</strong> call, in between
   <strong>Hold</strong>. A call is right when the price {{ horizon }} day{{ horizon|pluralize }} later moved its way.
-  Rules are scored as they are now; Opus scores are the saved runs.
+  Rules are scored as they are now and ML walk-forward (it learns only from days whose outcome was known);
+  Opus scores are the saved runs.
   {% if rule %}Combined = buy when {{ rule.agents_required }} agents score ≥ {{ rule.threshold }}.{% endif %}</p>
 
 <form class="controls" method="get">
@@ -67,7 +68,7 @@
         <th rowspan="2" class="sticky">Date</th>
         <th rowspan="2" class="num">BTC after {{ horizon }}d</th>
         {% for group in groups %}
-          <th colspan="2" class="group">{% if group.agent != "combined" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</th>
+          <th colspan="{{ group_span }}" class="group">{% if group.agent != "combined" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</th>
         {% endfor %}
       </tr>
       <tr>{% for column in columns %}<th class="sub">{{ column.source }}</th>{% endfor %}</tr>

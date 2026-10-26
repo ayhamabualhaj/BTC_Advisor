@@ -1,12 +1,4 @@
-"""Technical-analysis agent: its Opus input and its Opus call."""
-
-from pathlib import Path
-
-from apps.agents.ai import runner
-from apps.agents.models import AgentName
-
-AGENT = AgentName.TECHNICAL
-PROMPT_FILE = Path(__file__).with_name("prompt.md")
+"""Technical-analysis setup as relative numbers: what the ML and Opus agents see."""
 
 
 def pct_from(value, reference):
@@ -31,6 +23,3 @@ def model_input(snapshot):
         "resistance_distance_pct": pct_from(snapshot.get("resistance"), close),
     }
 
-
-def run(date, client=None, is_backtest=False):
-    return runner.run_agent(AGENT, PROMPT_FILE, model_input, date, client, is_backtest)

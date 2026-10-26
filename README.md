@@ -1,10 +1,13 @@
 # BTC Advisor
 
-A local multi-agent tool that advises on daily Bitcoin trades. Three independent agents
-(technical analysis, derivatives, macro) each give two scores for the day:
+A local multi-agent tool that advises on daily Bitcoin trades. Three domains (technical
+analysis, derivatives, macro) each have three independent agents, run together by a CrewAI
+Flow:
 
-- a **rule score** computed in code from explicit criteria (start at 50, criteria add or subtract);
-- an **Opus score** from Claude Opus 5.5: its confidence (0-100) that the price is higher in
+- a **rules** agent: a score computed in code from explicit criteria (start at 50, criteria add or subtract);
+- an **ML** agent: logistic regression on the domain's numbers, retrained every day on past
+  days whose 7-day outcome was known (free);
+- an **Opus** agent: Claude Opus 5.5's confidence (0-100) that the price is higher in
   7 days, with 3-5 reasons and a suggested stop loss.
 
 A buy is suggested only when enough agents are confident at the same time (the combining
@@ -41,7 +44,7 @@ bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Jan 2025 to yesterday, all sources (~20 s)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
-python manage.py test                    # 139 tests, no network, no API calls
+python manage.py test                    # 149 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
@@ -59,8 +62,8 @@ python manage.py runserver               # dashboard at http://127.0.0.1:8000/
 ```
 
 `daily_run` costs about 3 Opus calls a day; it refuses to run the same day twice unless you
-pass `--force`, and falls back to rule scores (free) when no API key is set (or with
-`--rules-only`).
+pass `--force`, and falls back to the rules and ML agents (free) when no API key is set (or
+with `--rules-only`).
 
 ### Run it automatically (cron)
 
@@ -80,7 +83,8 @@ The test period starts on 2026-07-01, after Opus 5.5's training cutoff.
 
 ```bash
 python manage.py backtest_rules                    # rule scores: each agent alone + combined (free)
-python manage.py calibration --scores rules        # is a 70 right 70% of the time? (free)
+python manage.py backtest_rules --scores ml        # the same for the ML agents (free)
+python manage.py calibration --scores rules        # is a 70 right 70% of the time? (free, also --scores ml)
 python manage.py choose_combining_rule --scores rules
 
 python manage.py backtest_opus --estimate          # calls needed and expected cost (free)
@@ -107,7 +111,7 @@ already known.
 
 Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
 (score chart, data used, live/backtest runs), **Signals** (every day's Buy/Sell/Hold call from
-each agent's rules and Opus, green when right and red when wrong after 1, 3 or 7 days), **Backtests** (profit vs buy-and-hold,
+each domain's rules, ML and Opus agent, green when right and red when wrong after 1, 3 or 7 days), **Backtests** (profit vs buy-and-hold,
 calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
 prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
 version automatically on the next run.
@@ -121,8 +125,9 @@ Read-only JSON API under `/api/`: `decision/today/`, `agent-runs/?agent=&backtes
 config/            settings, urls
 scripts/           setup_postgres.sh
 apps/data/         MarketData, collectors (Binance, Bybit, OKX, Yahoo, FRED, Farside CSV), indicators
-apps/agents/       technical/ derivatives/ macro/ (prompt.md, rules.py, agent.py), ai/ (Opus client,
-                   prompt versions, runner), memory/ (RAG), AgentRun, PromptVersion, MemoryCase
+ai/                technical/ derivatives/ macro/ (inputs.py, rules.py, ml.py, opus.py, prompt.md),
+                   flow.py (CrewAI Flow), ml.py, opus_client.py, similarity.py (RAG distance)
+apps/agents/       AgentRun, PromptVersion, MemoryCase; services that prepare, run and save the agents
 apps/backtest/     metrics, calibration, combining rule, daily run, outcomes, Decision, BacktestRun
 apps/dashboard/    REST API and pages (views -> services -> repositories)
 templates/ static/ HTML templates, CSS, Chart.js helpers

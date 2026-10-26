@@ -98,8 +98,8 @@ def choose(score_type, scores_by_day, market, save=True):
 
 
 def current_rule():
-    """The most recently chosen rule (Opus-tuned preferred), or the plan's starting default."""
-    for score_type in ("opus", "rules"):
+    """The most recently chosen rule (Opus-tuned preferred, then ML, then rules), or the default."""
+    for score_type in ("opus", "ml", "rules"):
         run = BacktestRun.objects.filter(name=f"{score_type}:combining_rule").order_by("-created_at").first()
         if run:
             return {"score_type": score_type, "threshold": run.settings["threshold"],

@@ -11,9 +11,10 @@ TEST_START = "2026-07-01"
 
 
 class Command(BaseCommand):
-    help = "Backtest the rule-based scores (free, no AI): each agent alone and combined."
+    help = "Backtest the rule or ML scores (free, no API calls): each agent alone and combined."
 
     def add_arguments(self, parser):
+        parser.add_argument("--scores", choices=["rules", "ml"], default="rules")
         parser.add_argument("--start", default=TEST_START)
         parser.add_argument("--end", help="YYYY-MM-DD (default: last day with a known next-day price)")
         parser.add_argument("--threshold", type=float, default=backtest_service.DEFAULT_THRESHOLD)
@@ -27,12 +28,12 @@ class Command(BaseCommand):
         if not market.days:
             raise CommandError("No price data in this period; run collect_data first.")
 
-        scores = score_history.rule_scores(market.days)
+        scores = score_history.scores(options["scores"], market.days)
         runs = backtest_service.run_backtest(
-            "rules", scores, market, options["threshold"], options["agents_required"],
+            options["scores"], scores, market, options["threshold"], options["agents_required"],
             save=not options["no_save"],
         )
-        self.stdout.write(f"Rules backtest {market.days[0]} to {market.days[-1]} "
+        self.stdout.write(f"{options['scores']} backtest {market.days[0]} to {market.days[-1]} "
                           f"({len(market.days)} days), buy when score >= {options['threshold']:g}")
         for run in runs:
             self.stdout.write(format_run(run))

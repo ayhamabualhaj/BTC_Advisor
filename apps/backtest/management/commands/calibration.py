@@ -2,9 +2,8 @@ import datetime
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.agents.models import AgentName
 from apps.backtest import calibration
-from apps.backtest.services import backtest_service, calibration_service, opus_backtest_service, score_history
+from apps.backtest.services import backtest_service, calibration_service, score_history
 
 from .backtest_rules import TEST_START
 
@@ -13,7 +12,7 @@ class Command(BaseCommand):
     help = "Calibration check: for each confidence band, how often were the calls right?"
 
     def add_arguments(self, parser):
-        parser.add_argument("--scores", choices=["rules", "opus"], default="rules")
+        parser.add_argument("--scores", choices=["rules", "ml", "opus"], default="rules")
         parser.add_argument("--start", default=TEST_START)
         parser.add_argument("--end")
         parser.add_argument("--horizon", type=int, default=calibration.HORIZON_DAYS)
@@ -25,11 +24,7 @@ class Command(BaseCommand):
         days = backtest_service.load_market(start, end).days
         if not days:
             raise CommandError("No price data in this period; run collect_data first.")
-        if options["scores"] == "rules":
-            scores = score_history.rule_scores(days)
-        else:
-            # Only reads saved backtest runs: calibration itself never calls the API.
-            scores = score_history.opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))
+        scores = score_history.scores(options["scores"], days)
 
         reports = calibration_service.calibrate(options["scores"], scores, options["horizon"],
                                                 save=not options["no_save"])

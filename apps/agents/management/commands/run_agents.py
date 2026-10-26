@@ -8,7 +8,7 @@ from apps.agents.services import agent_service
 
 
 class Command(BaseCommand):
-    help = "Run the agents (rules + one Opus call each) for a date and print their JSON. Costs API money."
+    help = "Run every domain's rule, ML and Opus agent for a date and print the JSON. Costs API money."
 
     def add_arguments(self, parser):
         parser.add_argument("--date", help="YYYY-MM-DD (default: yesterday, the last full day)")

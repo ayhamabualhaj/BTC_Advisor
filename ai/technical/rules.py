@@ -9,7 +9,7 @@ window was more often lower than higher. Strong momentum, high volatility (often
 washed-out market) or a price far below its 200-day average override it with a buy.
 """
 
-from apps.agents.scoring import RuleScore, has
+from ai.scoring import RuleScore, has
 
 CALL_POINTS = 10
 # 50-day average more than this far below the 200-day counts as a deep downtrend.

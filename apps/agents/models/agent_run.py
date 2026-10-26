@@ -15,6 +15,8 @@ class AgentRun(models.Model):
     date = models.DateField()
     agent = models.CharField(max_length=20, choices=AgentName.choices)
     rule_score = models.FloatField()
+    # Empty when the ML agent had too few past days to learn from.
+    ml_score = models.FloatField(null=True, blank=True)
     # Empty for rule-only runs and when Opus failed twice (see error).
     opus_score = models.FloatField(null=True, blank=True)
     direction = models.CharField(max_length=10, choices=Direction.choices, blank=True)
@@ -36,15 +38,16 @@ class AgentRun(models.Model):
         indexes = [models.Index(fields=["agent", "date"])]
 
     def __str__(self):
-        return f"{self.date} {self.agent}: rules {self.rule_score:.0f}, opus {self.opus_score}"
+        return f"{self.date} {self.agent}: rules {self.rule_score:.0f}, ml {self.ml_score}, opus {self.opus_score}"
 
     def as_output(self):
         """The agent output format from the project plan."""
-        key_data = {k: v for k, v in self.key_data.items() if k not in ("model_input", "rule_reasons", "skipped")}
+        key_data = {k: v for k, v in self.key_data.items() if k not in ("model_input", "rule_reasons", "ml_reasons", "skipped")}
         return {
             "agent": self.agent,
             "date": self.date.isoformat(),
             "rule_score": self.rule_score,
+            "ml_score": self.ml_score,
             "opus_score": self.opus_score,
             "direction": self.direction,
             "reasons": self.reasons,

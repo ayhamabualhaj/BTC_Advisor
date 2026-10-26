@@ -7,7 +7,7 @@ The dollar, Fed and ETF-flow rules did not hold up and were dropped (they stay i
 Opus input).
 """
 
-from apps.agents.scoring import RuleScore, has
+from ai.scoring import RuleScore, has
 
 CALL_POINTS = 10
 NASDAQ_DROP_5D_PCT = -4

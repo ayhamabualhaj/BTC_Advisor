@@ -1,12 +1,4 @@
-"""Derivatives agent: its Opus input and its Opus call."""
-
-from pathlib import Path
-
-from apps.agents.ai import runner
-from apps.agents.models import AgentName
-
-AGENT = AgentName.DERIVATIVES
-PROMPT_FILE = Path(__file__).with_name("prompt.md")
+"""Derivatives setup as relative numbers: what the ML and Opus agents see."""
 
 
 def scaled(value, factor, digits):
@@ -26,6 +18,3 @@ def model_input(snapshot):
         "short_liquidations_musd_1d": scaled(snapshot.get("short_liquidations_usd_1d"), 1e-6, 2),
     }
 
-
-def run(date, client=None, is_backtest=False):
-    return runner.run_agent(AGENT, PROMPT_FILE, model_input, date, client, is_backtest)

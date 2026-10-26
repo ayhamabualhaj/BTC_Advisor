@@ -26,6 +26,7 @@ def agent_detail(request, agent):
     chart = {
         "labels": [run.date for run in history],
         "rule": [run.rule_score for run in history],
+        "ml": [run.ml_score for run in history],
         "opus": [run.opus_score for run in history],
     }
     return render(request, "dashboard/agent.html", {
@@ -59,14 +60,14 @@ def signals(request):
     for row in table["rows"]:
         row["cells"] = [row["calls"][column.key] for column in columns]
         row["return_text"] = f"{row['return_pct']:+.2f}%" if row["return_pct"] is not None else None
-    # One scoreboard card per agent (plus combined), each with its Rules and Opus line.
+    # One scoreboard card per domain (plus combined), each with its Rules, ML and Opus line.
     cards = {}
     for column in columns:
         cards.setdefault(column.agent, {"agent": column.agent, "label": column.label, "lines": []})
         cards[column.agent]["lines"].append({"source": column.source, **table["summary"].get(column.key, {})})
     return render(request, "dashboard/signals.html", {
         **table, "cards": list(cards.values()), "horizon": horizon, "horizons": signal_service.HORIZONS,
-        "opus_only": opus_only, "groups": [columns[i] for i in range(0, len(columns), 2)],
+        "opus_only": opus_only, "groups": columns[::len(signal_service.SOURCES)], "group_span": len(signal_service.SOURCES),
     })
 
 
