@@ -44,7 +44,7 @@ bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Aug 2017 to yesterday, all sources (~2 min)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
-python manage.py test                    # 156 tests, no network, no API calls
+python manage.py test                    # 155 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
