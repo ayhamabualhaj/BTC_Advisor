@@ -335,6 +335,12 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   the first bar. Closest: VVIX/VIX rules 92.5% of 40 (36 in 2025; p 0.002 vs 0.0017),
   altcoin momentum ML 64.8% of 71 (p 0.03), volume-price ML 58.7% of 184 (p 0.07). The
   stress agent fails the new bar (2022 47%, 2023 48%).
+- Oil redone (Oct 27 2026, WTI / Brent from Yahoo, not stored): of 14 top / bottom-fifth
+  rules only "BTC 20-day move beat oil's by > 23 points -> Buy" held on 2017-24 (+8.6 pts).
+  From 2025: 82.9% of 35 calls (2025 85.7% of 21, 2026 78.6% of 14) but under 40 calls and
+  shift p 0.019; per year 2021-24 50.5 / 60.6 / 60.2 / 66.7% (2021 below fair). BTC's
+  20-day move alone: 52.4% of 21, only 7 days shared, so oil does change the days. ML 36.4%.
+  Not added; worth re-checking once 2027 adds calls.
 
 ## Financial stress domain (Oct 26 2026)
 - `ai/stress/`: only `inputs.py` and `ml.py` (`rules = None`, `opus = None` in
