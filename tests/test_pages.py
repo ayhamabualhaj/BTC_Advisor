@@ -11,7 +11,7 @@ DAY = datetime.date(2026, 7, 1)
 
 class EmptyPagesTests(TestCase):
     def test_every_page_works_with_an_empty_database(self):
-        for url in ("/", "/agents/technical/", "/signals/", "/backtests/", "/costs/", "/prompts/"):
+        for url in ("/", "/agents/technical/", "/signals/", "/signals/overview/", "/backtests/", "/costs/", "/prompts/"):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, url)
         self.assertContains(self.client.get("/"), "daily_run")
@@ -29,7 +29,8 @@ class FilledPagesTests(TestCase):
             key_data={"rsi_14": 55.0, "rule_reasons": ["Price above 50-day average (+10)"], "skipped": []},
             suggested_stop_loss=95000, prompt_version=prompt, cost_usd=Decimal("0.05"),
         )
-        Decision.objects.create(date=DAY, technical_score=71, signal="buy", threshold=60, agents_required=2)
+        Decision.objects.create(date=DAY, technical_score=71, signal="buy", net_votes=2,
+                                rule={"sources": ["rules", "ml"], "min_net_votes": 2})
 
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
@@ -48,10 +49,13 @@ class FilledPagesTests(TestCase):
         BacktestRun.objects.create(name="rules:technical:calibration", start_date=DAY, end_date=DAY, settings={
             "score_type": "rules", "agent": "technical", "calls": 9, "brier_score": 0.3,
             "buckets": [{"label": "60s", "calls": 9, "hit_rate": 44.4, "avg_confidence": 61}]})
-        BacktestRun.objects.create(name="rules:combining_rule", start_date=DAY, end_date=DAY, settings={
-            "score_type": "rules", "threshold": 60, "agents_required": 2, "first_half_pct": 1, "second_half_pct": 2})
+        period = {"calls": 120, "right": 66, "hit_rate": 55.0, "buy_days": 40, "trades": 9, "profit_pct": 12.5,
+                  "drawdown_pct": 4.0, "hold_pct": 8.0}
+        BacktestRun.objects.create(name="combining_rule", start_date=DAY, end_date=DAY, settings={
+            "sources": ["rules", "ml"], "min_net_votes": 2, "tuned_on": ["2019-01-01", "2024-12-31"],
+            "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "buy when 2 agents score"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "rules + ml agents", "lead by 2+", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
@@ -76,30 +80,40 @@ class SignalsPageTests(TestCase):
                                     opus_score=score, direction="neutral", reasons=[], key_data={},
                                     prompt_version=prompt, is_backtest=True)
 
-    def test_judges_opus_calls_against_the_price(self):
+    def test_judges_opus_calls_with_confidence_and_result(self):
         from apps.dashboard.services import signal_service
 
-        table = signal_service.signal_table(DAY, DAY + datetime.timedelta(days=2))
+        table = signal_service.month_table(DAY)
+        self.assertEqual(table["month"], DAY)
         calls = {row["date"]: row["calls"]["macro:opus"] for row in table["rows"]}
-        self.assertEqual((calls[DAY].signal, calls[DAY].outcome), ("buy", "wrong"))
-        self.assertEqual((calls[DAY + datetime.timedelta(days=1)].signal,
-                          calls[DAY + datetime.timedelta(days=1)].outcome), ("sell", "right"))
-        self.assertEqual(calls[DAY + datetime.timedelta(days=2)].outcome, "none")  # a Hold is never judged
-        self.assertEqual(calls[DAY].note, "prompt v2")
-        self.assertEqual(table["summary"]["macro:opus"],
-                         {"right": 1, "wrong": 1, "pending": 0, "hit_rate": 50.0})
-        # Newest day first, and the last days wait for their 7-day price.
-        self.assertEqual(table["rows"][0]["date"], DAY + datetime.timedelta(days=2))
+        buy, sell, hold = (calls[DAY + datetime.timedelta(days=n)] for n in range(3))
+        self.assertEqual((buy.signal, buy.outcome, buy.confidence), ("buy", "wrong", 70))
+        self.assertAlmostEqual(buy.result_pct, -5.0)  # 140 -> 133 seven days later
+        self.assertEqual((sell.signal, sell.outcome, sell.confidence), ("sell", "right", 70))
+        self.assertGreater(sell.result_pct, 0)  # the fall is a win for a Sell
+        self.assertEqual(hold.outcome, "none")  # a Hold is never judged
+        self.assertEqual(buy.note, "prompt v2")
+        self.assertEqual(table["summary"]["macro:opus"], {"right": 1, "wrong": 1, "pending": 0, "hit_rate": 50.0})
+        # Newest day first; the last days wait for their 7-day price.
+        self.assertEqual(table["rows"][0]["calls"]["macro:opus"].outcome, "none")
+        self.assertEqual(table["rows"][0]["date"], DAY + datetime.timedelta(days=14))
 
-    def test_last_days_are_pending(self):
+    def test_judge_and_pending(self):
         from apps.dashboard.services import signal_service
 
         self.assertEqual(signal_service.judge("buy", None), "pending")
         self.assertEqual(signal_service.judge("hold", 0.05), "none")
         self.assertEqual(signal_service.judge("sell", 0.05), "wrong")
+        self.assertEqual(signal_service.score_call(20, None).confidence, 80)
 
-    def test_page_shows_colored_calls_and_filters(self):
-        page = self.client.get(f"/signals/?opus=1&start={DAY}&end={DAY + datetime.timedelta(days=2)}").content.decode()
-        for text in ("call-wrong", "call-right", "▲ Buy", "▼ Sell", "Days with Opus", "-5.00%"):
+    def test_month_page_shows_calls_results_and_filters(self):
+        page = self.client.get("/signals/?month=2026-07").content.decode()
+        for text in ("call-wrong", "call-right", "▲ Buy", "▼ Sell", "70%", "lost -5.0%", "won +5.0%", "-5.00%",
+                     "July 2026", "data-filter-source", "How to read this", "Vote"):
             self.assertIn(text, page)
-        self.assertEqual(self.client.get("/signals/?horizon=99&start=junk").status_code, 200)
+        self.assertEqual(self.client.get("/signals/?horizon=99&month=junk").status_code, 200)
+
+    def test_overview_lists_periods_and_months(self):
+        page = self.client.get("/signals/overview/").content.decode()
+        for text in ("Oct 2026 on", "Jul 2026", "?month=2026-07", "rate-cell"):
+            self.assertIn(text, page)

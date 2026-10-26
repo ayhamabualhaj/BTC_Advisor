@@ -15,7 +15,7 @@ def rule_scores(days):
     return history
 
 
-def rule_and_ml_scores(days):
+def rule_and_ml_scores(days, on_progress=None):
     """Both free scores in one pass, so each day's snapshot is built once.
 
     The ML agent is retrained for every day on the cases known by then (walk-forward);
@@ -29,11 +29,15 @@ def rule_and_ml_scores(days):
             brief = agent_service.make_brief(agent, day, cases[agent])
             rules[day][agent] = domain.rules.score(brief.snapshot).score
             ml[day][agent] = domain.ml.score(brief).score
+        if on_progress:
+            on_progress(day)
     return rules, ml
 
 
 def ml_scores(days):
-    return rule_and_ml_scores(days)[1]
+    from apps.backtest.services import score_store  # stored scores; imported late (it imports this module)
+
+    return score_store.scores(days)[1]
 
 
 def opus_scores(days, prompt_versions):
@@ -52,7 +56,9 @@ def opus_scores(days, prompt_versions):
 def scores(score_type, days):
     """Any kind of score by name. Opus only reads saved backtest runs, it never calls the API."""
     if score_type == "rules":
-        return rule_scores(days)
+        from apps.backtest.services import score_store
+
+        return score_store.scores(days)[0]
     if score_type == "ml":
         return ml_scores(days)
     return opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))

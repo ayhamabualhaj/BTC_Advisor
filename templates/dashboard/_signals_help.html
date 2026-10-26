@@ -1,0 +1,16 @@
+<details class="panel help" open>
+  <summary>How to read this</summary>
+  <ul>
+    <li>Every agent gives a score from 0 to 100: <strong>how sure it is that the price will be higher</strong> after
+      {{ horizon }} day{{ horizon|pluralize }}. 55 or more is a <strong>▲ Buy</strong> (a score of 70 = “70% sure it rises”),
+      45 or less a <strong>▼ Sell</strong> (a score of 30 = “70% sure it falls”), in between a <strong>Hold</strong>, which is never judged.</li>
+    <li>A call is <span class="call-right inline">right</span> when the price moved its way and <span class="call-wrong inline">wrong</span>
+      when not. “won +3.1%” / “lost −2.0%” is the move seen from the call’s side: a Sell that saw the price fall 3.1% won 3.1%.</li>
+    <li><strong>Hit rate</strong> = right ÷ (right + wrong).{% if base_rate %} Always guessing “up” would have been right
+      {{ base_rate|floatformat:0 }}% of the time since 2019 at this horizon, so that is the bar to beat, not 50%.{% endif %}</li>
+    <li><strong>Vote</strong>: {{ rule_text }}. It was chosen on 2019–2024 only.</li>
+    <li>Fair tests: the rules were chosen on Jan 2025 – Sep 2026, so <strong>2019–2024 is new to the rules</strong>; the vote was chosen
+      on 2019–2024, so <strong>2025 on is new to the vote</strong>; <strong>Oct 2026 on is new to everything</strong>. ML only ever learns
+      from days whose result was already known, so every ML call is a fair test.</li>
+  </ul>
+</details>

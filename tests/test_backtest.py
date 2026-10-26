@@ -4,7 +4,6 @@ from decimal import Decimal
 from django.test import SimpleTestCase, TestCase
 
 from apps.backtest import metrics
-from apps.backtest.decision_rule import agents_above, is_buy
 from apps.backtest.models import BacktestRun
 from apps.agents.models import AgentRun
 from apps.backtest.services import backtest_service, opus_backtest_service, score_history
@@ -43,16 +42,6 @@ class MetricsTests(SimpleTestCase):
         self.assertEqual((result.trade_count, result.win_rate, result.total_profit_pct), (0, None, 0.0))
 
 
-class DecisionRuleTests(SimpleTestCase):
-    def test_counts_agents_at_or_above_threshold(self):
-        self.assertEqual(agents_above({"a": 60, "b": 59, "c": None}, 60), 1)
-
-    def test_all_three_or_two(self):
-        scores = {"technical": 70, "derivatives": 65, "macro": 50}
-        self.assertFalse(is_buy(scores, 60, 3))
-        self.assertTrue(is_buy(scores, 60, 2))
-
-
 class BacktestServiceTests(TestCase):
     def setUp(self):
         # Price goes 100, 110, 99, 99, 108.9: up 10%, down 10%, flat, up 10%.
@@ -72,7 +61,7 @@ class BacktestServiceTests(TestCase):
             day(2): {"technical": 40, "macro": 40},
             day(3): {"technical": 40, "macro": 80},  # macro alone buys, +10%
         }
-        runs = backtest_service.run_backtest("rules", scores, market, threshold=60, agents_required=2)
+        runs = backtest_service.run_backtest("rules", scores, market, threshold=60, min_net_votes=2)
         by_name = {run.name: run for run in runs}
 
         self.assertAlmostEqual(by_name["rules:technical"].total_profit_pct, (1.1 * 0.9 - 1) * 100)

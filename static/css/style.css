@@ -147,3 +147,46 @@ td.call { text-align: center; font-size: 13px; border-left: 2px solid var(--surf
 .call-pending { background: var(--pending-bg); color: var(--text-2); }
 .call-none { color: var(--muted); }
 .call-score { margin-left: 4px; font-weight: 400; opacity: .75; font-variant-numeric: tabular-nums; }
+
+/* Signals: month pages, overview, filters */
+.page-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 20px; }
+.help { margin-bottom: 16px; }
+.help summary { cursor: pointer; font-weight: 600; }
+.help ul { margin: 10px 0 0; padding-left: 20px; color: var(--text-2); }
+.help li + li { margin-top: 6px; }
+.inline { padding: 0 6px; border-radius: 4px; }
+.month-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.month-nav form { margin: 0; }
+.month-nav select, .month-nav .button {
+  font: inherit; font-size: 14px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+}
+.month-nav .button:hover { border-color: var(--text-2); text-decoration: none; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 0 0 20px; }
+.chip-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chip {
+  font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--muted);
+}
+.chip[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
+.chip .dot { margin-right: 6px; }
+td.call { min-width: 92px; line-height: 1.25; }
+.call-main { display: block; }
+.call-sub { display: block; font-size: 11px; font-weight: 500; opacity: .85; font-variant-numeric: tabular-nums; }
+.conf { font-weight: 400; font-variant-numeric: tabular-nums; }
+.call-hold .call-main, .call-hold .call-sub { color: var(--muted); font-weight: 400; }
+table.overview td.rate-cell { text-align: center; min-width: 64px; border-left: 2px solid var(--surface); }
+.rate-value { display: block; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rate-count { display: block; font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums; }
+.rate { display: inline-block; padding: 1px 8px; border-radius: 5px; }
+.rate-good { background: var(--good-bg); color: var(--good); }
+.rate-bad { background: var(--critical-bg); color: var(--critical); }
+.rate-mid { background: var(--pending-bg); color: var(--text); }
+.rate-few { color: var(--muted); }
+tr.period-row th, tr.period-row td { border-bottom: 2px solid var(--border); }
+.block { display: block; font-weight: 400; white-space: normal; max-width: 220px; }
+[hidden] { display: none !important; }
+.up { color: var(--good); }
+.down { color: var(--critical); }
+/* The signals table has 13 columns: let those pages use the whole window. */
+main.wide { max-width: 1680px; }

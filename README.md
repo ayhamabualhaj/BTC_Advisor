@@ -10,8 +10,8 @@ Flow:
 - an **Opus** agent: Claude Opus 5.5's confidence (0-100) that the price is higher in
   7 days, with 3-5 reasons and a suggested stop loss.
 
-A buy is suggested only when enough agents are confident at the same time (the combining
-rule, chosen by backtest). The system only advises; it never places trades.
+A buy is suggested when the agents' Buy votes clearly outnumber their Sell votes (the vote,
+chosen on 2019-2024 and tested on 2025 onward). The system only advises; it never places trades.
 
 The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 
@@ -44,7 +44,7 @@ bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Aug 2017 to yesterday, all sources (~2 min)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
-python manage.py test                    # 149 tests, no network, no API calls
+python manage.py test                    # 152 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
@@ -85,13 +85,13 @@ The test period starts on 2026-07-01, after Opus 5.5's training cutoff.
 python manage.py backtest_rules                    # rule scores: each agent alone + combined (free)
 python manage.py backtest_rules --scores ml        # the same for the ML agents (free)
 python manage.py calibration --scores rules        # is a 70 right 70% of the time? (free, also --scores ml)
-python manage.py choose_combining_rule --scores rules
+python manage.py build_scores                      # store every day's rules + ML scores since 2019 (free, ~2 min)
+python manage.py choose_combining_rule             # choose the vote on 2019-2024, test on 2025+ (free)
 
 python manage.py backtest_opus --estimate          # calls needed and expected cost (free)
 python manage.py backtest_opus --agent technical --max-cost 2   # PAID; resumes where it stopped
 python manage.py backtest_opus --max-cost 30       # all three agents
 python manage.py calibration --scores opus
-python manage.py choose_combining_rule --scores opus   # the daily decision then uses Opus scores
 ```
 
 Each agent gets only data dated on or before the decision day, as relative numbers (no
@@ -110,8 +110,8 @@ already known.
 ## Dashboard and API
 
 Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
-(score chart, data used, live/backtest runs), **Signals** (every day's Buy/Sell/Hold call from
-each domain's rules, ML and Opus agent, green when right and red when wrong after 1, 3 or 7 days), **Backtests** (profit vs buy-and-hold,
+(score chart, data used, live/backtest runs), **Signals** (month by month since 2019 and an all-months overview: every Buy/Sell/Hold call from
+each domain's rules, ML and Opus agent and the vote, with confidence and result, green when right and red when wrong after 1, 3 or 7 days), **Backtests** (profit vs buy-and-hold,
 calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
 prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
 version automatically on the next run.

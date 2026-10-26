@@ -8,8 +8,7 @@
   <section class="signal {% if decision.signal == 'buy' %}signal-buy{% else %}signal-none{% endif %}">
     {% if decision %}
       <div class="signal-label">{{ decision.get_signal_display }}</div>
-      <div class="muted">Rule: {{ decision.agents_required }} agent{{ decision.agents_required|pluralize }} at or above {{ decision.threshold|floatformat:0 }}
-        ({{ rule.score_type }} scores)</div>
+      <div class="muted">{% if decision.rule %}Rule: {{ decision_rule_text }}; net votes {{ decision.net_votes|stringformat:"+d" }}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
       <div class="signal-label">No decision saved</div>
       <div class="muted">Agent runs exist but no Decision was made for this date.</div>

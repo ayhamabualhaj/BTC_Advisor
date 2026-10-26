@@ -1,0 +1,4 @@
+{% with judged=s.right|add:s.wrong %}<td class="rate-cell {% if judged < 5 or s.hit_rate is None %}rate-few{% elif s.hit_rate >= 55 %}rate-good{% elif s.hit_rate < 45 %}rate-bad{% else %}rate-mid{% endif %}" data-agent="{{ column.agent }}" data-source="{{ column.source }}"
+    title="{{ column.label }} {{ column.source_label }}: {{ s.right }} right, {{ s.wrong }} wrong{% if s.pending %}, {{ s.pending }} waiting{% endif %}">
+  {% if s.hit_rate is not None %}<span class="rate-value">{{ s.hit_rate|floatformat:0 }}%</span><span class="rate-count">{{ s.right }}/{{ judged }}</span>{% else %}<span class="muted">–</span>{% endif %}
+</td>{% endwith %}

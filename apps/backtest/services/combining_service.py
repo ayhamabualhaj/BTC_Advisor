@@ -1,107 +1,130 @@
-"""Step 10: try thresholds for the combining rule and keep the best on the backtest."""
+"""Chooses the vote (who votes, and by what margin) on one period, then tests it once on a later one.
 
-from dataclasses import dataclass
+The choice is made on 2019-2024 only; 2025 onward is the test, reported but never used
+to choose. Candidates and the way to pick are fixed here, before looking at the test:
+the highest 7-day hit rate of the vote's Buy and Sell calls, among candidates with at
+least MIN_CALLS calls (ties: more calls).
+"""
+
+import datetime
+from dataclasses import asdict, dataclass
 
 from apps.backtest import metrics
+from apps.backtest.decision_rule import call, voters
 from apps.backtest.models import BacktestRun
-from apps.backtest.services.backtest_service import Market, combined_positions
 
-# 50 means "no edge", so a buy needs at least 55.
-THRESHOLDS = [55, 60, 65, 70, 75, 80]
-AGENTS_REQUIRED = [3, 2]
-# Fewer trades than this is too little evidence to pick a rule on.
-MIN_TRADES = 3
-DEFAULT_RULE = {"threshold": 60, "agents_required": 3}
+TUNE_START = datetime.date(2019, 1, 1)
+TUNE_END = datetime.date(2024, 12, 31)
+TEST_START = datetime.date(2025, 1, 1)
+SOURCE_SETS = [["rules"], ["rules", "ml"]]
+MARGINS = [1, 2, 3]
+MIN_CALLS = 100
+DEFAULT_RULE = {"sources": ["rules"], "min_net_votes": 1}
+RULE_NAME = "combining_rule"
+
+
+@dataclass
+class Result:
+    calls: int
+    right: int
+    hit_rate: float | None
+    buy_days: int
+    trades: int
+    profit_pct: float
+    drawdown_pct: float
+    hold_pct: float
 
 
 @dataclass
 class Candidate:
-    threshold: int
-    agents_required: int
-    performance: metrics.Performance
-    first_half_pct: float
-    second_half_pct: float
+    sources: list
+    min_net_votes: int
+    tuning: Result
+    test: Result
 
 
-def split(market):
-    middle = len(market.days) // 2
-    return (
-        Market(market.days[:middle], market.next_day_returns[:middle], market.closes),
-        Market(market.days[middle:], market.next_day_returns[middle:], market.closes),
-    )
+def evaluate(sources, margin, scores_by_source, days, next_day_returns, returns_7d):
+    """Hit rate of the vote's calls over 7 days, and profit when buying only on Buy days."""
+    right = wrong = 0
+    positions = []
+    for day in days:
+        signal = call(voters({source: scores_by_source[source].get(day, {}) for source in sources}, sources), margin)
+        positions.append(signal == "buy")
+        move = returns_7d.get(day)
+        if signal != "hold" and move:
+            if (signal == "buy") == (move > 0):
+                right += 1
+            else:
+                wrong += 1
+    performance = metrics.performance(positions, next_day_returns)
+    hold = metrics.performance([True] * len(days), next_day_returns)
+    return Result(right + wrong, right, right / (right + wrong) * 100 if right + wrong else None,
+                  performance.days_in_market, performance.trade_count, performance.total_profit_pct,
+                  performance.max_drawdown_pct, hold.total_profit_pct)
 
 
-def evaluate_candidate(scores_by_day, market, threshold, agents_required):
-    def profit(part):
-        positions = combined_positions(scores_by_day, part.days, threshold, agents_required)
-        return metrics.performance(positions, part.next_day_returns)
-
-    first, second = split(market)
-    return Candidate(threshold, agents_required, profit(market),
-                     profit(first).total_profit_pct, profit(second).total_profit_pct)
+def split(market, start, end):
+    pairs = [(day, ret) for day, ret in zip(market.days, market.next_day_returns) if start <= day <= end]
+    return [day for day, _ in pairs], [ret for _, ret in pairs]
 
 
-def sweep(scores_by_day, market):
-    return [evaluate_candidate(scores_by_day, market, threshold, required)
-            for required in AGENTS_REQUIRED for threshold in THRESHOLDS]
+def candidates(scores_by_source, market, returns_7d, test_end):
+    tune = split(market, TUNE_START, TUNE_END)
+    test = split(market, TEST_START, test_end)
+    return [
+        Candidate(sources, margin,
+                  evaluate(sources, margin, scores_by_source, *tune, returns_7d),
+                  evaluate(sources, margin, scores_by_source, *test, returns_7d))
+        for sources in SOURCE_SETS for margin in MARGINS
+    ]
 
 
-def best(candidates):
-    """Highest total profit among candidates with enough trades; ties go to lower drawdown."""
-    eligible = [c for c in candidates if c.performance.trade_count >= MIN_TRADES]
+def best(found):
+    eligible = [c for c in found if c.tuning.calls >= MIN_CALLS and c.tuning.hit_rate is not None]
     if not eligible:
         return None
-    return max(eligible, key=lambda c: (round(c.performance.total_profit_pct, 6), -c.performance.max_drawdown_pct))
+    return max(eligible, key=lambda c: (round(c.tuning.hit_rate, 6), c.tuning.calls))
 
 
-def default_candidate(candidates):
-    return next(c for c in candidates if c.threshold == DEFAULT_RULE["threshold"]
-                and c.agents_required == DEFAULT_RULE["agents_required"])
-
-
-def choose(score_type, scores_by_day, market, save=True):
-    """Sweep, pick, and store the chosen rule. Returns (candidates, chosen or None).
-
-    When no rule has enough trades the default rule is stored, so an older choice made on
-    other scores does not stay in force.
-    """
-    candidates = sweep(scores_by_day, market)
-    chosen = best(candidates)
+def choose(scores_by_source, market, returns_7d, test_end, save=True):
+    """Returns (candidates, chosen or None) and stores the chosen vote (or the default)."""
+    found = candidates(scores_by_source, market, returns_7d, test_end)
+    chosen = best(found)
     if save:
-        record = chosen or default_candidate(candidates)
-        hold = metrics.performance([True] * len(market.days), market.next_day_returns)
+        record = chosen or next(c for c in found if c.sources == DEFAULT_RULE["sources"]
+                                and c.min_net_votes == DEFAULT_RULE["min_net_votes"])
         BacktestRun.objects.create(
-            name=f"{score_type}:combining_rule",
-            start_date=market.days[0],
-            end_date=market.days[-1],
+            name=RULE_NAME,
+            # The stored numbers are the test period's: the honest ones.
+            start_date=TEST_START,
+            end_date=test_end,
             settings={
-                "score_type": score_type,
-                "threshold": record.threshold,
-                "agents_required": record.agents_required,
+                "sources": record.sources,
+                "min_net_votes": record.min_net_votes,
                 "is_default": chosen is None,
-                "first_half_pct": record.first_half_pct,
-                "second_half_pct": record.second_half_pct,
-                "days_in_market": record.performance.days_in_market,
-                "candidates": [
-                    {"threshold": c.threshold, "agents_required": c.agents_required,
-                     "trades": c.performance.trade_count, "profit_pct": c.performance.total_profit_pct}
-                    for c in candidates
-                ],
+                "tuned_on": [TUNE_START.isoformat(), TUNE_END.isoformat()],
+                "tuning": asdict(record.tuning),
+                "test": asdict(record.test),
+                "candidates": [{"sources": c.sources, "min_net_votes": c.min_net_votes,
+                                "tuning": asdict(c.tuning), "test": asdict(c.test)} for c in found],
             },
-            trade_count=record.performance.trade_count,
-            win_rate=record.performance.win_rate,
-            total_profit_pct=record.performance.total_profit_pct,
-            max_drawdown_pct=record.performance.max_drawdown_pct,
-            buy_and_hold_pct=hold.total_profit_pct,
+            trade_count=record.test.trades,
+            win_rate=record.test.hit_rate,
+            total_profit_pct=record.test.profit_pct,
+            max_drawdown_pct=record.test.drawdown_pct,
+            buy_and_hold_pct=record.test.hold_pct,
         )
-    return candidates, chosen
+    return found, chosen
 
 
 def current_rule():
-    """The most recently chosen rule (Opus-tuned preferred, then ML, then rules), or the default."""
-    for score_type in ("opus", "ml", "rules"):
-        run = BacktestRun.objects.filter(name=f"{score_type}:combining_rule").order_by("-created_at").first()
-        if run:
-            return {"score_type": score_type, "threshold": run.settings["threshold"],
-                    "agents_required": run.settings["agents_required"]}
-    return {"score_type": "opus", **DEFAULT_RULE}
+    """The latest chosen vote, or the default: rules only, Buy votes ahead by 1."""
+    run = BacktestRun.objects.filter(name=RULE_NAME).order_by("-created_at").first()
+    if run is None:
+        return dict(DEFAULT_RULE)
+    return {"sources": run.settings["sources"], "min_net_votes": run.settings["min_net_votes"]}
+
+
+def describe(rule):
+    who = " + ".join({"rules": "rules", "ml": "ML", "opus": "Opus"}[s] for s in rule["sources"])
+    return f"vote of the {who} agents, Buy when Buy votes lead by {rule['min_net_votes']}+"

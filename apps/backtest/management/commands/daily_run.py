@@ -2,7 +2,7 @@ import datetime
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.backtest.services import daily_run_service
+from apps.backtest.services import combining_service, daily_run_service
 
 
 class Command(BaseCommand):
@@ -29,11 +29,13 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Rules only (no ANTHROPIC_API_KEY or --rules-only)."))
         for run in report.agent_runs:
             opus = run.opus_score if run.opus_score is not None else "-"
-            self.stdout.write(f"{run.agent:<11} rules {run.rule_score:3.0f}  opus {opus:>3}  {run.direction:<8} ${run.cost_usd:.4f}")
+            ml = f"{run.ml_score:.0f}" if run.ml_score is not None else "-"
+            self.stdout.write(f"{run.agent:<11} rules {run.rule_score:3.0f}  ml {ml:>3}  opus {opus:>3}  "
+                              f"{run.direction:<8} ${run.cost_usd:.4f}")
             if run.error:
                 self.stdout.write(self.style.ERROR(f"  {run.error}"))
         decision = report.decision
         self.stdout.write(self.style.SUCCESS(
             f"{report.date}: {decision.get_signal_display()} "
-            f"(rule: {decision.agents_required} agents >= {decision.threshold:g})"))
+            f"({combining_service.describe(decision.rule)}; net votes {decision.net_votes:+d})"))
         self.stdout.write(f"Outcomes updated: {report.outcomes_updated}; memory cases added: {report.memory_cases}")

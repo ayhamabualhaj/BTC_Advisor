@@ -32,11 +32,12 @@ def load_market(start, end):
 
 
 def agent_positions(scores_by_day, days, agent, threshold):
-    return [is_buy({agent: scores_by_day[day].get(agent)}, threshold, 1) for day in days]
+    """Alone, an agent buys when its score is at or above the threshold."""
+    return [(scores_by_day[day].get(agent) or 0) >= threshold for day in days]
 
 
-def combined_positions(scores_by_day, days, threshold, agents_required):
-    return [is_buy(scores_by_day[day], threshold, agents_required) for day in days]
+def combined_positions(scores_by_day, days, min_net_votes):
+    return [is_buy(scores_by_day[day], min_net_votes) for day in days]
 
 
 def evaluate(name, market, positions, settings, save=True):
@@ -60,7 +61,7 @@ def evaluate(name, market, positions, settings, save=True):
     return run
 
 
-def run_backtest(score_type, scores_by_day, market, threshold=DEFAULT_THRESHOLD, agents_required=3, save=True):
+def run_backtest(score_type, scores_by_day, market, threshold=DEFAULT_THRESHOLD, min_net_votes=1, save=True):
     """One run per agent alone, plus the combined rule. Returns the BacktestRuns."""
     agents = sorted({agent for scores in scores_by_day.values() for agent in scores})
     runs = []
@@ -68,9 +69,8 @@ def run_backtest(score_type, scores_by_day, market, threshold=DEFAULT_THRESHOLD,
         positions = agent_positions(scores_by_day, market.days, agent, threshold)
         runs.append(evaluate(f"{score_type}:{agent}", market, positions,
                              {"score_type": score_type, "agent": agent, "threshold": threshold}, save))
-    positions = combined_positions(scores_by_day, market.days, threshold, agents_required)
+    positions = combined_positions(scores_by_day, market.days, min_net_votes)
     runs.append(evaluate(f"{score_type}:combined", market, positions,
-                         {"score_type": score_type, "threshold": threshold,
-                          "agents_required": agents_required}, save))
+                         {"score_type": score_type, "min_net_votes": min_net_votes}, save))
     return runs
 

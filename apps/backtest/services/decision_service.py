@@ -1,5 +1,5 @@
 from apps.agents.models import AgentName, AgentRun
-from apps.backtest.decision_rule import is_buy
+from apps.backtest.decision_rule import call, net_votes, voters
 from apps.backtest.models import Decision
 from apps.backtest.services import combining_service
 
@@ -16,16 +16,18 @@ def latest_scores(date, score_type):
 
 
 def make_decision(date):
-    """Apply the chosen combining rule to the day's agent runs and save the Decision."""
+    """Apply the chosen vote to the day's agent runs and save the Decision."""
     rule = combining_service.current_rule()
-    scores = latest_scores(date, rule["score_type"])
-    buy = is_buy(scores, rule["threshold"], rule["agents_required"])
+    by_source = {source: latest_scores(date, source) for source in rule["sources"]}
+    votes = voters(by_source, rule["sources"])
+    # The first voting source fills the per-agent columns (rules unless the vote changes).
+    shown = by_source[rule["sources"][0]]
     return Decision.objects.create(
         date=date,
-        technical_score=scores["technical"],
-        derivatives_score=scores["derivatives"],
-        macro_score=scores["macro"],
-        signal=Decision.Signal.BUY if buy else Decision.Signal.NO_TRADE,
-        threshold=rule["threshold"],
-        agents_required=rule["agents_required"],
+        technical_score=shown["technical"],
+        derivatives_score=shown["derivatives"],
+        macro_score=shown["macro"],
+        signal=Decision.Signal.BUY if call(votes, rule["min_net_votes"]) == "buy" else Decision.Signal.NO_TRADE,
+        rule=rule,
+        net_votes=net_votes(votes),
     )

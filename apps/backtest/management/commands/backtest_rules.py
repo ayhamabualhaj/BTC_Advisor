@@ -18,7 +18,7 @@ class Command(BaseCommand):
         parser.add_argument("--start", default=TEST_START)
         parser.add_argument("--end", help="YYYY-MM-DD (default: last day with a known next-day price)")
         parser.add_argument("--threshold", type=float, default=backtest_service.DEFAULT_THRESHOLD)
-        parser.add_argument("--agents-required", type=int, default=3, choices=[1, 2, 3])
+        parser.add_argument("--min-votes", type=int, default=1, help="combined: Buy votes must lead by this many")
         parser.add_argument("--no-save", action="store_true")
 
     def handle(self, *args, **options):
@@ -30,7 +30,7 @@ class Command(BaseCommand):
 
         scores = score_history.scores(options["scores"], market.days)
         runs = backtest_service.run_backtest(
-            options["scores"], scores, market, options["threshold"], options["agents_required"],
+            options["scores"], scores, market, options["threshold"], options["min_votes"],
             save=not options["no_save"],
         )
         self.stdout.write(f"{options['scores']} backtest {market.days[0]} to {market.days[-1]} "

@@ -70,7 +70,7 @@ def backtest_overview():
     for name, run in sorted(latest.items()):
         if name.endswith(":calibration"):
             groups["calibration"].append(run)
-        elif name.endswith(":combining_rule"):
+        elif name == "combining_rule":
             groups["combining"].append(run)
         else:
             groups["strategies"].append(run)

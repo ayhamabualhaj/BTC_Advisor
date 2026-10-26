@@ -22,7 +22,7 @@ class Command(BaseCommand):
                             help="Stop before spending more than this many US$ (default 5)")
         parser.add_argument("--estimate", action="store_true", help="Only print calls needed and cost")
         parser.add_argument("--threshold", type=float, default=backtest_service.DEFAULT_THRESHOLD)
-        parser.add_argument("--agents-required", type=int, default=3, choices=[1, 2, 3])
+        parser.add_argument("--min-votes", type=int, default=1, help="combined: Buy votes must lead by this many")
 
     def handle(self, *args, **options):
         start = datetime.date.fromisoformat(options["start"])
@@ -53,7 +53,7 @@ class Command(BaseCommand):
 
         versions = opus_backtest_service.prompt_versions(agents)
         scores = score_history.opus_scores(market.days, versions)
-        runs = backtest_service.run_backtest("opus", scores, market, options["threshold"], options["agents_required"])
+        runs = backtest_service.run_backtest("opus", scores, market, options["threshold"], options["min_votes"])
         for run in runs:
             run.settings["prompt_versions"] = {agent: version.version for agent, version in versions.items()}
             run.save()

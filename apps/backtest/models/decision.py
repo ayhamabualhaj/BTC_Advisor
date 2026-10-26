@@ -13,9 +13,12 @@ class Decision(models.Model):
     derivatives_score = models.FloatField(null=True, blank=True)
     macro_score = models.FloatField(null=True, blank=True)
     signal = models.CharField(max_length=10, choices=Signal.choices)
-    threshold = models.FloatField()
-    # 3 = all agents must clear the threshold, 2 = any two (to be compared by backtest).
-    agents_required = models.PositiveSmallIntegerField(default=3)
+    # The vote that made the decision: {"sources": [...], "min_net_votes": n}, and its result.
+    rule = models.JSONField(default=dict, blank=True)
+    net_votes = models.SmallIntegerField(null=True, blank=True)
+    # Used by the threshold rule before the vote; kept for old decisions.
+    threshold = models.FloatField(null=True, blank=True)
+    agents_required = models.PositiveSmallIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

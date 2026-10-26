@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load static %}
+{% block main_class %}wide{% endblock %}
+{% block title %}Signals overview · BTC Advisor{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Signals <span class="muted">all months since 2019</span></h1>
+  <p class="toggle">
+    <a href="{% url 'signals' %}?horizon={{ horizon }}">Month by month</a>
+    <a href="{% url 'signals_overview' %}?horizon={{ horizon }}" class="active">All months</a>
+  </p>
+</div>
+
+{% include "dashboard/_signals_help.html" %}
+
+<div class="controls">
+  <div class="toggle" role="group" aria-label="Judge after">
+    <span class="tile-label">Judge after</span>
+    {% for h in horizons %}<a href="?horizon={{ h }}" class="{% if h == horizon %}active{% endif %}">{{ h }} day{{ h|pluralize }}</a>{% endfor %}
+  </div>
+  <p class="legend small">Hit rate per cell, with right/judged calls below.
+    <span class="rate rate-good">≥ 55%</span> <span class="rate rate-mid">45–55%</span> <span class="rate rate-bad">&lt; 45%</span>
+    · fewer than 5 calls stays gray.</p>
+</div>
+
+{% include "dashboard/_signals_filters.html" %}
+
+<section class="panel signal-panel">
+  <table class="data signals overview">
+    <thead>
+      <tr>
+        <th rowspan="2" class="sticky">Period</th>
+        <th rowspan="2" class="num">BTC</th>
+        {% for group in groups %}
+          <th colspan="{{ group.span }}" class="group" data-agent="{{ group.agent }}" data-group>{% if group.agent != "vote" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</th>
+        {% endfor %}
+      </tr>
+      <tr>{% for column in columns %}<th class="sub" data-agent="{{ column.agent }}" data-source="{{ column.source }}">{{ column.source_label }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for period in periods %}
+      <tr class="period-row">
+        <th class="sticky" title="{{ period.note }}">{{ period.name }}<span class="small muted block">{{ period.note }}</span></th>
+        <td class="num muted small">{{ period.days }} days</td>
+        {% for column, s in period.cells %}{% include "dashboard/_rate_cell.html" %}{% endfor %}
+      </tr>
+      {% endfor %}
+      {% for entry in months %}
+      <tr>
+        <th class="sticky"><a href="{% url 'signals' %}?month={{ entry.month|date:'Y-m' }}&horizon={{ horizon }}">{{ entry.month|date:"M Y" }}</a></th>
+        <td class="num {% if entry.price_change_pct > 0 %}up{% elif entry.price_change_pct < 0 %}down{% endif %}">{% if entry.price_change_pct is not None %}{{ entry.price_change_pct|floatformat:1 }}%{% endif %}</td>
+        {% for column, s in entry.cells %}{% include "dashboard/_rate_cell.html" %}{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/signals.js' %}"></script>{% endblock %}

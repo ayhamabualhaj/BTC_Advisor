@@ -28,7 +28,8 @@ class DailyRunTests(TestCase):
         report = daily_run_service.run(DAY, client=FakeClient(), collect=False)
         self.assertTrue(report.used_opus)
         self.assertEqual(AgentRun.objects.filter(date=DAY, opus_score=62).count(), 3)
-        self.assertEqual(Decision.objects.get(date=DAY).technical_score, 62)
+        # The default vote uses the rule scores; the Opus score is saved on the run.
+        self.assertEqual(Decision.objects.get(date=DAY).technical_score, AgentRun.objects.get(date=DAY, agent="technical").rule_score)
         self.assertEqual(report.outcomes_updated, 1)
 
     def test_without_credentials_runs_rules_only(self):

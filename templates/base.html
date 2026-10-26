@@ -20,7 +20,7 @@
       <a href="{% url 'prompts' %}">Prompts</a>
     </nav>
   </header>
-  <main>
+  <main class="{% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
   <footer>Advice only. The system never places trades.</footer>

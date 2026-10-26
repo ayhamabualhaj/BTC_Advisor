@@ -14,7 +14,8 @@ def today(request):
     context = report_service.today()
     runs = {run.agent: run for run in context["agent_runs"]}
     context["cards"] = [(agent, runs.get(agent)) for agent in AGENT_ORDER]
-    context["rule"] = combining_service.current_rule()
+    decision = context["decision"]
+    context["decision_rule_text"] = combining_service.describe(decision.rule) if decision and decision.rule else ""
     return render(request, "dashboard/today.html", context)
 
 
@@ -39,40 +40,72 @@ def agent_detail(request, agent):
     })
 
 
-def parse_date(value):
+def parse_month(value):
+    """"2024-05" -> date(2024, 5, 1); anything else -> None (the latest month)."""
     try:
-        return datetime.date.fromisoformat(value) if value else None
+        return datetime.date.fromisoformat(f"{value}-01") if value else None
     except ValueError:
         return None
 
 
-def signals(request):
+def parse_horizon(request):
     try:
         horizon = int(request.GET.get("horizon", signal_service.DEFAULT_HORIZON))
     except ValueError:
-        horizon = signal_service.DEFAULT_HORIZON
-    if horizon not in signal_service.HORIZONS:
-        horizon = signal_service.DEFAULT_HORIZON
-    opus_only = request.GET.get("opus") == "1"
-    table = signal_service.signal_table(parse_date(request.GET.get("start")), parse_date(request.GET.get("end")),
-                                        horizon, opus_only)
+        return signal_service.DEFAULT_HORIZON
+    return horizon if horizon in signal_service.HORIZONS else signal_service.DEFAULT_HORIZON
+
+
+def column_groups(columns):
+    """Header groups: one per agent (its Rules, ML and Opus columns), then the vote."""
+    groups = []
+    for column in columns:
+        if not groups or groups[-1]["agent"] != column.agent:
+            groups.append({"agent": column.agent, "label": column.label, "span": 0})
+        groups[-1]["span"] += 1
+    return groups
+
+
+def years(months):
+    by_year = {}
+    for month in months:
+        by_year.setdefault(month.year, []).append(month)
+    return sorted(by_year.items(), reverse=True)
+
+
+def signals(request):
+    horizon = parse_horizon(request)
+    table = signal_service.month_table(parse_month(request.GET.get("month")), horizon)
     columns = table["columns"]
     for row in table["rows"]:
-        row["cells"] = [row["calls"][column.key] for column in columns]
-        row["return_text"] = f"{row['return_pct']:+.2f}%" if row["return_pct"] is not None else None
-    # One scoreboard card per domain (plus combined), each with its Rules, ML and Opus line.
+        row["cells"] = [(column, row["calls"][column.key]) for column in columns]
+    # One scoreboard card per agent (plus the vote), one line per source.
     cards = {}
     for column in columns:
         cards.setdefault(column.agent, {"agent": column.agent, "label": column.label, "lines": []})
-        cards[column.agent]["lines"].append({"source": column.source, **table["summary"].get(column.key, {})})
+        cards[column.agent]["lines"].append({"column": column, **table["summary"].get(column.key, {})})
     return render(request, "dashboard/signals.html", {
-        **table, "cards": list(cards.values()), "horizon": horizon, "horizons": signal_service.HORIZONS,
-        "opus_only": opus_only, "groups": columns[::len(signal_service.SOURCES)], "group_span": len(signal_service.SOURCES),
+        **table, "cards": list(cards.values()), "groups": column_groups(columns), "horizon": horizon,
+        "horizons": signal_service.HORIZONS, "years": years(table["months"]), "sources": signal_service.SOURCES,
+    })
+
+
+def signals_overview(request):
+    horizon = parse_horizon(request)
+    data = signal_service.overview(horizon)
+    columns = data["columns"]
+    for entry in data["months"] + data["periods"]:
+        entry["cells"] = [(column, entry["summary"][column.key]) for column in columns]
+    return render(request, "dashboard/signals_overview.html", {
+        **data, "groups": column_groups(columns), "horizon": horizon, "horizons": signal_service.HORIZONS,
+        "sources": signal_service.SOURCES,
     })
 
 
 def backtests(request):
     groups = report_service.backtest_overview()
+    for run in groups["combining"]:
+        run.periods = [("Chosen on (2019-2024)", run.settings["tuning"]), (f"Test ({run.start_date} on)", run.settings["test"])]
     chart = {
         "labels": [run.name for run in groups["strategies"]],
         "profit": [round(run.total_profit_pct or 0, 2) for run in groups["strategies"]],

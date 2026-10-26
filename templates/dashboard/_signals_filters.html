@@ -1,0 +1,24 @@
+<div class="filters" data-filters>
+  <div class="chip-group" role="group" aria-label="Agents">
+    <span class="tile-label">Agents</span>
+    {% for group in groups %}
+      <button type="button" class="chip" aria-pressed="true" data-filter-agent="{{ group.agent }}">
+        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</button>
+    {% endfor %}
+  </div>
+  <div class="chip-group" role="group" aria-label="Kind of agent">
+    <span class="tile-label">Kind</span>
+    {% for key, label in sources %}
+      <button type="button" class="chip" aria-pressed="true" data-filter-source="{{ key }}">{{ label }}</button>
+    {% endfor %}
+  </div>
+  {% if show_rows_filter %}
+  <div class="chip-group" role="group" aria-label="Days shown">
+    <span class="tile-label">Days</span>
+    <button type="button" class="chip" aria-pressed="true" data-filter-rows="all">All</button>
+    <button type="button" class="chip" aria-pressed="false" data-filter-rows="calls">With a call</button>
+    <button type="button" class="chip" aria-pressed="false" data-filter-rows="right">Right</button>
+    <button type="button" class="chip" aria-pressed="false" data-filter-rows="wrong">Wrong</button>
+  </div>
+  {% endif %}
+</div>

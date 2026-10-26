@@ -102,13 +102,19 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
 - `python manage.py calibration --scores rules|opus [--horizon 7]` (opus reads saved
   backtest runs, never calls the API). Saved as BacktestRuns named "<type>:<agent>:calibration".
 
-## Combining rule (step 10)
-- `python manage.py choose_combining_rule --scores rules|opus`: tries all three / any two
-  agents >= 55..80, keeps the highest profit with at least 3 trades (ties: lower drawdown),
-  shows first-half / second-half profit to expose overfitting. Saved as "<type>:combining_rule".
-- `decision_service.make_decision(date)`: applies the latest chosen rule (Opus-tuned
-  preferred, else rules-tuned, else 3 agents >= 60) to the day's live AgentRuns.
-- With ~115 test days the chosen rule is fragile; re-run after the Opus backtest.
+## Combining rule: the vote (replaces step 10's thresholds)
+- `apps/backtest/decision_rule.py`: each voting agent says Buy (>= 55), Sell (<= 45) or Hold;
+  Buy when Buy votes lead Sell votes by `min_net_votes`, Sell when the reverse.
+- `python manage.py choose_combining_rule` (free): candidates rules / rules + ML, lead 1-3,
+  chosen on 2019-2024 only (highest 7-day hit rate with >= 100 calls), then tested once on
+  2025 onward. Saved as BacktestRun "combining_rule" (test-period numbers in the fields,
+  tuning in settings). Chosen (Oct 2026): rules + ML, lead 2 -> 55.2% on 2019-24,
+  62.9% on 2025-26 (+99.5% on buy days vs -14.5% buy-and-hold). The rules were tuned on
+  2025-Sep 2026, so only Oct 2026 on is clean for everything.
+- `decision_service.make_decision(date)` applies `combining_service.current_rule()` (default
+  rules, lead 1) to the day's live AgentRuns; the Decision stores the rule and net votes.
+- Long-only: in 2019-24 every vote strategy trailed buy-and-hold by far (it sits out rallies)
+  but cut the worst drop; it beat holding in falling markets.
 
 ## REST API (step 11)
 - Read-only, no login (local only). `apps/dashboard/`: views/api_views.py → services/
@@ -124,12 +130,18 @@ regression, walk-forward) and Opus 5.5 (judgment). The system only advises; Ayha
   `static/css/style.css`, Chart.js 4.4.1 from jsDelivr with helpers in `static/js/charts.js`.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
-## Signals page (after step 14)
-- /signals/ (`apps/dashboard/services/signal_service.py`): one row per day, a Rules, ML and
-  Opus column per domain plus the combining rule on each. Score >= 55 is Buy, <= 45 Sell, else Hold
-  (never judged). A call is green when the price after 1/3/7 days (`?horizon=`) moved its
-  way, red when not, gray while waiting. Rules and ML are scored fresh; Opus uses
-  the newest saved run per day. Filters: `?start= &end= &opus=1` (only days with Opus).
+## Signals pages (after step 14)
+- `/signals/?month=YYYY-MM&horizon=1|3|7`: one month from 2019 on, a Rules, ML and Opus
+  column per domain plus the vote. Each call shows its confidence (Buy at 70 = 70% sure it
+  rises, Sell at 30 = 70% sure it falls) and its result from its own side ("won +3.1%",
+  "lost -2.0%"). `/signals/overview/`: hit rate per month and per period (2019-24, Jan
+  2025-Sep 2026, Oct 2026 on) with which part was chosen where, and the "always up" base rate.
+- Filters (agents, kind, days with a call / right / wrong) are client-side in
+  `static/js/signals.js`, remembered in localStorage.
+- Scores come from `apps/backtest/services/score_store.py`: DailyScore rows (rule + ML per
+  day and agent) tagged with a hash of the agent code; changing rules / ML / inputs /
+  indicators re-scores. The last 14 days are never stored. `python manage.py build_scores`
+  fills it (~2 minutes from 2019); pages fill missing days themselves.
 
 ## Daily run (step 13)
 - `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the

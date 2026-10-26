@@ -50,11 +50,19 @@
 
 {% if combining %}
 <section class="panel">
-  <h2>Combining rule</h2>
+  <h2>Combining rule: the vote</h2>
   {% for run in combining %}
-    <p><strong>{{ run.settings.score_type }}:</strong> buy when {{ run.settings.agents_required }} agents score ≥ {{ run.settings.threshold }}
-      — {{ run.trade_count }} trades, {{ run.total_profit_pct|floatformat:2 }}% profit
-      (first half {{ run.settings.first_half_pct|floatformat:2 }}%, second half {{ run.settings.second_half_pct|floatformat:2 }}%).</p>
+    <p><strong>{{ run.settings.sources|join:" + " }} agents, Buy when Buy votes lead by {{ run.settings.min_net_votes }}+</strong>
+      (chosen on {{ run.settings.tuned_on|join:" to " }}).</p>
+    <table class="data">
+      <thead><tr><th></th><th>Hit rate (7 days)</th><th>Calls</th><th>Buy days</th><th>Profit</th><th>Buy and hold</th><th>Worst drop</th></tr></thead>
+      <tbody>
+      {% for label, r in run.periods %}
+        <tr><th>{{ label }}</th><td>{{ r.hit_rate|floatformat:1 }}%</td><td>{{ r.calls }}</td><td>{{ r.buy_days }}</td>
+          <td>{{ r.profit_pct|floatformat:1 }}%</td><td>{{ r.hold_pct|floatformat:1 }}%</td><td>{{ r.drawdown_pct|floatformat:1 }}%</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
   {% endfor %}
 </section>
 {% endif %}
