@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from ai import inputs_v2, opus_client
-from ai.domains import DOMAINS
-from apps.agents.models import AgentName, AgentRun, PromptVersion
+from ai.domains import DOMAINS, with_kind
+from apps.agents.models import AgentRun, PromptVersion
 from apps.agents.services import memory_service, prompt_service, rule_scoring_service
 from apps.backtest.calibration import forward_returns
 from apps.backtest.repositories import price_repository
@@ -32,7 +32,7 @@ class Progress:
 def versions(old, new):
     """{"old"/"new": {agent: PromptVersion}}. The new one is the prompt files on disk."""
     found = {"old": {}, "new": {}}
-    for agent in AgentName.values:
+    for agent in with_kind("opus"):
         found["old"][agent] = PromptVersion.objects.get(agent=agent, version=old)
         current = prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE)
         if current.version != new:

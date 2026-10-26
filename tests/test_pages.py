@@ -56,7 +56,7 @@ class FilledPagesTests(TestCase):
             "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their 3 domains", "all those votes agree", "55.0%"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "4 ML with financial", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
@@ -147,11 +147,11 @@ class ProfitPageTests(TestCase):
 
     def test_profit_per_agent_against_holding(self):
         page, rows = self.rows(short=False)
-        self.assertEqual(len(rows), 13)  # 9 agents, 3 group votes, the overall vote
+        self.assertEqual(len(rows), 14)  # 9 agents, the stress ML agent, 3 group votes, the overall vote
         self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 - 1) * 100, places=3)
         self.assertEqual((rows["macro:opus"]["trades"], rows["macro:opus"]["days_long"]), (1, 1))
         self.assertLess(page["hold"].total_profit_pct, rows["macro:opus"]["profit_pct"])  # holding loses every day
-        self.assertEqual(len(page["chart"]["lines"]), 13)
+        self.assertEqual(len(page["chart"]["lines"]), 14)
 
     def test_short_mode_profits_from_sell_calls(self):
         _, rows = self.rows(short=True)

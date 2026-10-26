@@ -1,4 +1,4 @@
-"""Daily closes of the dollar index and US stock indexes from Yahoo Finance's chart API.
+"""Daily closes of the dollar index, US stock indexes and the MOVE index from Yahoo Finance's chart API.
 
 Calls the public chart endpoint directly instead of the yfinance package, which would add
 pandas and several other libraries for a single request.
@@ -14,6 +14,7 @@ SYMBOLS = {
     "DX-Y.NYB": "dxy_close",
     "^IXIC": "nasdaq_close",
     "^GSPC": "sp500_close",
+    "^MOVE": "move_close",  # bond market volatility (ICE BofA MOVE index)
 }
 
 

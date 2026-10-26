@@ -54,7 +54,7 @@ function profitChart(id, data) {
   const labels = data.labels.concat(data.hold === null ? [] : ["buy and hold"]);
   const values = data.profit.concat(data.hold === null ? [] : [data.hold]);
   const agentColor = (name) => {
-    for (const agent of ["technical", "derivatives", "macro"]) if (name.endsWith(agent)) return token(`--${agent}`);
+    for (const agent of ["technical", "derivatives", "macro", "stress"]) if (name.endsWith(agent)) return token(`--${agent}`);
     return token("--text-2");
   };
   new Chart(document.getElementById(id), {

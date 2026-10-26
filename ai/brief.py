@@ -25,6 +25,6 @@ class Brief:
 @dataclass
 class Verdict:
     agent: str
-    rules: RuleScore
+    rules: RuleScore | None  # None for a domain without a rules agent
     ml: object              # ai.ml.MLScore
     opus: OpusReply | None = None  # None when Opus was not asked

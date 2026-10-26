@@ -16,7 +16,7 @@ COLLECTORS = {
 # Crypto trades every day; stock indexes and FRED series only on business days.
 EVERY_DAY_SOURCES = {binance.SOURCE, bybit.SOURCE, okx_liquidations.SOURCE}
 # Monthly or event-driven fields where gaps are normal.
-SPARSE_FIELDS = {"cpi", "core_cpi"}
+SPARSE_FIELDS = {"cpi", "core_cpi", "nfci"}  # monthly and weekly series
 
 
 @dataclass

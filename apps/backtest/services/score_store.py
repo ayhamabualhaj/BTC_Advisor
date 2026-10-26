@@ -42,7 +42,7 @@ def scores(days, on_progress=None):
     current = fingerprint()
     rules, ml = {}, {}
     for row in DailyScore.objects.filter(date__in=days, fingerprint=current):
-        rules.setdefault(row.date, {})[row.agent] = row.rule_score
+        rules.setdefault(row.date, {})[row.agent] = row.rule_score  # None for a domain without rules
         ml.setdefault(row.date, {})[row.agent] = row.ml_score
     missing = [day for day in days if day not in rules]
     version = data_version()
@@ -69,7 +69,9 @@ def store(rules, ml, current):
     last_stored = datetime.date.today() - datetime.timedelta(days=FRESH_DAYS)
     DailyScore.objects.exclude(fingerprint=current).delete()
     DailyScore.objects.bulk_create([
-        DailyScore(date=day, agent=agent, rule_score=score, ml_score=ml[day].get(agent), fingerprint=current)
-        for day, by_agent in rules.items() if day <= last_stored
-        for agent, score in by_agent.items() if score is not None
+        DailyScore(date=day, agent=agent, rule_score=rules[day].get(agent), ml_score=ml[day].get(agent), fingerprint=current)
+        for day in rules if day <= last_stored
+        # A domain without rules (stress) is stored for its ML score.
+        for agent in rules[day].keys() | ml[day].keys()
+        if rules[day].get(agent) is not None or ml[day].get(agent) is not None
     ], ignore_conflicts=True)

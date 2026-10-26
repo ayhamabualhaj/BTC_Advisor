@@ -1,8 +1,8 @@
 """The combining rule: a vote in two rounds.
 
-Round 1: each kind of agent votes among its three domains. The rule agents (technical,
-derivatives, macro) give the Rules vote, the ML agents the ML vote, the Opus agents the
-Opus vote. Each agent says Buy (score >= 55), Sell (<= 45) or Hold; the group says Buy when
+Round 1: each kind of agent votes among its domains. The rule agents (technical,
+derivatives, macro) give the Rules vote, the ML agents (those three plus financial stress)
+the ML vote, the Opus agents the Opus vote. An agent without a score abstains. Each agent says Buy (score >= 55), Sell (<= 45) or Hold; the group says Buy when
 its Buy votes lead its Sell votes by at least `group_lead`, Sell when the reverse.
 
 Round 2, the overall vote: Buy (or Sell) only when every group vote agrees. A group with

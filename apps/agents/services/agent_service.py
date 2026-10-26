@@ -1,7 +1,8 @@
 """Runs a day's agents: builds each domain's Brief, runs the Flow, saves one AgentRun per domain."""
 
 from ai.brief import Brief
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, with_kind
+from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentRun
 from apps.agents.services import memory_service, prompt_service, rule_scoring_service
 from apps.data.repositories.market_data_repository import series
@@ -35,11 +36,11 @@ def run_agents(date, agents=None, use_opus=True, client=None, is_backtest=False)
     """Each domain's rule, ML and (if use_opus) Opus agent; they never see each other's results."""
     agents = agents or list(DOMAINS)
     prompts = {agent: prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE)
-               for agent in agents} if use_opus else {}
+               for agent in with_kind("opus", agents)} if use_opus else {}
     briefs = {}
     for agent in agents:
-        briefs[agent] = make_brief(agent, date, with_similar=use_opus)
-        if use_opus:
+        briefs[agent] = make_brief(agent, date, with_similar=agent in prompts)
+        if agent in prompts:
             briefs[agent].prompt_text = prompts[agent].prompt_text
     # Imported here: CrewAI takes seconds to load, and the web pages only need make_brief.
     from ai import flow
@@ -48,21 +49,31 @@ def run_agents(date, agents=None, use_opus=True, client=None, is_backtest=False)
     return [save(briefs[verdict.agent], verdict, prompts.get(verdict.agent), is_backtest) for verdict in verdicts]
 
 
+def ml_direction(score):
+    if score is None:
+        return "neutral"
+    return "bullish" if score >= BULLISH_AT else "bearish" if score <= BEARISH_AT else "neutral"
+
+
 def save(brief, verdict, prompt, is_backtest):
     rules, ml, opus = verdict.rules, verdict.ml, verdict.opus
     answer = opus.data if opus and opus.data else {}
-    key_data = {**brief.snapshot, "skipped": rules.skipped, "rule_reasons": rules.reasons, "ml_reasons": ml.reasons}
+    key_data = {**brief.snapshot, "skipped": rules.skipped if rules else [], "rule_reasons": rules.reasons if rules else [],
+                "ml_reasons": ml.reasons}
+    # A domain without rules (financial stress) takes its direction and reasons from ML.
+    fallback_direction = rules.direction if rules else ml_direction(ml.score)
+    fallback_reasons = rules.reasons if rules else ml.reasons
     if opus:
         key_data["model_input"] = brief.opus_input()
     return AgentRun.objects.create(
         date=brief.date,
         agent=brief.agent,
-        rule_score=rules.score,
+        rule_score=rules.score if rules else None,
         ml_score=ml.score,
         opus_score=answer.get("opus_score"),
         # Without a valid Opus reply the run falls back to the rules' direction and reasons.
-        direction=answer.get("direction", rules.direction),
-        reasons=answer.get("reasons", rules.reasons),
+        direction=answer.get("direction", fallback_direction),
+        reasons=answer.get("reasons", fallback_reasons),
         key_data=key_data,
         suggested_stop_loss=stop_loss_price(close_on(brief.date), answer.get("suggested_stop_loss_pct")),
         prompt_version=prompt,

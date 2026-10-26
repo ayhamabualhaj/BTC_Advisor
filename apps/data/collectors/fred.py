@@ -1,4 +1,4 @@
-"""US rates and inflation from the FRED API (free key in FRED_API_KEY)."""
+"""US rates, inflation, VIX and financial conditions from the FRED API (free key in FRED_API_KEY)."""
 
 import bisect
 import datetime
@@ -15,6 +15,12 @@ DAILY_SERIES = {
     "DFF": "fed_funds_effective",
     "DFEDTARU": "fed_target_upper",
     "DGS2": "treasury_2y",
+    "VIXCLS": "vix",
+}
+# Weekly series, dated by when they were known: NFCI covers the week to Friday and is
+# published the next Wednesday, so it is dated 6 days after its observation date.
+WEEKLY_SERIES = {
+    "NFCI": ("nfci", 6),
 }
 # Monthly series: an observation for June is only released in mid-July.
 MONTHLY_SERIES = {
@@ -29,6 +35,8 @@ def collect(start, end):
     points = []
     for series, field in DAILY_SERIES.items():
         points.extend(parse_daily(fetch_observations(series, start, end), field))
+    for series, (field, lag_days) in WEEKLY_SERIES.items():
+        points.extend(parse_daily(fetch_observations(series, start - datetime.timedelta(days=14), end), field, lag_days))
     # Fetch monthly data from a year earlier so year-over-year inflation can be computed.
     monthly_start = start.replace(year=start.year - 1)
     for series, field in MONTHLY_SERIES.items():
@@ -52,12 +60,12 @@ def fetch_release_dates(series, start):
     return sorted(datetime.date.fromisoformat(d) for d in dates)
 
 
-def parse_daily(observations, field):
+def parse_daily(observations, field, lag_days=1):
     points = []
     for row in observations:
         if row["value"] == ".":
             continue  # FRED's marker for a missing day
-        day = datetime.date.fromisoformat(row["date"]) + datetime.timedelta(days=1)
+        day = datetime.date.fromisoformat(row["date"]) + datetime.timedelta(days=lag_days)
         points.append(Point(day, field, float(row["value"])))
     return points
 

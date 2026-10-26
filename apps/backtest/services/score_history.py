@@ -29,7 +29,8 @@ def rule_and_ml_scores(days, on_progress=None):
         rules[day], ml[day] = {}, {}
         for agent, domain in DOMAINS.items():
             brief = agent_service.make_brief(agent, day, cases[agent])
-            rules[day][agent] = domain.rules.score(brief.snapshot).score
+            if domain.rules:
+                rules[day][agent] = domain.rules.score(brief.snapshot).score
             ml[day][agent] = domain.ml.score(brief).score
         if on_progress:
             on_progress(day)
@@ -63,4 +64,4 @@ def scores(score_type, days):
         return score_store.scores(days)[0]
     if score_type == "ml":
         return ml_scores(days)
-    return opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))
+    return opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))  # LLM agents only

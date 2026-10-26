@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.db.models import Avg
 
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, with_kind
 from apps.agents.models import AgentRun
 from apps.agents.services import agent_service, prompt_service
 
@@ -24,7 +24,9 @@ class OpusBacktestProgress:
 
 
 def prompt_versions(agents):
-    return {agent: prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE) for agent in agents}
+    """The current prompt of each agent that has an LLM agent (stress has none)."""
+    return {agent: prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE)
+            for agent in with_kind("opus", agents)}
 
 
 def pending_days(agent, prompt_version, days):

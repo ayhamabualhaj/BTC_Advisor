@@ -12,6 +12,7 @@ votes are the current combining rule: a Rules, an ML and an LLM vote, then the o
 import datetime
 from dataclasses import dataclass
 
+from ai.domains import has
 from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
@@ -58,7 +59,7 @@ class Column:
 
 def columns():
     result = [Column(f"{agent.value}:{source}", agent.value, agent.label, source, label)
-              for agent in AgentName for source, label in sources()]
+              for agent in AgentName for source, label in sources() if has(agent.value, source)]
     result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()]
     result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
     return result

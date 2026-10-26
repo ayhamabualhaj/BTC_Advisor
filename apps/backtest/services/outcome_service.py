@@ -18,8 +18,8 @@ def agent_correct(date, agent, change_7d):
     run = AgentRun.objects.filter(date=date, agent=agent, is_backtest=False).order_by("-created_at").first()
     if run is None or change_7d is None or change_7d == 0:
         return None
-    score = run.opus_score if run.opus_score is not None else run.rule_score
-    if score == 50:
+    score = next((s for s in (run.opus_score, run.rule_score, run.ml_score) if s is not None), None)
+    if score is None or score == 50:
         return None
     return (score > 50) == (change_7d > 0)
 

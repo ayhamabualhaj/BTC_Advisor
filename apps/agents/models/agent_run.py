@@ -14,7 +14,8 @@ class AgentRun(models.Model):
 
     date = models.DateField()
     agent = models.CharField(max_length=20, choices=AgentName.choices)
-    rule_score = models.FloatField()
+    # Empty for a domain without a rules agent (financial stress has only an ML agent).
+    rule_score = models.FloatField(null=True, blank=True)
     # Empty when the ML agent had too few past days to learn from.
     ml_score = models.FloatField(null=True, blank=True)
     # Empty for rule-only runs and when Opus failed twice (see error). Holds the score of
@@ -41,7 +42,7 @@ class AgentRun(models.Model):
         indexes = [models.Index(fields=["agent", "date"])]
 
     def __str__(self):
-        return f"{self.date} {self.agent}: rules {self.rule_score:.0f}, ml {self.ml_score}, opus {self.opus_score}"
+        return f"{self.date} {self.agent}: rules {self.rule_score}, ml {self.ml_score}, opus {self.opus_score}"
 
     def as_output(self):
         """The agent output format from the project plan."""

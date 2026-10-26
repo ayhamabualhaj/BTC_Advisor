@@ -12,7 +12,7 @@ class DailyScore(models.Model):
 
     date = models.DateField()
     agent = models.CharField(max_length=20, choices=AgentName.choices)
-    rule_score = models.FloatField()
+    rule_score = models.FloatField(null=True, blank=True)
     ml_score = models.FloatField(null=True, blank=True)
     fingerprint = models.CharField(max_length=16)
 
@@ -21,4 +21,4 @@ class DailyScore(models.Model):
         constraints = [models.UniqueConstraint(fields=["date", "agent", "fingerprint"], name="one_score_per_day")]
 
     def __str__(self):
-        return f"{self.date} {self.agent}: rules {self.rule_score:.0f}, ml {self.ml_score}"
+        return f"{self.date} {self.agent}: rules {self.rule_score}, ml {self.ml_score}"

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.agents.models import AgentName
+from ai.domains import with_kind
 from apps.backtest.services import backtest_service, opus_backtest_service, score_history
 
 from ._report import format_hold, format_run
@@ -17,7 +17,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--start", default=TEST_START)
         parser.add_argument("--end", help="YYYY-MM-DD (default: last day with a known next-day price)")
-        parser.add_argument("--agent", action="append", choices=AgentName.values)
+        parser.add_argument("--agent", action="append", choices=with_kind("opus"))
         parser.add_argument("--max-cost", type=Decimal, default=Decimal("5.00"),
                             help="Stop before spending more than this many US$ (default 5)")
         parser.add_argument("--estimate", action="store_true", help="Only print calls needed and cost")
@@ -30,7 +30,7 @@ class Command(BaseCommand):
         market = backtest_service.load_market(start, end)
         if not market.days:
             raise CommandError("No price data in this period; run collect_data first.")
-        agents = options["agent"] or AgentName.values
+        agents = options["agent"] or with_kind("opus")
 
         calls, cost = opus_backtest_service.estimate(agents, market.days)
         self.stdout.write(f"{len(market.days)} days x {len(agents)} agents: {calls} calls still to run, "

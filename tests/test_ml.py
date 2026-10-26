@@ -95,7 +95,7 @@ class AdvisorFlowTests(TestCase):
         client = FakeClient()
         runs = agent_service.run_agents(day(59), use_opus=False, client=client)
         self.assertEqual(client.calls, [])
-        self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro"])
+        self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro", "stress"])
         run = AgentRun.objects.get(agent="technical")
         self.assertEqual((run.rule_score, run.opus_score, run.prompt_version), (60, None, None))
         # No memory yet, so the ML agent abstains and says why.

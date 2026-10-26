@@ -11,6 +11,7 @@
   --technical: #2a78d6;
   --derivatives: #eb6834;
   --macro: #1baf7a;
+  --stress: #8b5cd6;
   --hold: #8f8e89;
   --good: #0f7b3f;
   --good-bg: #e6f4ec;
@@ -32,6 +33,7 @@
     --technical: #3987e5;
     --derivatives: #d95926;
     --macro: #199e70;
+    --stress: #a07ce8;
     --hold: #8a8983;
     --good: #5cc98a;
     --good-bg: #16301f;
@@ -44,7 +46,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #121211; --surface: #1a1a19; --border: #2e2e2c; --text: #f0efec; --text-2: #c3c2b7;
-  --muted: #94938c; --grid: #2a2a28; --technical: #3987e5; --derivatives: #d95926; --macro: #199e70;
+  --muted: #94938c; --grid: #2a2a28; --technical: #3987e5; --derivatives: #d95926; --macro: #199e70; --stress: #a07ce8;
   --hold: #8a8983; --good: #5cc98a; --good-bg: #16301f; --critical: #f07167; --critical-bg: #3a1c19; --pending-bg: #232321; --link: #79aef0;
 }
 
@@ -101,6 +103,7 @@ h3 { font-size: 14px; margin: 16px 0 6px; color: var(--text-2); }
 .dot-technical { background: var(--technical); }
 .dot-derivatives { background: var(--derivatives); }
 .dot-macro { background: var(--macro); }
+.dot-stress { background: var(--stress); }
 
 table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.data th, table.data td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }

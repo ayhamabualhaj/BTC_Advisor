@@ -30,7 +30,8 @@ class Command(BaseCommand):
         for run in report.agent_runs:
             opus = run.opus_score if run.opus_score is not None else "-"
             ml = f"{run.ml_score:.0f}" if run.ml_score is not None else "-"
-            self.stdout.write(f"{run.agent:<11} rules {run.rule_score:3.0f}  ml {ml:>3}  opus {opus:>3}  "
+            rules = f"{run.rule_score:.0f}" if run.rule_score is not None else "-"
+            self.stdout.write(f"{run.agent:<11} rules {rules:>3}  ml {ml:>3}  opus {opus:>3}  "
                               f"{run.direction:<8} ${run.cost_usd:.4f}")
             if run.error:
                 self.stdout.write(self.style.ERROR(f"  {run.error}"))

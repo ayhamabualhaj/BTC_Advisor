@@ -13,6 +13,7 @@ class Outcome(models.Model):
     technical_correct = models.BooleanField(null=True, blank=True)
     derivatives_correct = models.BooleanField(null=True, blank=True)
     macro_correct = models.BooleanField(null=True, blank=True)
+    stress_correct = models.BooleanField(null=True, blank=True)
 
     class Meta:
         ordering = ["-date"]

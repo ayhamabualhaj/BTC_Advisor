@@ -2,7 +2,8 @@
 
 A local multi-agent tool that advises on daily Bitcoin trades. Three domains (technical
 analysis, derivatives, macro) each have three independent agents, run together by a CrewAI
-Flow:
+Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent, which
+votes with the other ML agents:
 
 - a **rules** agent: a score computed in code from explicit criteria (start at 50, criteria add or subtract);
 - an **ML** agent: logistic regression on the domain's numbers, retrained every day on past
@@ -45,7 +46,7 @@ bash scripts/setup_postgres.sh
 python manage.py migrate
 python manage.py collect_data            # Aug 2017 to yesterday, all sources (~2 min)
 python manage.py build_memory            # past setups + outcomes for RAG (free, ~10 s)
-python manage.py test                    # 174 tests, no network, no API calls
+python manage.py test                    # 179 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
@@ -112,7 +113,7 @@ already known.
 
 Pages: **Today** (decision, each agent's scores, reasons, stop loss), one page per agent
 (score chart, data used, live/backtest runs), **Signals** (month by month since 2019 and an all-months overview: every Buy/Sell/Hold call from
-each domain's rules, ML and Opus agent, the Rules / ML / Opus votes and the overall vote, with confidence and result, green when right and red when wrong after 1, 3 or 7 days), **Profit** (what following each of the 9 agents and the 4 votes would have earned vs buy-and-hold, any period, stay out or go short on Sell, filter by agent and kind), **Models** (Opus vs Haiku on the same questions, one tab per agent), **Backtests** (profit vs buy-and-hold,
+each domain's rules, ML and Opus agent, the Rules / ML / Opus votes and the overall vote, with confidence and result, green when right and red when wrong after 1, 3 or 7 days), **Profit** (what following each of the 10 agents and the 4 votes would have earned vs buy-and-hold, any period, stay out or go short on Sell, filter by agent and kind), **Models** (Opus vs Haiku on the same questions, one tab per agent), **Backtests** (profit vs buy-and-hold,
 calibration, combining rule), **Costs** (API spend per agent and day), **Prompts** (every
 prompt version and its results). Editing an agent's `prompt.md` creates a new prompt
 version automatically on the next run.

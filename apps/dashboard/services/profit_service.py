@@ -1,6 +1,6 @@
 """The Profit page: what following each agent's calls would have earned.
 
-Every column of the Signals page (9 agents, the Rules / ML / LLM votes and the overall
+Every column of the Signals page (10 agents, the Rules / ML / LLM votes and the overall
 vote) becomes a strategy. A Buy (score >= 55, or the vote's Buy) at the close of day D holds
 to the close of D + 1; with `short`, a Sell does the opposite; anything else stays out.
 Compared with buying and holding over the same days. All math is apps/backtest/metrics.py.
@@ -55,7 +55,8 @@ def daily_signals(days):
                      "opus": {agent: run.opus_score for agent, run in llm_runs.items()}}
         for agent in AgentName.values:
             for source in ("rules", "ml", "opus"):
-                signals[f"{agent}:{source}"].append(signal_service.signal_for(by_source[source].get(agent)))
+                if f"{agent}:{source}" in signals:
+                    signals[f"{agent}:{source}"].append(signal_service.signal_for(by_source[source].get(agent)))
         groups, overall = decide(by_source, rule)
         for source, signal in groups.items():
             signals[f"vote:{source}"].append(signal)

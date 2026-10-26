@@ -2,7 +2,8 @@
 
 A local Django tool that advises Ayham on daily Bitcoin trades. Three domains (technical,
 derivatives, macro) each have three independent agents: rules (code), ML (walk-forward:
-logistic regression, random forest for macro) and Opus 5.5 (judgment). The system only advises; Ayham places trades manually. Full plan:
+logistic regression, random forest for macro) and Opus 5.5 (judgment). A fourth domain,
+financial stress, has only an ML agent (see "Financial stress domain"). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -305,6 +306,38 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   was checked with fake agents: random ones fail; one right ~60% passes only sometimes
   (p 0.000-0.008), so a real edge below ~60% cannot be told from luck on 2025-26 alone.
 
+- Round 2, 20 more (Oct 26 2026; scripts in the session scratchpad, not kept): 16 signal
+  agents (rules + ML) - Binance taker buys, trade size, futures basis, Binance funding,
+  Deribit DVOL, Kimchi premium (Upbit), Wikipedia views, net liquidity (WALCL - TGA - RRP),
+  financial stress (VIX, NFCI, MOVE), policy uncertainty (EPU), gold and real yields, yen
+  and yield curve, exchange flows (CoinMetrics), Puell / miner revenue, network fees and
+  transactions, HYG / MSTR - and 4 pooled models over all 70 numbers (PCA + logistic,
+  forest, gradient boosting, a learned combiner of the 6 rule / ML scores). Same test,
+  luck bar raised to beating every circular shift (p < 0.0017). Passed: Kimchi rules (75.4%
+  of 69, but 2 episodes, all Sells, and 0 / 54.5 / 28.9% when learned before 2021-23: not
+  added) and financial stress ML (77.6% of 107, 15 episodes; added, below). The pooled
+  models failed (48-51%); the learned combiner reached 57.9% (p 0.05).
+
+## Financial stress domain (Oct 26 2026)
+- `ai/stress/`: only `inputs.py` and `ml.py` (`rules = None`, `opus = None` in
+  `__init__.py`). `ai/domains.has(agent, kind)` / `with_kind(kind)`: the Flow, prompts,
+  Opus backtests, prompt comparisons, Signals and Profit columns skip kinds a domain lacks.
+  AgentRun / DailyScore `rule_score` may be empty; Outcome has `stress_correct`, judged on
+  the ML score when there is no rules or LLM score.
+- Data: FRED VIXCLS (`vix`, +1 day) and NFCI (`nfci`, weekly, dated +6 days: Friday's week
+  is published Wednesday), Yahoo ^MOVE (`move_close`). `stress_snapshot`: VIX, its 20-day
+  change, MOVE 20-day % change, NFCI (stale after 14 days).
+- ML: logistic regression C = 0.1 on those 4 numbers, retrained monthly (as the macro
+  forest). In the project (stored scores): 48.8% of 1017 calls in 2019-22, 28.2% of 71 in
+  2023-24 (mostly wrong Sells), 62.8% of 86 in 2025, 61.1% of 54 in 2026 (all Buys).
+- It votes in the ML group (4 voters). Vote re-chosen: group lead 1, all agree -> 52.6% of
+  572 on 2019-24; 2025 on 72.4% of 134 calls, +35.0% (rules + ML; was 75.3% of 93, +21.7%),
+  with Haiku 69.3% of 88, +13.9%.
+- build_memory defaults to 2025: a new agent needs `build_memory --agent X --start
+  2017-08-17`. Memory is not in the score fingerprint, so after rebuilding memory delete
+  all DailyScore rows and run build_scores (deleting one agent's rows is not enough: a day
+  with any stored row counts as done).
+
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from
   it (`ai.opus_client.model_label`, context processor `llm_label`); internal keys and the
@@ -345,4 +378,4 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
+**Current step:** done through 14, financial stress ML agent (4th domain, votes in the ML group), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

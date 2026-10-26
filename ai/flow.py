@@ -12,7 +12,7 @@ from crewai.flow.flow import Flow, and_, listen, start
 from pydantic import BaseModel, ConfigDict
 
 from ai.brief import Verdict
-from ai.domains import DOMAINS
+from ai.domains import DOMAINS, has
 
 
 class AdvisorState(BaseModel):
@@ -33,7 +33,7 @@ class AdvisorFlow(Flow[AdvisorState]):
     @start()
     def rule_agents(self):
         self.state.rules = {agent: DOMAINS[agent].rules.score(brief.snapshot)
-                            for agent, brief in self.state.briefs.items()}
+                            for agent, brief in self.state.briefs.items() if has(agent, "rules")}
 
     @start()
     def ml_agents(self):
@@ -43,11 +43,11 @@ class AdvisorFlow(Flow[AdvisorState]):
     def opus_agents(self):
         if self.state.use_opus:
             self.state.opus = {agent: DOMAINS[agent].opus.judge(brief, self.client)
-                               for agent, brief in self.state.briefs.items()}
+                               for agent, brief in self.state.briefs.items() if has(agent, "opus")}
 
     @listen(and_(rule_agents, ml_agents, opus_agents))
     def verdicts(self):
-        return [Verdict(agent, self.state.rules[agent], self.state.ml[agent], self.state.opus.get(agent))
+        return [Verdict(agent, self.state.rules.get(agent), self.state.ml[agent], self.state.opus.get(agent))
                 for agent in self.state.briefs]
 
 

@@ -11,13 +11,15 @@ from apps.data.repositories.market_data_repository import series
 PRICE_HISTORY_DAYS = 260
 # Ignore a data series whose latest value is older than this many days.
 MAX_STALE_DAYS = 5
+# NFCI is weekly and published 5 days after its week ends, so it is up to 13 days old.
+WEEKLY_STALE_DAYS = 14
 # The long/short ratio is judged against its own recent average.
 LS_HISTORY_DAYS = 90
 
 
-def values(source, field, date, limit):
+def values(source, field, date, limit, max_stale_days=MAX_STALE_DAYS):
     rows = series(source, field, date, limit)
-    if not rows or (date - rows[-1][0]).days > MAX_STALE_DAYS:
+    if not rows or (date - rows[-1][0]).days > max_stale_days:
         return []
     return [value for _, value in rows]
 
@@ -103,5 +105,21 @@ def macro_snapshot(date):
         "cpi_yoy_pct": macro.yoy_inflation(cpi),
         "cpi_surprise_pct": macro.cpi_surprise(cpi),
         "etf_net_flow_5d_musd": trend.rolling_sum(etf, 5),
+    }
+    return {key: rounded(value) for key, value in snapshot.items()}
+
+
+def stress_snapshot(date):
+    """Fear in US markets: stock volatility (VIX), bond volatility (MOVE), financial conditions (NFCI)."""
+    vix = values("fred", "vix", date, 21)
+    move = values("yahoo", "move_close", date, 21)
+    nfci = values("fred", "nfci", date, 1, max_stale_days=WEEKLY_STALE_DAYS)
+    snapshot = {
+        "vix": vix[-1] if vix else None,
+        # Over about a month of trading days, in VIX points.
+        "vix_change_20d": vix[-1] - vix[-21] if len(vix) >= 21 else None,
+        "move": move[-1] if move else None,
+        "move_change_20d_pct": trend.pct_change(move, 20),
+        "nfci": nfci[-1] if nfci else None,
     }
     return {key: rounded(value) for key, value in snapshot.items()}
