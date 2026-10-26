@@ -1,25 +1,29 @@
-"""Chooses the vote (who votes, and by what margin) on one period, then tests it once on a later one.
+"""Chooses the two-round vote's leads on one period, then tests it once on a later one.
 
 The choice is made on 2019-2024 only; 2025 onward is the test, reported but never used
 to choose. Candidates and the way to pick are fixed here, before looking at the test:
 the highest 7-day hit rate of the vote's Buy and Sell calls, among candidates with at
 least MIN_CALLS calls (ties: more calls).
+
+Opus has no scores before mid-2026, so the choice is made on the Rules and ML votes; live,
+the Opus vote joins round 2 as a third voter.
 """
 
 import datetime
 from dataclasses import asdict, dataclass
 
 from apps.backtest import metrics
-from apps.backtest.decision_rule import call, voters
+from apps.backtest.decision_rule import decide
 from apps.backtest.models import BacktestRun
 
 TUNE_START = datetime.date(2019, 1, 1)
 TUNE_END = datetime.date(2024, 12, 31)
 TEST_START = datetime.date(2025, 1, 1)
-SOURCE_SETS = [["rules"], ["rules", "ml"]]
-MARGINS = [1, 2, 3]
+GROUP_LEADS = [1, 2, 3]
+# 3 would need all three groups, and Opus has no history to choose it on.
+OVERALL_LEADS = [1, 2]
 MIN_CALLS = 100
-DEFAULT_RULE = {"sources": ["rules"], "min_net_votes": 1}
+DEFAULT_RULE = {"group_lead": 1, "overall_lead": 1}
 RULE_NAME = "combining_rule"
 
 
@@ -37,21 +41,25 @@ class Result:
 
 @dataclass
 class Candidate:
-    sources: list
-    min_net_votes: int
+    group_lead: int
+    overall_lead: int
     tuning: Result
     test: Result
 
+    @property
+    def rule(self):
+        return {"group_lead": self.group_lead, "overall_lead": self.overall_lead}
 
-def evaluate(sources, margin, scores_by_source, days, next_day_returns, returns_7d):
-    """Hit rate of the vote's calls over 7 days, and profit when buying only on Buy days."""
+
+def evaluate(rule, scores_by_source, days, next_day_returns, returns_7d):
+    """Hit rate of the overall vote's calls over 7 days, and profit when buying only on Buy days."""
     right = wrong = 0
     positions = []
     for day in days:
-        signal = call(voters({source: scores_by_source[source].get(day, {}) for source in sources}, sources), margin)
+        _, signal = decide({source: scores.get(day, {}) for source, scores in scores_by_source.items()}, rule)
         positions.append(signal == "buy")
         move = returns_7d.get(day)
-        if signal != "hold" and move:
+        if signal in ("buy", "sell") and move:
             if (signal == "buy") == (move > 0):
                 right += 1
             else:
@@ -71,12 +79,14 @@ def split(market, start, end):
 def candidates(scores_by_source, market, returns_7d, test_end):
     tune = split(market, TUNE_START, TUNE_END)
     test = split(market, TEST_START, test_end)
-    return [
-        Candidate(sources, margin,
-                  evaluate(sources, margin, scores_by_source, *tune, returns_7d),
-                  evaluate(sources, margin, scores_by_source, *test, returns_7d))
-        for sources in SOURCE_SETS for margin in MARGINS
-    ]
+    found = []
+    for group_lead in GROUP_LEADS:
+        for overall_lead in OVERALL_LEADS:
+            rule = {"group_lead": group_lead, "overall_lead": overall_lead}
+            found.append(Candidate(group_lead, overall_lead,
+                                   evaluate(rule, scores_by_source, *tune, returns_7d),
+                                   evaluate(rule, scores_by_source, *test, returns_7d)))
+    return found
 
 
 def best(found):
@@ -91,22 +101,19 @@ def choose(scores_by_source, market, returns_7d, test_end, save=True):
     found = candidates(scores_by_source, market, returns_7d, test_end)
     chosen = best(found)
     if save:
-        record = chosen or next(c for c in found if c.sources == DEFAULT_RULE["sources"]
-                                and c.min_net_votes == DEFAULT_RULE["min_net_votes"])
+        record = chosen or next(c for c in found if c.rule == DEFAULT_RULE)
         BacktestRun.objects.create(
             name=RULE_NAME,
             # The stored numbers are the test period's: the honest ones.
             start_date=TEST_START,
             end_date=test_end,
             settings={
-                "sources": record.sources,
-                "min_net_votes": record.min_net_votes,
+                **record.rule,
                 "is_default": chosen is None,
                 "tuned_on": [TUNE_START.isoformat(), TUNE_END.isoformat()],
                 "tuning": asdict(record.tuning),
                 "test": asdict(record.test),
-                "candidates": [{"sources": c.sources, "min_net_votes": c.min_net_votes,
-                                "tuning": asdict(c.tuning), "test": asdict(c.test)} for c in found],
+                "candidates": [{**c.rule, "tuning": asdict(c.tuning), "test": asdict(c.test)} for c in found],
             },
             trade_count=record.test.trades,
             win_rate=record.test.hit_rate,
@@ -118,13 +125,17 @@ def choose(scores_by_source, market, returns_7d, test_end, save=True):
 
 
 def current_rule():
-    """The latest chosen vote, or the default: rules only, Buy votes ahead by 1."""
+    """The latest chosen vote, or the default (both leads 1)."""
     run = BacktestRun.objects.filter(name=RULE_NAME).order_by("-created_at").first()
-    if run is None:
+    # Choices saved before the two-round vote do not apply to it.
+    if run is None or "group_lead" not in run.settings:
         return dict(DEFAULT_RULE)
-    return {"sources": run.settings["sources"], "min_net_votes": run.settings["min_net_votes"]}
+    return {"group_lead": run.settings["group_lead"], "overall_lead": run.settings["overall_lead"]}
 
 
 def describe(rule):
-    who = " + ".join({"rules": "rules", "ml": "ML", "opus": "Opus"}[s] for s in rule["sources"])
-    return f"vote of the {who} agents, Buy when Buy votes lead by {rule['min_net_votes']}+"
+    if "group_lead" not in rule:  # a Decision or BacktestRun from the one-round vote
+        who = " + ".join({"rules": "rules", "ml": "ML", "opus": "Opus"}[s] for s in rule.get("sources", []))
+        return f"one-round vote of the {who} agents, Buy when Buy votes lead by {rule.get('min_net_votes')}+"
+    return (f"the Rules, ML and Opus agents each vote among their 3 domains (Buy when Buy leads by "
+            f"{rule['group_lead']}+), then those 3 votes vote (Buy when Buy leads by {rule['overall_lead']}+)")

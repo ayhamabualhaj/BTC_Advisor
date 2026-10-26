@@ -27,7 +27,7 @@
     bar.querySelectorAll("[data-filter-rows]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.filterRows === state.rows));
 
     document.querySelectorAll("[data-agent][data-source]").forEach((el) => { el.hidden = !shown(el); });
-    // The vote has a single column, so the Kind filter never hides it.
+    // The overall vote belongs to no kind of agent, so the Kind filter never hides it.
     document.querySelectorAll('[data-source="vote"]').forEach((el) => { el.hidden = state.agents.vote === false; });
     // A group header spans its visible columns, and disappears with none.
     document.querySelectorAll("th[data-group]").forEach((th) => {

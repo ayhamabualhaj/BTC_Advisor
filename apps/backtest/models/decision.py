@@ -13,8 +13,10 @@ class Decision(models.Model):
     derivatives_score = models.FloatField(null=True, blank=True)
     macro_score = models.FloatField(null=True, blank=True)
     signal = models.CharField(max_length=10, choices=Signal.choices)
-    # The vote that made the decision: {"sources": [...], "min_net_votes": n}, and its result.
+    # The vote that made the decision ({"group_lead": g, "overall_lead": o}), each group's
+    # call ({"rules": "buy", "ml": "hold", "opus": "none"}) and round 2's Buy minus Sell.
     rule = models.JSONField(default=dict, blank=True)
+    group_calls = models.JSONField(default=dict, blank=True)
     net_votes = models.SmallIntegerField(null=True, blank=True)
     # Used by the threshold rule before the vote; kept for old decisions.
     threshold = models.FloatField(null=True, blank=True)

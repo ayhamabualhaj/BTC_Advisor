@@ -102,17 +102,23 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - `python manage.py calibration --scores rules|opus [--horizon 7]` (opus reads saved
   backtest runs, never calls the API). Saved as BacktestRuns named "<type>:<agent>:calibration".
 
-## Combining rule: the vote (replaces step 10's thresholds)
-- `apps/backtest/decision_rule.py`: each voting agent says Buy (>= 55), Sell (<= 45) or Hold;
-  Buy when Buy votes lead Sell votes by `min_net_votes`, Sell when the reverse.
-- `python manage.py choose_combining_rule` (free): candidates rules / rules + ML, lead 1-3,
-  chosen on 2019-2024 only (highest 7-day hit rate with >= 100 calls), then tested once on
-  2025 onward. Saved as BacktestRun "combining_rule" (test-period numbers in the fields,
-  tuning in settings). Chosen (Oct 26 2026, macro ML = forest): rules + ML, lead 2 ->
-  53.7% on 2019-24, 62.4% on 2025-26 (+93.3% on buy days vs -14.5% buy-and-hold). The rules were tuned on
-  2025-Sep 2026, so only Oct 2026 on is clean for everything.
-- `decision_service.make_decision(date)` applies `combining_service.current_rule()` (default
-  rules, lead 1) to the day's live AgentRuns; the Decision stores the rule and net votes.
+## Combining rule: the two-round vote (replaces step 10's thresholds)
+- `apps/backtest/decision_rule.py`: every agent says Buy (>= 55), Sell (<= 45) or Hold.
+  Round 1: the rules agents of the 3 domains vote -> the Rules vote; likewise the ML vote
+  and the Opus vote (Buy when Buy leads Sell by `group_lead`). Round 2: those 3 votes vote
+  (by `overall_lead`) -> the overall vote. A group with no scores (Opus on most past days)
+  abstains.
+- `python manage.py choose_combining_rule` (free): group lead 1-3 x overall lead 1-2,
+  chosen on 2019-2024 only (highest 7-day hit rate with >= 100 calls), tested once on 2025
+  onward. Opus has no 2019-24 scores, so the choice is made on Rules + ML; live, the Opus
+  vote joins round 2. Saved as BacktestRun "combining_rule"; an old one-round choice is ignored.
+- Chosen (Oct 26 2026): group lead 3 (all 3 domains agree), overall lead 1 -> 54.5% of 385
+  calls on 2019-24, 61.7% of 206 on 2025-26. Few Buy days, so it barely trades: -11% on
+  2019-24, -5.5% on 2025-26 (buy-and-hold -14.5%). Group lead 1 / overall lead 1 had 53.4%
+  -> 63.5% and +112% on 2025-26, but it was not the pre-set pick on 2019-24.
+- The one-round vote it replaced (rules + ML as 6 voters, lead 2): 53.7% -> 62.4%.
+- `decision_service.make_decision(date)` applies `combining_service.current_rule()` to the
+  day's live AgentRuns; the Decision stores the rule, each group's call and round 2's net.
 - Long-only: in 2019-24 every vote strategy trailed buy-and-hold by far (it sits out rallies)
   but cut the worst drop; it beat holding in falling markets.
 
@@ -132,7 +138,7 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 
 ## Signals pages (after step 14)
 - `/signals/?month=YYYY-MM&horizon=1|3|7`: one month from 2019 on, a Rules, ML and Opus
-  column per domain plus the vote. Each call shows its confidence (Buy at 70 = 70% sure it
+  column per domain, then the Rules, ML and Opus votes (round 1) and the Overall vote. Each call shows its confidence (Buy at 70 = 70% sure it
   rises, Sell at 30 = 70% sure it falls) and its result from its own side ("won +3.1%",
   "lost -2.0%"). `/signals/overview/`: hit rate per month and per period (2019-24, Jan
   2025-Sep 2026, Oct 2026 on) with which part was chosen where, and the "always up" base rate.
@@ -236,4 +242,4 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest. Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
+**Current step:** done through 14, rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes, then overall). Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

@@ -30,11 +30,12 @@ class FilledPagesTests(TestCase):
             suggested_stop_loss=95000, prompt_version=prompt, cost_usd=Decimal("0.05"),
         )
         Decision.objects.create(date=DAY, technical_score=71, signal="buy", net_votes=2,
-                                rule={"sources": ["rules", "ml"], "min_net_votes": 2})
+                                rule={"group_lead": 1, "overall_lead": 2},
+                                group_calls={"rules": "buy", "ml": "buy", "opus": "hold"})
 
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
-        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3"):
+        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "ML vote: Buy", "Opus vote: Hold"):
             self.assertIn(text, page)
 
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
@@ -52,10 +53,10 @@ class FilledPagesTests(TestCase):
         period = {"calls": 120, "right": 66, "hit_rate": 55.0, "buy_days": 40, "trades": 9, "profit_pct": 12.5,
                   "drawdown_pct": 4.0, "hold_pct": 8.0}
         BacktestRun.objects.create(name="combining_rule", start_date=DAY, end_date=DAY, settings={
-            "sources": ["rules", "ml"], "min_net_votes": 2, "tuned_on": ["2019-01-01", "2024-12-31"],
+            "group_lead": 1, "overall_lead": 2, "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "rules + ml agents", "lead by 2+", "55.0%"):
+        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their 3 domains", "leads by 2+", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
@@ -109,7 +110,7 @@ class SignalsPageTests(TestCase):
     def test_month_page_shows_calls_results_and_filters(self):
         page = self.client.get("/signals/?month=2026-07").content.decode()
         for text in ("call-wrong", "call-right", "▲ Buy", "▼ Sell", "70%", "lost -5.0%", "won +5.0%", "-5.00%",
-                     "July 2026", "data-filter-source", "How to read this", "Vote"):
+                     "July 2026", "data-filter-source", "How to read this", "Overall", 'data-source="ml"'):
             self.assertIn(text, page)
         self.assertEqual(self.client.get("/signals/?horizon=99&month=junk").status_code, 200)
 

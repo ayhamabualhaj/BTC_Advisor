@@ -52,7 +52,7 @@
 <section class="panel">
   <h2>Combining rule: the vote</h2>
   {% for run in combining %}
-    <p><strong>{{ run.settings.sources|join:" + " }} agents, Buy when Buy votes lead by {{ run.settings.min_net_votes }}+</strong>
+    <p><strong>{{ run.rule_text|capfirst }}</strong>
       (chosen on {{ run.settings.tuned_on|join:" to " }}).</p>
     <table class="data">
       <thead><tr><th></th><th>Hit rate (7 days)</th><th>Calls</th><th>Buy days</th><th>Profit</th><th>Buy and hold</th><th>Worst drop</th></tr></thead>

@@ -106,6 +106,7 @@ def backtests(request):
     groups = report_service.backtest_overview()
     for run in groups["combining"]:
         run.periods = [("Chosen on (2019-2024)", run.settings["tuning"]), (f"Test ({run.start_date} on)", run.settings["test"])]
+        run.rule_text = combining_service.describe(run.settings)
     chart = {
         "labels": [run.name for run in groups["strategies"]],
         "profit": [round(run.total_profit_pct or 0, 2) for run in groups["strategies"]],

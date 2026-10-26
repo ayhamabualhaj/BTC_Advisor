@@ -14,7 +14,7 @@ def line(result):
 
 
 class Command(BaseCommand):
-    help = "Choose the vote (who votes, margin) on 2019-2024 and test it once on 2025 onward (free)."
+    help = "Choose the two-round vote's leads on 2019-2024 and test it once on 2025 onward (free)."
 
     def add_arguments(self, parser):
         parser.add_argument("--no-save", action="store_true")
@@ -32,7 +32,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Chosen on {cs.TUNE_START} - {cs.TUNE_END}; tested on {cs.TEST_START} - {end}.")
         for c in found:
             mark = "  <- chosen" if c is chosen else ""
-            self.stdout.write(f"{'+'.join(c.sources):9s} lead {c.min_net_votes}{mark}")
+            self.stdout.write(f"group lead {c.group_lead}, overall lead {c.overall_lead}{mark}")
             self.stdout.write(f"   tuning  {line(c.tuning)}")
             self.stdout.write(f"   test    {line(c.test)}")
         if chosen is None:

@@ -6,7 +6,7 @@ A score s means "s% sure the price is higher after the horizon". s >= 55 is a Bu
 never judged. A call is right when the price moved its way; its result is the move seen
 from the call's side (a Sell that saw the price fall 3% won 3%). Rules and ML come from
 score_store (stored, recomputed when the code changes); Opus from the saved runs. The
-vote is the current combining rule.
+votes are the current combining rule: a Rules, an ML and an Opus vote, then the overall vote.
 """
 
 import datetime
@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import call as vote_call, net_votes, voters, vote
+from apps.backtest.decision_rule import GROUPS, decide, net_votes, overall_net, vote
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
@@ -56,7 +56,8 @@ class Column:
 def columns():
     result = [Column(f"{agent.value}:{source}", agent.value, agent.label, source, label)
               for agent in AgentName for source, label in SOURCES]
-    result.append(Column("vote", "vote", "Vote", "vote", "Vote"))
+    result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in SOURCES]
+    result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
     return result
 
 
@@ -90,17 +91,25 @@ def score_call(score, forward_return, note=""):
     return result
 
 
-def vote_cell(votes, rule, forward_return):
-    if not any(score is not None for score in votes.values()):
+def vote_cell(signal, forward_return, note):
+    if signal == "none":
         return Call("none")
-    signal = vote_call(votes, rule["min_net_votes"])
-    buys = sum(1 for score in votes.values() if vote(score) == 1)
-    sells = sum(1 for score in votes.values() if vote(score) == -1)
-    result = Call(signal, outcome=judge(signal, forward_return),
-                  note=f"{buys} Buy, {sells} Sell of {len(votes)} votes (net {net_votes(votes):+d})")
+    result = Call(signal, outcome=judge(signal, forward_return), note=note)
     if signal in ("buy", "sell") and forward_return is not None:
         result.result_pct = forward_return * 100 * (1 if signal == "buy" else -1)
     return result
+
+
+def group_note(scores):
+    buys = sum(1 for score in scores.values() if vote(score) == 1)
+    sells = sum(1 for score in scores.values() if vote(score) == -1)
+    return f"{buys} Buy, {sells} Sell of {len(scores)} domains (net {net_votes(scores):+d})"
+
+
+def overall_note(groups):
+    names = dict(SOURCES)
+    parts = ", ".join(f"{names[source]} {signal if signal != 'none' else 'no scores'}" for source, signal in groups.items())
+    return f"{parts} (net {overall_net(groups):+d})"
 
 
 def opus_history(start, end):
@@ -123,7 +132,10 @@ def day_calls(scores, opus_runs, rule, forward_return):
         note = f"prompt v{run.prompt_version.version}" if run and run.prompt_version else ""
         calls[f"{agent}:opus"] = score_call(opus_scores[agent], forward_return, note)
     by_source = {**scores, "opus": opus_scores}
-    calls["vote"] = vote_cell(voters(by_source, rule["sources"]), rule, forward_return)
+    groups, overall = decide(by_source, rule)
+    for source in GROUPS:
+        calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(by_source[source]))
+    calls["vote"] = vote_cell(overall, forward_return, overall_note(groups))
     return calls
 
 
