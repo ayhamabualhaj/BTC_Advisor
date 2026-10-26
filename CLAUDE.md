@@ -116,6 +116,11 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
 - Chosen (Oct 26 2026): group lead 1 (the only one with 100+ calls) -> 52.3% of 514 calls
   on 2019-24 (below "always up", 54%), 75.3% of 93 calls on 2025-26, +21.7% on 63 buy days
   vs -14.5% buy-and-hold. The rules were tuned on 2025-Sep 2026, which flatters 2025-26.
+- With the Haiku v3 vote (AI_MODEL=claude-haiku-5-5; choose_combining_rule now passes the
+  LLM scores, which only exist from 2025, so they never affect the choice): 72.1% of 61
+  calls on 2025-26, +11.6%, vs 75.3% of 93 without it. Each group alone on 2025-26: Rules
+  63.6% of 516 (tuned there), Haiku 58.4% of 332, ML 53.7% of 339; "always up" 51.8% /
+  48.3%. Requiring the LLM to agree cuts calls and did not raise the hit rate.
 - Replaced: one-round vote of rules + ML as 6 voters, lead 2 (53.7% -> 62.4%); round 2 by
   lead (group 3 / overall 1: 54.5% -> 61.7%).
 - `decision_service.make_decision(date)` applies `combining_service.current_rule()` to the
