@@ -52,7 +52,8 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   fred (needs FRED_API_KEY), farside ETF flows via `import_etf_flows <csv>`.
 - Known limits: OKX keeps ~24h of liquidations, so there is no history and complete days
   need collection several times a day (step 13). Farside blocks scripts (Cloudflare), so
-  ETF flows are imported from a CSV saved in the browser. Yahoo/FRED gaps on US holidays
+  ETF flows are imported from the table copied in a browser, saved as
+  `data/imports/etf_flows.txt` (git-ignored; imported Jan 2024 - Oct 2026, used only by the macro LLM input). Yahoo/FRED gaps on US holidays
   are expected.
 
 ## Indicators (step 4)
@@ -390,4 +391,4 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, financial stress ML agent (4th domain, votes in the ML group), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: ETF CSV, crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).
+**Current step:** done through 14, financial stress ML agent (4th domain, votes in the ML group), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

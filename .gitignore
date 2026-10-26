@@ -6,3 +6,6 @@ venv/
 .idea/
 .vscode/
 db.sqlite3
+
+# Raw files copied from websites (imported into the database, not shared)
+data/imports/

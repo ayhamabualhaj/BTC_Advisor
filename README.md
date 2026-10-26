@@ -51,13 +51,13 @@ python manage.py test                    # 179 tests, no network, no API calls
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
 https://farside.co.uk/bitcoin-etf-flow-all-data/ in a browser, select the whole table
-(header row with "Total" included), copy it, paste it into a text editor and save it (e.g.
-`~/Downloads/etf_flows.txt`). A CSV or the pasted text both work; days where no fund
+(header row with "Total" included), copy it, paste it into a text editor and save it as
+`data/imports/etf_flows.txt` (git-ignored: raw copies of other sites' tables stay local). A CSV or the pasted text both work; days where no fund
 reported (holidays, today) are skipped. Each day's flow is dated the next day (it is complete only after the
 US close). Then:
 
 ```bash
-python manage.py import_etf_flows path/to/flows.csv
+python manage.py import_etf_flows data/imports/etf_flows.txt
 ```
 
 ## Daily use
