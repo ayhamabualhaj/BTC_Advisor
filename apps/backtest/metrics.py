@@ -1,7 +1,8 @@
 """Pure backtest math: positions and daily returns in, profit and risk numbers out.
 
 The strategy is daily: a buy signal at the close of day D means holding from that close
-to the close of D+1. Consecutive buy days form one trade.
+to the close of D+1. Consecutive buy days form one trade. A position is True/1 (long),
+False/0 (out) or -1 (short: gains when the price falls).
 """
 
 from dataclasses import dataclass
@@ -19,9 +20,9 @@ class Performance:
 def equity_curve(positions, returns):
     """Account value after each day, starting from 1.0."""
     value, curve = 1.0, []
-    for in_market, daily_return in zip(positions, returns):
-        if in_market:
-            value *= 1 + daily_return
+    for position, daily_return in zip(positions, returns):
+        if position:
+            value *= 1 + int(position) * daily_return
         curve.append(value)
     return curve
 
@@ -36,14 +37,16 @@ def max_drawdown_pct(curve):
 
 
 def trade_returns(positions, returns):
-    """Return of each run of consecutive in-market days."""
-    trades, current = [], None
-    for in_market, daily_return in zip(positions, returns):
-        if in_market:
-            current = (1 if current is None else current) * (1 + daily_return)
-        elif current is not None:
+    """Return of each run of consecutive days with the same position (long or short)."""
+    trades, current, side = [], None, 0
+    for position, daily_return in zip(positions, returns):
+        position = int(position)
+        if current is not None and position != side:
             trades.append(current - 1)
             current = None
+        if position:
+            current = (1 if current is None else current) * (1 + position * daily_return)
+        side = position
     if current is not None:
         trades.append(current - 1)
     return trades

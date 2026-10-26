@@ -37,6 +37,12 @@ class MetricsTests(SimpleTestCase):
         self.assertEqual((result.trade_count, result.win_rate, result.days_in_market), (2, 50.0, 3))
         self.assertAlmostEqual(result.total_profit_pct, (1.1 * 0.9 * 1.05 - 1) * 100)
 
+    def test_a_short_gains_when_the_price_falls(self):
+        self.assertAlmostEqual(metrics.equity_curve([-1], [-0.10])[-1], 1.10)
+        # Long then short are two trades, even on consecutive days.
+        self.assertEqual(len(metrics.trade_returns([1, -1, -1], [0.1, -0.1, 0.05])), 2)
+        self.assertAlmostEqual(metrics.trade_returns([1, -1, -1], [0.1, -0.1, 0.05])[1], 1.1 * 0.95 - 1)
+
     def test_never_in_market(self):
         result = metrics.performance([False, False], [0.1, 0.1])
         self.assertEqual((result.trade_count, result.win_rate, result.total_profit_pct), (0, None, 0.0))

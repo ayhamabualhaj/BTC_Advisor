@@ -6,7 +6,7 @@ from django.shortcuts import render
 from ai.opus_client import model_label
 from apps.agents.models import AgentName
 from apps.backtest.services import combining_service
-from apps.dashboard.services import model_service, report_service, signal_service
+from apps.dashboard.services import model_service, profit_service, report_service, signal_service
 
 AGENT_ORDER = AgentName.values
 
@@ -108,6 +108,20 @@ def models(request):
     horizon = parse_horizon(request)
     data = model_service.comparison(request.GET.get("model"), horizon)
     return render(request, "dashboard/models.html", {**data, "horizon": horizon, "horizons": signal_service.HORIZONS})
+
+
+def parse_date(value):
+    try:
+        return datetime.date.fromisoformat(value) if value else None
+    except ValueError:
+        return None
+
+
+def profit(request):
+    data = profit_service.profit_page(request.GET.get("period"), parse_date(request.GET.get("start")),
+                                      parse_date(request.GET.get("end")), request.GET.get("short") == "1")
+    groups = [{"agent": agent.value, "label": agent.label} for agent in AgentName] + [{"agent": "vote", "label": "Votes"}]
+    return render(request, "dashboard/profit.html", {**data, "groups": groups, "sources": signal_service.sources()})
 
 
 def backtests(request):

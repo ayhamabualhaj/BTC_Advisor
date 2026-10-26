@@ -11,7 +11,7 @@ DAY = datetime.date(2026, 7, 1)
 
 class EmptyPagesTests(TestCase):
     def test_every_page_works_with_an_empty_database(self):
-        for url in ("/", "/agents/technical/", "/signals/", "/signals/overview/", "/backtests/", "/costs/", "/prompts/"):
+        for url in ("/", "/agents/technical/", "/signals/", "/signals/overview/", "/backtests/", "/costs/", "/prompts/", "/profit/"):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, url)
         self.assertContains(self.client.get("/"), "daily_run")
@@ -130,3 +130,38 @@ class LLMLabelTests(TestCase):
 
         self.assertEqual(signal_service.sources()[2], ("opus", "Haiku 5.5"))
         self.assertIn("Haiku 5.5", self.client.get("/signals/").content.decode())
+
+
+class ProfitPageTests(TestCase):
+    """Same falling prices: the LLM's Buy on DAY loses 140 -> 139; its Sell on DAY + 1 wins only when shorting."""
+
+    setUp = SignalsPageTests.setUp
+
+    def rows(self, short):
+        from apps.dashboard.services import profit_service
+
+        end = DAY + datetime.timedelta(days=5)
+        page = profit_service.profit_page(start=DAY, end=end, short=short)
+        self.assertEqual((page["preset"], page["start"], page["end"]), ("custom", DAY, end))
+        return page, {row["key"]: row for row in page["rows"]}
+
+    def test_profit_per_agent_against_holding(self):
+        page, rows = self.rows(short=False)
+        self.assertEqual(len(rows), 13)  # 9 agents, 3 group votes, the overall vote
+        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 - 1) * 100, places=3)
+        self.assertEqual((rows["macro:opus"]["trades"], rows["macro:opus"]["days_long"]), (1, 1))
+        self.assertLess(page["hold"].total_profit_pct, rows["macro:opus"]["profit_pct"])  # holding loses every day
+        self.assertEqual(len(page["chart"]["lines"]), 13)
+
+    def test_short_mode_profits_from_sell_calls(self):
+        _, rows = self.rows(short=True)
+        expected = ((139 / 140) * (1 + (1 - 138 / 139)) - 1) * 100
+        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], expected, places=3)
+        self.assertEqual(rows["macro:opus"]["days_short"], 1)
+
+    def test_page_shows_filters_table_and_chart(self):
+        page = self.client.get("/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
+        for text in ("data-filter-agent", "data-filter-source", "data-profit-table", "profit-chart-data",
+                     "Go short", "Overall vote", "Macro"):
+            self.assertIn(text, page)
+        self.assertEqual(self.client.get("/profit/?period=junk&start=bad").status_code, 200)

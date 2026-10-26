@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+{% block main_class %}wide{% endblock %}
+{% block title %}Profit · BTC Advisor{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Profit <span class="muted">if you had followed each agent</span></h1>
+</div>
+
+<form method="get" class="controls profit-controls" data-period-form>
+  <div class="toggle" role="group" aria-label="Period">
+    {% for key, label in presets %}
+      <a href="?period={{ key }}{% if short %}&short=1{% endif %}" class="{% if key == preset %}active{% endif %}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="date-range">
+    <label class="tile-label" for="start">From</label>
+    <input type="date" id="start" name="start" value="{{ start|date:'Y-m-d' }}" min="2019-01-01">
+    <label class="tile-label" for="end">to</label>
+    <input type="date" id="end" name="end" value="{{ end|date:'Y-m-d' }}">
+    {% if short %}<input type="hidden" name="short" value="1">{% endif %}
+    <button type="submit">Show</button>
+  </div>
+  <div class="toggle" role="group" aria-label="Sell calls">
+    <span class="tile-label">Sell calls</span>
+    <a href="?{% if preset == 'custom' %}start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}{% else %}period={{ preset }}{% endif %}" class="{% if not short %}active{% endif %}">Stay out</a>
+    <a href="?{% if preset == 'custom' %}start={{ start|date:'Y-m-d' }}&end={{ end|date:'Y-m-d' }}{% else %}period={{ preset }}{% endif %}&short=1" class="{% if short %}active{% endif %}">Go short</a>
+  </div>
+</form>
+
+<details class="panel help">
+  <summary>How this is calculated</summary>
+  <ul>
+    <li>Each agent is a strategy: on a <strong>▲ Buy</strong> day (score 55 or more) you buy at that day's close and sell at the next
+      day's close. Days in a row are one trade. {% if short %}On a <strong>▼ Sell</strong> day you go short instead (you gain when the price falls).{% else %}On Sell and Hold days you hold nothing; the system never shorts.{% endif %}</li>
+    <li><strong>Profit</strong> is what 100 would have become, minus 100, with every gain reinvested. No fees or slippage.
+      <strong>vs holding</strong> compares with simply buying on the first day and holding to the last.</li>
+    <li><strong>Worst drop</strong> is the largest fall of the account from a high point: the pain on the way.
+      <strong>Trades won</strong> is the share of trades that ended in profit.</li>
+    <li><strong>Votes</strong>: {{ rule_text }}.</li>
+    <li>Be fair to each: the rules were tuned on Jan 2025 – Sep 2026, so their profit there is flattered; ML learns only from the past;
+      {{ llm_label }} has scores only from 2025 (it sits out before, which counts as holding nothing: see "Scored").</li>
+  </ul>
+</details>
+
+{% if not rows %}
+  <p class="empty">No prices in this period. Run <code>python manage.py collect_data</code>.</p>
+{% else %}
+<section class="cards profit-summary">
+  <article class="card">
+    <div class="tile-label">Buy and hold</div>
+    <div class="hero-number {% if hold.total_profit_pct >= 0 %}up{% else %}down{% endif %}">{{ hold.total_profit_pct|floatformat:1 }}%</div>
+    <p class="small muted">{{ start|date:"j M Y" }} – {{ end|date:"j M Y" }} · {{ days }} days · worst drop {{ hold.max_drawdown_pct|floatformat:0 }}%</p>
+  </article>
+  <article class="card">
+    <div class="tile-label">Best</div>
+    <div class="hero-number {% if best.profit_pct >= 0 %}up{% else %}down{% endif %}">{{ best.profit_pct|floatformat:1 }}%</div>
+    <p class="small muted">{% if best.agent != "vote" %}<span class="dot dot-{{ best.agent }}"></span>{% endif %}{{ best.name }}</p>
+  </article>
+  <article class="card">
+    <div class="tile-label">Beat buy and hold</div>
+    <div class="hero-number">{{ beat_hold }} <span class="muted">of {{ rows|length }}</span></div>
+    <p class="small muted">agents and votes that ended ahead of simply holding</p>
+  </article>
+</section>
+
+<div class="filters" data-filters>
+  <div class="chip-group" role="group" aria-label="Agents">
+    <span class="tile-label">Agents</span>
+    {% for group in groups %}
+      <button type="button" class="chip" aria-pressed="true" data-filter-agent="{{ group.agent }}">
+        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</button>
+    {% endfor %}
+  </div>
+  <div class="chip-group" role="group" aria-label="Kind of agent">
+    <span class="tile-label">Kind</span>
+    {% for key, label in sources %}
+      <button type="button" class="chip" aria-pressed="true" data-filter-source="{{ key }}">
+        <span class="dash dash-{{ key }}" aria-hidden="true"></span>{{ label }}</button>
+    {% endfor %}
+  </div>
+  <div class="chip-group">
+    <label class="tile-label" for="sort">Sort by</label>
+    <select id="sort" data-sort>
+      <option value="profit">Profit</option>
+      <option value="drawdown">Smallest worst drop</option>
+      <option value="win">Trades won</option>
+      <option value="trades">Most trades</option>
+      <option value="name">Name</option>
+    </select>
+  </div>
+</div>
+
+<section class="panel">
+  <h2>Profit over time <span class="muted">% · gray dashed = buy and hold · click a row below to highlight its line</span></h2>
+  <div class="chart-box tall"><canvas id="profit-chart" role="img" aria-label="Profit over time for the agents shown"></canvas></div>
+</section>
+
+<section class="panel">
+  <table class="data profit-table" data-profit-table>
+    <thead>
+      <tr><th>#</th><th>Agent</th><th class="num">Profit</th><th class="bar-col"></th><th class="num">vs holding</th>
+        <th class="num">Worst drop</th><th class="num">Trades</th><th class="num">Trades won</th>
+        <th class="num">Days in</th><th class="num">Scored</th></tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr data-row data-key="{{ r.key }}" data-agent="{{ r.agent }}" data-source="{{ r.source }}" data-profit="{{ r.profit_pct|stringformat:'f' }}"
+          data-drawdown="{{ r.drawdown_pct|stringformat:'f' }}" data-win="{% if r.win_rate is not None %}{{ r.win_rate|stringformat:'f' }}{% else %}-1{% endif %}"
+          data-trades="{{ r.trades }}" data-name="{{ r.name }}" tabindex="0" aria-pressed="false">
+        <td class="muted" data-rank>{{ forloop.counter }}</td>
+        <th>{% if r.agent != "vote" %}<span class="dot dot-{{ r.agent }}"></span>{{ r.label }}{% else %}{{ r.name }}{% endif %}
+          {% if r.agent != "vote" %}<span class="kind kind-{{ r.source }}">{{ r.source_label }}</span>{% endif %}</th>
+        <td class="num strong {% if r.profit_pct > 0 %}up{% elif r.profit_pct < 0 %}down{% endif %}">{{ r.profit_pct|floatformat:1 }}%</td>
+        <td class="bar-col"><span class="profit-bar {% if r.profit_pct >= 0 %}gain{% else %}loss{% endif %}" data-bar="{{ r.profit_pct|stringformat:'f' }}"></span></td>
+        <td class="num {% if r.vs_hold_pct > 0 %}up{% elif r.vs_hold_pct < 0 %}down{% endif %}">{% if r.vs_hold_pct > 0 %}+{% endif %}{{ r.vs_hold_pct|floatformat:1 }}</td>
+        <td class="num">{{ r.drawdown_pct|floatformat:0 }}%</td>
+        <td class="num">{{ r.trades }}</td>
+        <td class="num">{% if r.win_rate is not None %}{{ r.win_rate|floatformat:0 }}%{% else %}–{% endif %}</td>
+        <td class="num">{{ r.days_long }}{% if short %} <span class="muted">+ {{ r.days_short }} short</span>{% endif %}</td>
+        <td class="num {% if r.coverage_pct < 90 %}muted{% endif %}">{{ r.coverage_pct|floatformat:0 }}%</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="small muted" data-empty-filter hidden>No agent matches the filters.</p>
+  <p class="small muted">"vs holding" is in percentage points. "Scored" = share of days the agent had a score; on the others it holds nothing.</p>
+</section>
+{{ chart|json_script:"profit-chart-data" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/profit.js' %}"></script>{% endblock %}

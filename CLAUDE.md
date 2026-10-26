@@ -161,6 +161,14 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   trained, so pages start fast. Stored months load in ~0.05 s, the current month ~2 s once
   per hour (recent days are scored live), the overview ~0.25 s.
 
+## Profit page
+- `/profit/?period=since-2025|2026|2025|90d|2019-2024|all` or `?start=&end=`, `&short=1`:
+  each Signals column (9 agents, Rules / ML / LLM votes, overall vote) as a strategy: Buy =
+  long close D to close D+1; Sell = flat, or short with `short`. Profit, vs holding, worst
+  drop, trades, trades won, coverage, and one chart line per agent. `profit_service.py` builds
+  it from score_store + LLM runs; math in `metrics.py` (positions 1 / 0 / -1). Filters and sort
+  are client-side in `static/js/profit.js` (localStorage "profit-filters"). Free.
+
 ## Daily run (step 13)
 - `python manage.py daily_run [--date] [--rules-only] [--force] [--no-collect]`: collects the
   last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else

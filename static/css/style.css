@@ -205,3 +205,26 @@ main.wide { max-width: 1680px; }
 tr.model-pair td, tr.model-pair th { border-bottom: 0; }
 tr.model-pair .tile-label, tr.model-pair-2 .tile-label { display: inline-block; min-width: 72px; }
 tr.total th, tr.total td { font-weight: 600; }
+
+/* Profit page */
+.chart-box.tall { height: 420px; }
+.profit-controls { gap: 12px 24px; }
+.date-range { display: flex; align-items: center; gap: 8px; }
+.date-range input { font: inherit; font-size: 13px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.date-range button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 6px; cursor: pointer; background: var(--text); color: var(--surface); border: 1px solid var(--text); }
+.profit-summary .card { padding-bottom: 12px; }
+.hero-number { font-size: 34px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.hero-number .muted { font-size: 18px; }
+.profit-table tr[data-row] { cursor: pointer; }
+.profit-table tr[data-row]:hover td, .profit-table tr[data-row]:hover th { background: var(--pending-bg); }
+.profit-table tr[aria-pressed="true"] td, .profit-table tr[aria-pressed="true"] th { background: var(--pending-bg); box-shadow: inset 0 -2px 0 var(--text); }
+.profit-table tr[data-row]:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+.profit-table .strong { font-weight: 650; }
+.bar-col { width: 22%; min-width: 120px; }
+.profit-bar { display: block; height: 10px; border-radius: 0 4px 4px 0; min-width: 2px; }
+.profit-bar.gain { background: var(--good); }
+.profit-bar.loss { background: var(--critical); opacity: .8; }
+.kind { display: inline-block; margin-left: 6px; padding: 0 8px; font-size: 11px; font-weight: 500; border: 1px solid var(--border); border-radius: 99px; color: var(--text-2); }
+.dash { display: inline-block; width: 18px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid currentColor; }
+.dash-ml { border-top-style: dashed; }
+.dash-opus { border-top-style: dotted; }
