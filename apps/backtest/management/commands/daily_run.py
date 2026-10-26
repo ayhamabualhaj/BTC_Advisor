@@ -27,6 +27,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f"data {source}: {error}"))
         if not report.used_opus:
             self.stdout.write(self.style.WARNING("Rules only (no ANTHROPIC_API_KEY or --rules-only)."))
+        if report.caught_up:
+            self.stdout.write(f"Also ran missed days: {', '.join(day.isoformat() for day in report.caught_up)}")
         for run in report.agent_runs:
             opus = run.opus_score if run.opus_score is not None else "-"
             ml = f"{run.ml_score:.0f}" if run.ml_score is not None else "-"

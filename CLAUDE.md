@@ -200,6 +200,10 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   last 10 days, runs the agents for yesterday UTC (Opus if ANTHROPIC_API_KEY is set, else
   rules and ML only), saves the Decision, updates Outcomes (prices after 1/3/7 days, correct per
   agent). Refuses a date that already ran unless --force, so retries never pay twice.
+- It also runs days the agents missed in the last 14 (`daily_run_service.missed_days`: a BTC
+  close but no LLM score from any run, or with no LLM no live run), oldest first, each with
+  its Decision, so Signals and Profit have no holes. Never before the history began (a new
+  install does not backfill) and never twice (a day with a backtest LLM score counts as done).
 - Scheduling is the user's crontab (see README): daily_run at 00:15 UTC, plus
   `collect_data --source okx` every 4 hours for liquidations.
 

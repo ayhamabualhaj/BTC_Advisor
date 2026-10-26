@@ -16,6 +16,9 @@ from apps.data.services import collection_service
 
 # Re-collect this many recent days every morning, so a missed day fills itself in.
 COLLECT_DAYS = 10
+# Days the agents missed (no run that morning) within this window are run too, so the Signals
+# and Profit pages have no holes. Each costs about $0.002 with Haiku and is never paid twice.
+CATCH_UP_DAYS = 14
 
 
 class DailyRunError(Exception):
@@ -28,6 +31,7 @@ class DailyRunReport:
     collection_errors: dict = field(default_factory=dict)
     used_opus: bool = False
     agent_runs: list = field(default_factory=list)
+    caught_up: list = field(default_factory=list)  # earlier days the agents had missed, now run
     decision: object = None
     outcomes_updated: int = 0
     memory_cases: int = 0
@@ -39,6 +43,28 @@ def last_full_day():
 
 def already_ran(date):
     return AgentRun.objects.filter(date=date, is_backtest=False).exists()
+
+
+def missed_days(date, with_llm):
+    """Days before `date` (within CATCH_UP_DAYS) with a BTC close but no live run, or with the LLM
+    on, no LLM score at all. Only gaps after the history began: a new install never backfills."""
+    # The pages' history starts at the first live run or the first LLM score from a backtest.
+    starts = [AgentRun.objects.filter(is_backtest=False).order_by("date").values_list("date", flat=True).first(),
+              AgentRun.objects.filter(opus_score__isnull=False, model=settings.AI_MODEL)
+              .order_by("date").values_list("date", flat=True).first()]
+    if not any(starts):
+        return []
+    first = min(day for day in starts if day)
+    start = max(first, date - datetime.timedelta(days=CATCH_UP_DAYS))
+    period = (start, date - datetime.timedelta(days=1))
+    if with_llm:
+        # A day the pages already show an LLM score for (live or from a backtest) is not paid again.
+        runs = AgentRun.objects.filter(date__range=period, opus_score__isnull=False, model=settings.AI_MODEL)
+    else:
+        runs = AgentRun.objects.filter(date__range=period, is_backtest=False)
+    done = set(runs.values_list("date", flat=True))
+    closes = price_repository.closes(start, date - datetime.timedelta(days=1))
+    return [day for day in sorted(closes) if day not in done]
 
 
 def run(date=None, rules_only=False, force=False, client=None, collect=True):
@@ -55,6 +81,10 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
 
     # Without credentials there is nothing to call, so fall back to the free rule scores.
     report.used_opus = not rules_only and bool(settings.ANTHROPIC_API_KEY or client)
+    for day in missed_days(date, report.used_opus):
+        agent_service.run_agents(day, use_opus=report.used_opus, client=client)
+        decision_service.make_decision(day)
+        report.caught_up.append(day)
     report.agent_runs = agent_service.run_agents(date, use_opus=report.used_opus, client=client)
 
     report.decision = decision_service.make_decision(date)

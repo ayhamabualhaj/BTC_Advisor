@@ -45,6 +45,20 @@ class DailyRunTests(TestCase):
         daily_run_service.run(DAY, collect=False, force=True)
         self.assertEqual(Decision.objects.count(), 2)
 
+    def test_missed_days_are_run_too(self):
+        daily_run_service.run(DAY - datetime.timedelta(days=4), collect=False)
+        report = daily_run_service.run(DAY, client=FakeClient(), collect=False)
+        # The three days in between had no run; the earlier rules-only day had no LLM score.
+        self.assertEqual(report.caught_up, [DAY - datetime.timedelta(days=i) for i in (4, 3, 2, 1)])
+        self.assertEqual(AgentRun.objects.filter(opus_score=62).count(), 3 * 5)
+        self.assertEqual(Decision.objects.filter(date=DAY - datetime.timedelta(days=2)).count(), 1)
+        # Run again the next day: nothing is missing, nothing is paid twice.
+        report = daily_run_service.run(DAY + datetime.timedelta(days=1), client=FakeClient(), collect=False)
+        self.assertEqual(report.caught_up, [])
+
+    def test_a_first_run_does_not_backfill(self):
+        self.assertEqual(daily_run_service.run(DAY, collect=False).caught_up, [])
+
     def test_no_price_for_the_day_stops_before_any_call(self):
         client = FakeClient()
         with self.assertRaises(daily_run_service.DailyRunError):
