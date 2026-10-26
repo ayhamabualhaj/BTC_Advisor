@@ -373,6 +373,16 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   a little from 2025 (-7.6% vs -13.2%). Big-drop (>= 8% in a week) warning: AUC 0.52 in 2025,
   0.25 in 2026. Not added.
 
+## Agents talking to each other: debate test (Oct 26 2026, $0.30, scratchpad script)
+- Round 2 for the Haiku v3 agents: same input plus their own first answer and every other
+  agent's score that day (rules, ML, the other LLMs' scores and reasons); final answer. Every
+  4th day from 2025 (164 days x 3 = 492 calls via opus_client, logged with tokens and cost).
+- Formally passed (hit rate and Brier better in 2025 and 2026): 72.1% of 43 vs 68.9% of 45,
+  55.7% of 61 vs 54.8% of 62; Brier 0.2478 vs 0.2489, 0.2483 vs 0.2492. But the same number
+  of calls were right (31, 34): it only dropped 1-2 wrong ones. Scores moved 0.8 points on
+  average, 209 of 255 changes toward the others (herding); the overall vote was unchanged on
+  every day. Not added. Pooled models and a learned combiner (round 2) also failed.
+
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from
   it (`ai.opus_client.model_label`, context processor `llm_label`); internal keys and the
