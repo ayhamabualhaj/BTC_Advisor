@@ -294,6 +294,16 @@ logistic regression, random forest for macro) and Opus 5.5 (judgment). The syste
   at 7 days on 2025+ and above "always up" in each year. Rules: 50.0% of 48 (2025), 50.9%
   of 114 (2026). Logistic ML: 1 call at C = 0.003, 42.9% of 63 at C = 1. Not added, and
   not given to the LLM either.
+- Ten more (rules + ML each, 20 strategies): calendar, halving cycle, trend momentum,
+  volatility, volume, ETH/BTC, Coinbase premium, stablecoin supply (DefiLlama, from mid
+  2020), on-chain (CoinMetrics community: MVRV, hash ribbon, active addresses), BTC vs
+  Nasdaq. Rules = top / bottom fifth of each number kept with the v3 bar on 2017-24; ML =
+  logistic C = 0.1 trained on 2017-24. Pass: >= 40 calls and >= 55% at 7 days on 2025+,
+  beat a fair baseline (same Buy/Sell mix) in 2025 and 2026 each, circular-shift p < 0.0025
+  (0.05 / 20). None passed. Closest: calendar ML 59.1% of 137 (p 0.16), on-chain rules
+  55.6% of 117 (5 calls in 2025, all wrong), volatility ML 55.4% (2026 at 50%). The test
+  was checked with fake agents: random ones fail; one right ~60% passes only sometimes
+  (p 0.000-0.008), so a real edge below ~60% cannot be told from luck on 2025-26 alone.
 
 ## Model comparison: Haiku vs Opus (Oct 2026)
 - AI_MODEL is claude-haiku-5-5 since Oct 26 2026 (the user's .env). Pages name the LLM from
