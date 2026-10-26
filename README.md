@@ -50,7 +50,10 @@ python manage.py test                    # 179 tests, no network, no API calls
 ```
 
 **Spot Bitcoin ETF flows** come from farside.co.uk, which blocks scripts. Open
-https://farside.co.uk/bitcoin-etf-flow-all-data/ in a browser, save the table as CSV, then:
+https://farside.co.uk/bitcoin-etf-flow-all-data/ in a browser, select the whole table
+(header row with "Total" included), copy it, paste it into a spreadsheet (LibreOffice Calc)
+and save it as CSV. Each day's flow is dated the next day (it is complete only after the
+US close). Then:
 
 ```bash
 python manage.py import_etf_flows path/to/flows.csv

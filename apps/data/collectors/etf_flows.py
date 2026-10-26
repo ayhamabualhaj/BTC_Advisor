@@ -3,6 +3,8 @@
 farside.co.uk is behind a Cloudflare check that blocks scripts, so the table is saved from
 a browser as CSV and imported with: python manage.py import_etf_flows <file.csv>
 The CSV needs a date column and a "Total" column; other columns are ignored.
+A trading day's flows are only complete after the US close (some funds report the next
+morning), so each value is dated one day after its trading day, like FRED's daily series.
 """
 
 import csv
@@ -11,6 +13,7 @@ import datetime
 from .base import CollectorError, Point
 
 SOURCE = "farside"
+KNOWN_AFTER = datetime.timedelta(days=1)
 DATE_FORMATS = ("%d %b %Y", "%Y-%m-%d", "%d/%m/%Y")
 
 
@@ -31,7 +34,7 @@ def parse_csv(lines):
             continue  # summary rows such as "Total" or "Average"
         total = parse_amount(cells[header.index("Total")])
         if total is not None:
-            points.append(Point(day, "etf_net_flow_musd", total))
+            points.append(Point(day + KNOWN_AFTER, "etf_net_flow_musd", total))
     if header is None:
         raise CollectorError("No 'Total' column found in the ETF flows CSV")
     return points

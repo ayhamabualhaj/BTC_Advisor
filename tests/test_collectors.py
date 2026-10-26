@@ -117,10 +117,11 @@ class EtfFlowTests(SimpleTestCase):
         "Total,,,1000",
     ]
 
-    def test_flows_parse_brackets_as_outflows(self):
+    def test_flows_parse_brackets_as_outflows_dated_the_next_day(self):
+        # A trading day's flows are complete only after the US close.
         self.assertEqual(etf_flows.parse_csv(self.CSV), [
-            Point(D(2026, 7, 1), "etf_net_flow_musd", 79.5),
-            Point(D(2026, 7, 2), "etf_net_flow_musd", -1234.0),
+            Point(D(2026, 7, 2), "etf_net_flow_musd", 79.5),
+            Point(D(2026, 7, 3), "etf_net_flow_musd", -1234.0),
         ])
 
     def test_csv_without_total_column_is_rejected(self):
