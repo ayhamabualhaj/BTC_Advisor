@@ -317,6 +317,18 @@ financial stress, has only an ML agent (see "Financial stress domain"). The syst
   of 69, but 2 episodes, all Sells, and 0 / 54.5 / 28.9% when learned before 2021-23: not
   added) and financial stress ML (77.6% of 107, 15 episodes; added, below). The pooled
   models failed (48-51%); the learned combiner reached 57.9% (p 0.05).
+- Round 3, 30 more (Oct 26 2026): candle shape, trading sessions (hourly), range volatility,
+  distance from 1-year high/low, moving-average consensus, return autocorrelation, skew and
+  fat tails, volume-price link, price-path analog (kNN), weekend moves, altcoin breadth,
+  altcoin momentum vs BTC, USDT peg, Bitfinex USD and BTC lending rates, Bitfinex premium,
+  CME positioning (CFTC), oil, copper/gold, China (FXI, yuan), semiconductors, 10-year yield
+  and breakevens, M2, bank reserves and ECB assets, BAA credit spread, VVIX / SKEW, jobless
+  claims, NVT, mining difficulty, event calendar (CPI days, expiries). BitMEX funding was
+  blocked (403). New second bar: learned before each of 2021-2024 and judged on that year,
+  every year with >= 30 calls >= 50% and above fair (at least 2 such years). None passed
+  the first bar. Closest: VVIX/VIX rules 92.5% of 40 (36 in 2025; p 0.002 vs 0.0017),
+  altcoin momentum ML 64.8% of 71 (p 0.03), volume-price ML 58.7% of 184 (p 0.07). The
+  stress agent fails the new bar (2022 47%, 2023 48%).
 
 ## Financial stress domain (Oct 26 2026)
 - `ai/stress/`: only `inputs.py` and `ml.py` (`rules = None`, `opus = None` in
