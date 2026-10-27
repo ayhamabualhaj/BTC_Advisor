@@ -423,6 +423,20 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   48-49%. Same-day correlation (IBIT +0.91, ETH +0.78) says nothing about tomorrow (next-day
   correlation -0.07 to +0.01).
 
+## Same agents on other markets (Oct 27 2026, scratchpad script, nothing kept)
+- Rules + ML unchanged (no LLM), only the asset's own data swapped in (ETH: Binance + Bybit;
+  S&P 500: Yahoo OHLC, no derivatives; market-wide inputs unchanged), ML retrained on the
+  asset's own outcomes; week = 7 days (5 trading days for the S&P). Bitcoin rerun the same
+  way as a control matched the project (overall vote 56.6% on 2019-24).
+- Overall vote (3 of 5, no LLM) vs "always up": ETH 2019-24 57.5% of 127 (+3.9 pts), 2025-26
+  48.1% of 27 (+0.1); S&P 2019-24 64.6% of 65 (+3.1), 2025-26 75% of 12. Profit never near
+  holding in 2019-24 (ETH +56% vs +2316%, S&P +23% vs +134%).
+- ETH 2025-26 rules vote 61.6% and macro rules 66.6%: macro uses market-wide inputs, so it
+  makes the same calls as on BTC; ETH moves with BTC, so it is not independent evidence.
+- S&P: the BTC-tuned technical rules sell almost every day (38.9% / 41.5%); the ML agents
+  learn "always buy" (= the base rate). Conclusion: nothing carries over beyond the small
+  crypto edge of the vote (+2-4 pts over "always up" in 2019-24, unproven).
+
 ## Data audit, ETF flows and volatility (Oct 26 2026; scripts in the session scratchpad)
 - Audit: no missing Binance days or impossible prices; Binance and Coinbase give the same
   7-day up/down on 99.2% of days; gaps are US holidays and the Oct 2025 shutdown (no October
