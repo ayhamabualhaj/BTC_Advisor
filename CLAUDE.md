@@ -467,6 +467,33 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   a little from 2025 (-7.6% vs -13.2%). Big-drop (>= 8% in a week) warning: AUC 0.52 in 2025,
   0.25 in 2026. Not added.
 
+## Search for 70% of calls right (Nov 11 2026, scratchpad scripts, nothing added)
+- Bar written before any result: learn to 2022, choose on 2023-24, test once on 2025 on; pass =
+  test >= 70% at 7 days (5 trading days for stocks), >= 30 separate episodes, >= fair + 10 points,
+  circular-shift p < 0.01, choose period >= 65%, no market under 55%. No horizon change and no
+  profit-target exits (both raise the win rate without an edge). Nothing passed.
+- Strict agreement of the 5 round-2 voters, 2025 - Oct 26 2026: 4 of 5 = 88.9% of 18 calls, 9 of
+  10 episodes (p 0.010), but 5 of the 10 are one rally (Apr 11 - May 11 2025) and there is no LLM
+  vote before 2025 to check it on. 5 of 5 never happened (risk-on never Buys). Without the LLM,
+  "all 4" made 14 calls in 2019-24 (9 right, all Sells). The 3-of-5 vote: 68.6% of 105 calls but
+  58.8% of 51 episodes; 59.2% in 2019-22 and 50.0% in 2023-24 (104 Sells in a rising market).
+- Each agent only at an extreme score (cut-off 60-75 chosen on 2023-24): best macro ML >= 60,
+  65.0% of 40 (9 episodes); it was 36.2% on 2023-24.
+- Literature rules on 24 markets (9 crypto, 8 stock indexes, gold, silver, oil, copper, TLT,
+  EUR/USD, USD/JPY; Yahoo, not stored): dip in an uptrend (close > 200-day, RSI(2) < 5) 64.1% of
+  270 pooled from 2025, crypto 52.5%, stock indexes 71.0% of 100 (p 0.04) - but on the indexes it
+  was 52-63% in every 2-4 year block of 2005-2022 against a 53-61% base rate, so 2025-26 is the
+  outlier. 7-day momentum (top fifth) 46.5%. Panic fading (VIX > 30 and falling) 80.4% of 56 but
+  one week (April 2025).
+- One model pooled over the 24 markets (21 volatility-scaled price features + VIX / dollar,
+  gradient boosting and logistic, each year predicted from earlier years), speaking only above
+  a probability cut-off: no cut-off ever reached 70% on earlier predicted years, so by the rule it
+  stayed silent. Its confident Buys were 55-59% in 2013-22 (Sells below 50%); 78% of 69 at 0.65
+  from 2025, a cut-off that gave 59% in 2019-22.
+- Reading: honest 7-day direction is ~50-58%, as published work finds. A 70% that holds needs
+  either evidence that does not exist yet (4 of 5: ~5 episodes a year, so years to prove) or a
+  different question. Open and paid: Haiku on 2019-24 (~$3.50) would test 4 of 5 on six more years.
+
 ## Agents talking to each other: debate test (Oct 26 2026, $0.30, scratchpad script)
 - Round 2 for the Haiku v3 agents: same input plus their own first answer and every other
   agent's score that day (rules, ML, the other LLMs' scores and reasons); final answer. Every
