@@ -15,6 +15,8 @@ MAX_STALE_DAYS = 5
 WEEKLY_STALE_DAYS = 14
 # The Nasdaq's previous close may be up to a long weekend back.
 NASDAQ_GAP_DAYS = 4
+# A year of CPI needs 13 months; one more print in case a month was never published.
+CPI_PRINTS = 14
 # The long/short ratio is judged against its own recent average.
 LS_HISTORY_DAYS = 90
 
@@ -28,6 +30,20 @@ def values(source, field, date, limit, max_stale_days=MAX_STALE_DAYS):
 
 def rounded(value, digits=4):
     return round(value, digits) if isinstance(value, float) else value
+
+
+def cpi_observations(date):
+    """The latest CPI prints as [(month number, value)], each with the month it measures.
+
+    Monthly series are only refreshed once a month, so they are not checked for staleness.
+    A print stored without its month (collected before months were kept) cannot be placed,
+    so the series is left out rather than guessed: run collect_data --source fred.
+    """
+    prints = series("fred", "cpi", date, CPI_PRINTS)
+    months = dict(series("fred", "cpi_month", date, CPI_PRINTS))
+    if any(day not in months for day, _ in prints):
+        return []
+    return [(macro.month_number(months[day]), value) for day, value in prints]
 
 
 def technical_snapshot(date):
@@ -81,8 +97,7 @@ def macro_snapshot(date):
     target = values("fred", "fed_target_upper", date, 60)
     fed_funds = values("fred", "fed_funds_effective", date, 5)
     treasury_2y = values("fred", "treasury_2y", date, 30)
-    # Monthly series are only refreshed once a month, so they are not checked for staleness.
-    cpi = [value for _, value in series("fred", "cpi", date, 13)]
+    cpi = cpi_observations(date)
     etf = values("farside", "etf_net_flow_musd", date, 5)
     snapshot = {
         "dxy": dxy[-1] if dxy else None,

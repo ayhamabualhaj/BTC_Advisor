@@ -25,6 +25,10 @@ FIRST_RELEASE_SERIES = {
     "CPILFESL": "core_cpi",
     "NFCI": "nfci",
 }
+# Monthly series also store which month each print measures, as YYYYMM in "<field>_month" on
+# the same day: the prints are not always consecutive months (October 2025 was never published).
+MONTHLY_FIELDS = {"cpi", "core_cpi"}
+MONTH_SUFFIX = "_month"
 # Fetch a year earlier so year-over-year inflation can be computed.
 FIRST_RELEASE_HISTORY = datetime.timedelta(days=400)
 
@@ -36,7 +40,10 @@ def collect(start, end):
     for series, field in DAILY_SERIES.items():
         points.extend(parse_daily(fetch_observations(series, start, end), field))
     for series, field in FIRST_RELEASE_SERIES.items():
-        points.extend(parse_first_release(fetch_first_releases(series, start - FIRST_RELEASE_HISTORY, end), field))
+        observations = fetch_first_releases(series, start - FIRST_RELEASE_HISTORY, end)
+        points.extend(parse_first_release(observations, field))
+        if field in MONTHLY_FIELDS:
+            points.extend(observation_months(observations, field))
     return [p for p in points if p.date <= end]
 
 
@@ -67,9 +74,9 @@ def parse_daily(observations, field):
 
 
 def parse_first_release(observations, field):
-    """Sometimes several observations come out the same day (October and November 2025 CPI after
-    the shutdown, NFCI after holidays). A day holds one value, so each later one moves to the
-    next free day: a day late, never early."""
+    """Sometimes several observations come out the same day (NFCI after holidays). A day holds
+    one value, so each later one moves to the next free day: a day late, never early. A month
+    with no value (October 2025 CPI, never published) is skipped."""
     points = []
     for row in sorted(observations, key=lambda row: row["date"]):
         if row["value"] == ".":
@@ -79,3 +86,11 @@ def parse_first_release(observations, field):
             day = points[-1].date + datetime.timedelta(days=1)
         points.append(Point(day, field, float(row["value"])))
     return points
+
+
+def observation_months(observations, field):
+    """The month each print measures, as YYYYMM, on the day its value is stored."""
+    values = parse_first_release(observations, field)
+    published = sorted((row for row in observations if row["value"] != "."), key=lambda row: row["date"])
+    return [Point(point.date, field + MONTH_SUFFIX, float(row["date"][:7].replace("-", "")))
+            for point, row in zip(values, published)]

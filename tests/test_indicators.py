@@ -13,6 +13,11 @@ WILDER_CLOSES = [44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42, 45.84,
                  46.08, 45.89, 46.03, 45.61, 46.28, 46.28]
 
 
+def months(values):
+    """Index values as consecutive monthly observations: [(month number, value)]."""
+    return list(enumerate(values))
+
+
 class TrendTests(SimpleTestCase):
     def test_sma_uses_last_values(self):
         self.assertEqual(trend.sma([1, 2, 3, 4], 2), 3.5)
@@ -111,12 +116,38 @@ class MacroTests(SimpleTestCase):
 
     def test_cpi_surprise_compares_with_recent_trend(self):
         # Three months of +1% then +0.5%: half a point cooler than the trend.
-        cpi = [100, 101, 102.01, 103.0301, 103.0301 * 1.005]
+        cpi = months([100, 101, 102.01, 103.0301, 103.0301 * 1.005])
         self.assertAlmostEqual(macro.cpi_surprise(cpi), -0.5, places=6)
 
     def test_yoy_inflation(self):
-        self.assertAlmostEqual(macro.yoy_inflation([100] + [101] * 11 + [103]), 3.0)
-        self.assertIsNone(macro.yoy_inflation([100] * 12))
+        self.assertAlmostEqual(macro.yoy_inflation(months([100] + [101] * 11 + [103])), 3.0)
+        self.assertIsNone(macro.yoy_inflation(months([100] * 12)))
+
+    def test_month_number_counts_across_a_year_end(self):
+        self.assertEqual(macro.month_number(202601) - macro.month_number(202512), 1)
+
+    def test_a_month_never_published_is_filled_at_the_steady_rate(self):
+        # 100 -> 121 over two months is +10% a month, so the missing month is 110.
+        filled = macro.every_month([(1, 100), (3, 121), (4, 121)])
+        self.assertEqual(len(filled), 4)
+        self.assertAlmostEqual(filled[1], 110)
+
+    def test_yoy_inflation_counts_real_months_across_a_missing_one(self):
+        # 13 prints with one month missing span 13 months: the year starts at the 2nd print.
+        cpi = [(0, 90), (1, 100)] + [(month, 101) for month in range(2, 9)] \
+            + [(month, 101) for month in range(10, 13)] + [(13, 103)]
+        self.assertEqual(len(cpi), 13)
+        self.assertAlmostEqual(macro.yoy_inflation(cpi), 3.0)
+
+    def test_cpi_surprise_reads_a_two_month_print_at_its_monthly_rate(self):
+        # +1% a month throughout, the last print covering two months (+2.01%): no surprise.
+        cpi = [(0, 100), (1, 101), (2, 102.01), (3, 103.0301), (5, 103.0301 * 1.0201)]
+        self.assertAlmostEqual(macro.cpi_surprise(cpi), 0, places=6)
+
+    def test_cpi_surprise_after_a_two_month_print_uses_its_monthly_rate_in_the_trend(self):
+        # +1% a month throughout, then a flat month: one point cooler than the trend.
+        cpi = [(0, 100), (1, 101), (2, 102.01), (4, 102.01 * 1.0201), (5, 102.01 * 1.0201)]
+        self.assertAlmostEqual(macro.cpi_surprise(cpi), -1, places=6)
 
 
 class SnapshotTests(TestCase):
@@ -147,6 +178,42 @@ class SnapshotTests(TestCase):
         self.save_daily("bybit", "funding_rate", [0.0001] * 7)
         later = self.START + datetime.timedelta(days=30)
         self.assertIsNone(indicator_service.derivatives_snapshot(later)["funding_rate"])
+
+    def save_cpi(self, prints):
+        """prints: [(publication day, YYYYMM, value)]."""
+        market_data_repository.save_points("fred", [Point(day, "cpi", value) for day, _, value in prints])
+        market_data_repository.save_points("fred", [Point(day, "cpi_month", month) for day, month, _ in prints])
+
+    def cpi_prints_without_october_2025(self):
+        """Flat at 100 until September 2025 (101), then November 2025 on at 103; each print
+        comes out on the 15th of the next month."""
+        def published(year, month):
+            return datetime.date(year + month // 12, month % 12 + 1, 15)
+
+        early = [(published(2024, m), 202400 + m, 100.0) for m in range(9, 13)] \
+            + [(published(2025, m), 202500 + m, 100.0) for m in range(1, 9)] + [(published(2025, 9), 202509, 101.0)]
+        late = [(published(2025, 11), 202511, 103.0), (published(2025, 12), 202512, 103.0)] \
+            + [(published(2026, m), 202600 + m, 103.0) for m in range(1, 10)]
+        return early + late
+
+    def test_inflation_is_measured_over_twelve_real_months_when_one_was_never_published(self):
+        self.save_cpi(self.cpi_prints_without_october_2025())
+        # The print for September 2026 (103) against September 2025 (101), not August 2025 (100).
+        snapshot = indicator_service.macro_snapshot(datetime.date(2026, 10, 20))
+        self.assertAlmostEqual(snapshot["cpi_yoy_pct"], (103 / 101 - 1) * 100, places=3)
+
+    def test_cpi_print_published_later_is_not_seen(self):
+        self.save_cpi(self.cpi_prints_without_october_2025())
+        # The day before November 2025 comes out, September 2025 (101 vs 100) is the latest.
+        snapshot = indicator_service.macro_snapshot(datetime.date(2025, 12, 14))
+        self.assertAlmostEqual(snapshot["cpi_yoy_pct"], 1.0, places=3)
+
+    def test_cpi_without_its_month_is_left_out(self):
+        prints = self.cpi_prints_without_october_2025()
+        market_data_repository.save_points("fred", [Point(day, "cpi", value) for day, _, value in prints])
+        snapshot = indicator_service.macro_snapshot(datetime.date(2026, 10, 20))
+        self.assertIsNone(snapshot["cpi_yoy_pct"])
+        self.assertIsNone(snapshot["cpi_surprise_pct"])
 
     def test_no_data_at_all(self):
         self.assertEqual(indicator_service.technical_snapshot(self.START), {"close": None})

@@ -108,6 +108,14 @@ class FredTests(SimpleTestCase):
         self.assertEqual(fred.parse_first_release(rows, "cpi"), [Point(D(2025, 12, 18), "cpi", 324.0),
                                                                  Point(D(2025, 12, 19), "cpi", 325.0)])
 
+    def test_each_print_keeps_the_month_it_measures(self):
+        # October 2025 was never published: November's print follows September's.
+        rows = [{"date": "2025-09-01", "realtime_start": "2025-10-24", "value": "324.368"},
+                {"date": "2025-10-01", "realtime_start": "2025-12-18", "value": "."},
+                {"date": "2025-11-01", "realtime_start": "2025-12-18", "value": "325.031"}]
+        self.assertEqual(fred.observation_months(rows, "cpi"), [Point(D(2025, 10, 24), "cpi_month", 202509.0),
+                                                                Point(D(2025, 12, 18), "cpi_month", 202511.0)])
+
     @override_settings(FRED_API_KEY="")
     def test_missing_key_is_a_clear_error(self):
         with self.assertRaisesMessage(CollectorError, "FRED_API_KEY"):

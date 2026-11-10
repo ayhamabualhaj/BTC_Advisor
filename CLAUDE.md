@@ -50,6 +50,8 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   (FRED daily +1 day, funding by settlement). Keeps backtests honest. CPI, core CPI and NFCI
   are revised after release, so they are stored as first published (ALFRED initial release),
   dated by the publication day; two published the same day -> the later one a day late.
+  Each CPI print also stores the month it measures (`cpi_month`, YYYYMM, same day): October
+  2025 was never published, so the prints are not consecutive months.
 - Sources: binance (OHLCV), bybit (funding_rate, open_interest, long_account_ratio),
   okx (liquidations), yahoo (dxy/nasdaq/sp500 closes; direct chart API, no yfinance),
   fred (needs FRED_API_KEY), farside ETF flows via `import_etf_flows <csv>`.
@@ -447,6 +449,18 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
 - ETF flows (Jan 2024 on, learned on 2024 only): rules 50.1% of 351 (fair 50.2), ML 49.9% /
   walk-forward 45.4%; macro forest + flows 56.7% of 215 vs 57.9% of 202 without. Flows follow
   price (corr 0.51 with the past week). No edge; they stay only in the macro LLM input.
+- CPI gap (Nov 11 2026): `macro_snapshot` took the last 13 prints as 13 consecutive months, but
+  October 2025 is missing, so from the Dec 18 2025 print year-on-year inflation covered 13
+  months (4.00% instead of 3.68% on the latest print) and November's two-month change was read
+  as one month's. Now `macro.every_month` places prints by their real month and fills a missing
+  one at the steady rate between its neighbours; a two-month print counts at its monthly rate
+  and stays out of its own trend. A CPI print stored without its month gives no CPI numbers
+  (`collect_data --source fred --start 2015-12-01` once on an old database). 7-day hit rates
+  before -> after (days to Oct 19 2026): macro rules 2019-24 52.2% of 1185 and 2025 67.3% of
+  269 unchanged, 2026 63.2% of 171 -> 57.3% of 143; macro ML 2019-24 51.3% of 1492 and 2025
+  55.6% of 142 unchanged, 2026 57.3% of 75 -> 58.7% of 104. The rules lost 29 Sells in Jan-Feb
+  2026 (inflation really was below 2.7%, a Buy point that cancels the CPI Sell) that happened
+  to be right. The macro rule thresholds were tuned on the wrong numbers and were not re-tuned.
 - Volatility instead of direction: HAR + VIX / MOVE / DVOL / funding / OI predicts next week's
   volatility ~25% better than "same as last month" (2025 and 2026), but sizing positions by it
   did not beat holding on Sharpe in 2019-24 (1.14 vs 1.15; worst drop 74.5 vs 76.6%) and only

@@ -19,24 +19,53 @@ def cuts_expected(treasury_2y, fed_funds, margin=0.25):
     return treasury_2y < fed_funds - margin
 
 
+def month_number(yyyymm):
+    """202511 -> a count of months, so two months in a row differ by exactly 1."""
+    year, month = divmod(int(yyyymm), 100)
+    return year * 12 + month
+
+
+def every_month(observations):
+    """[(month number, index value)], oldest first -> one value per month, first to last.
+
+    The prints are not always consecutive months: October 2025 was never published (the
+    government shutdown). A missing month is filled in at the steady rate between its
+    neighbours, so a change over two months is never read as one month's change.
+    """
+    if not observations:
+        return []
+    values = []
+    for (earlier_month, earlier), (later_month, later) in zip(observations, observations[1:]):
+        months_apart = later_month - earlier_month
+        values.extend(earlier * (later / earlier) ** (step / months_apart) for step in range(months_apart))
+    return values + [observations[-1][1]]
+
+
 def monthly_changes(index_values):
     return [(later / earlier - 1) * 100 for earlier, later in zip(index_values, index_values[1:])]
 
 
-def cpi_surprise(cpi_values, baseline_months=3):
+def cpi_surprise(observations, baseline_months=3):
     """Latest monthly CPI change minus the average of the previous few months.
 
     Consensus forecasts are not freely available, so the recent trend stands in for the
-    expectation: negative means inflation came in cooler than the trend.
+    expectation: negative means inflation came in cooler than the trend. `observations` are
+    [(month number, index value)]; a print that covers two months counts at its monthly rate.
     """
-    changes = monthly_changes(cpi_values)
-    if len(changes) < baseline_months + 1:
+    if len(observations) < 2:
         return None
-    baseline = sum(changes[-(baseline_months + 1):-1]) / baseline_months
-    return changes[-1] - baseline
+    changes = monthly_changes(every_month(observations))
+    # A print covering two months is one piece of news, so none of it belongs in the trend.
+    months_in_latest = observations[-1][0] - observations[-2][0]
+    baseline = changes[:-months_in_latest][-baseline_months:]
+    if len(baseline) < baseline_months:
+        return None
+    return changes[-1] - sum(baseline) / baseline_months
 
 
-def yoy_inflation(cpi_values):
-    if len(cpi_values) < 13:
+def yoy_inflation(observations):
+    """Change from the same month a year earlier (12 real months back, not 12 prints back)."""
+    values = every_month(observations)
+    if len(values) < 13:
         return None
-    return (cpi_values[-1] / cpi_values[-13] - 1) * 100
+    return (values[-1] / values[-13] - 1) * 100
