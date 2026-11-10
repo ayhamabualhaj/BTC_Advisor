@@ -494,6 +494,25 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   either evidence that does not exist yet (4 of 5: ~5 episodes a year, so years to prove) or a
   different question. Open and paid: Haiku on 2019-24 (~$3.50) would test 4 of 5 on six more years.
 
+## Bigger vote: 7 or 9 voters (Nov 11 2026, scratchpad scripts, nothing switched)
+- Rule written first: 18 new walk-forward agents (monthly logistic C = 0.1 on a series' 5/20/60-day
+  move, distance from its 50-day, BTC 20-day minus it, 60-day correlation: HYG, 10-year yield,
+  VVIX/VIX, USD/JPY, gold, oil, copper, TLT, dollar, Nasdaq, SMH, ETH/BTC; altcoin breadth, volume,
+  calendar, BTC momentum, the pooled 24-market model for BTC, the dip rule). Eligible on 2019-24
+  only (2019-22 >= fair + 2 with 100 calls, 2023-24 >= fair): dollar, VVIX/VIX, ETH/BTC, pooled
+  model. Dollar and VVIX/VIX are 96-99% Buys and agree on 98.5% of days: two near-permanent Buy votes.
+- Test 2025 - Oct 26 2026 (current 3 of 5: 68.6% of 105 calls, 58.8% of 51 episodes): 7 voters
+  (+ dollar, VVIX/VIX), 5 needed: 88.5% of 26, 8 of 9 episodes, all Buys, no call in 2023-24,
+  63.2% of 117 in 2019-22. 9 voters, 5 needed: 72.7% of 55, 15 of 20 episodes. Stress replaced
+  by dollar (stress was below fair on 2019-24), 3 needed: 63.9% of 166, 60.0% of 65 episodes,
+  +68.8% vs +31.5%; 4 needed: 84.6% of 26, 14 of 17 episodes. "Worth switching" needed a better day
+  and episode hit rate than the current vote with >= 26 episodes and a better 2023-24: none did.
+- Independence (both called, 2019 - Oct 2026): ML-type agents are wrong together 1.2-2.3 times as
+  often as independent ones would be (macro ML / stress 1.71, dollar / VVIX 2.29); the Rules vote
+  and the risk-on day are wrong with the others less often than chance (0.7-0.9), because they
+  lean the other way. Seven independent voters right 55% each would give a ~61% majority, 31 would
+  give ~71%; ours are not independent, so more agents of the same kind cannot reach 70%.
+
 ## Agents talking to each other: debate test (Oct 26 2026, $0.30, scratchpad script)
 - Round 2 for the Haiku v3 agents: same input plus their own first answer and every other
   agent's score that day (rules, ML, the other LLMs' scores and reasons); final answer. Every
