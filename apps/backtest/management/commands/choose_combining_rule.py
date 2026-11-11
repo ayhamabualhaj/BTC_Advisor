@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.backtest.calibration import forward_returns
 from apps.backtest.repositories import price_repository
-from apps.agents.models import AgentName
+from ai import domains
 from apps.backtest.services import backtest_service, combining_service as cs, opus_backtest_service, score_history, score_store
 
 
@@ -31,7 +31,7 @@ class Command(BaseCommand):
         returns_7d = forward_returns(market.days, closes)
         # The LLM (AI_MODEL, current prompt) has no 2019-24 scores, so it never affects the
         # choice; in the test period its vote joins round 2 as it does live.
-        versions = opus_backtest_service.prompt_versions(AgentName.values)
+        versions = opus_backtest_service.prompt_versions(domains.agents())
         llm = score_history.opus_scores(market.days, versions)
         llm_days = sum(1 for day in market.days if any(score is not None for score in llm[day].values()))
         found, chosen = cs.choose({"rules": rules, "ml": ml, "opus": llm}, market, returns_7d, end,

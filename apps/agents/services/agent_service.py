@@ -1,16 +1,16 @@
 """Runs a day's agents: builds each domain's Brief, runs the Flow, saves one AgentRun per domain."""
 
 from ai.brief import Brief
+from ai import domains
 from ai.domains import DOMAINS, has, with_kind
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentRun
 from apps.agents.services import memory_service, prompt_service, rule_scoring_service
-from apps.data.repositories.market_data_repository import series
+from apps.backtest.repositories import price_repository
 
 
 def close_on(date):
-    rows = series("binance", "close", date, 1)
-    return rows[-1][1] if rows and rows[-1][0] == date else None
+    return price_repository.closes(date, date).get(date)
 
 
 def stop_loss_price(close, stop_pct):
@@ -36,7 +36,7 @@ def make_brief(agent, date, cases=None, with_similar=False):
 
 def run_agents(date, agents=None, use_opus=True, client=None, is_backtest=False):
     """Each domain's rule, ML and (if use_opus) Opus agent; they never see each other's results."""
-    agents = agents or list(DOMAINS)
+    agents = agents or domains.agents()
     prompts = {agent: prompt_service.current_version(agent, DOMAINS[agent].opus.PROMPT_FILE)
                for agent in with_kind("opus", agents)} if use_opus else {}
     briefs = {}

@@ -1,18 +1,19 @@
 import datetime
 import json
 
-from django.core.management.base import BaseCommand
+from apps.data.management.asset_command import AssetCommand
 
-from apps.agents.models import AgentName
+from ai.domains import DOMAINS
 from apps.agents.services import agent_service
 
 
-class Command(BaseCommand):
+class Command(AssetCommand):
     help = "Run every domain's rule, ML and Opus agent for a date and print the JSON. Costs API money."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument("--date", help="YYYY-MM-DD (default: yesterday, the last full day)")
-        parser.add_argument("--agent", action="append", choices=AgentName.values)
+        parser.add_argument("--agent", action="append", choices=list(DOMAINS))
 
     def handle(self, *args, **options):
         yesterday = datetime.datetime.now(datetime.UTC).date() - datetime.timedelta(days=1)

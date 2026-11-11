@@ -1,14 +1,15 @@
 import datetime
 
-from django.core.management.base import BaseCommand
+from apps.data.management.asset_command import AssetCommand
 
 from apps.agents.services import rule_scoring_service
 
 
-class Command(BaseCommand):
+class Command(AssetCommand):
     help = "Print (and optionally save) the rule-based score of every agent for a date."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument("--date", help="YYYY-MM-DD (default: yesterday, the last full day)")
         parser.add_argument("--save", action="store_true", help="Store the results as AgentRuns")
 

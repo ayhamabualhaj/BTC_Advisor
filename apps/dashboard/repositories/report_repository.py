@@ -2,24 +2,30 @@ from django.conf import settings
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 
+from ai import domains
 from apps.agents.models import AgentRun, PromptVersion
 from apps.backtest.models import BacktestRun, Decision
+from apps.data import assets
+
+# Agent runs, decisions and backtests are read for the current asset (Bitcoin unless the code
+# runs inside assets.use); money spent and prompts are listed for every asset together.
 
 
 def latest_decision():
-    return Decision.objects.order_by("-date", "-created_at").first()
+    return Decision.objects.filter(asset=assets.current().key).order_by("-date", "-created_at").first()
 
 
 def latest_live_runs(date):
     """The newest live run of each agent on a date."""
     runs = {}
-    for run in AgentRun.objects.filter(date=date, is_backtest=False).select_related("prompt_version").order_by("created_at"):
+    for run in (AgentRun.objects.filter(date=date, is_backtest=False, agent__in=domains.agents())
+                .select_related("prompt_version").order_by("created_at")):
         runs[run.agent] = run
     return list(runs.values())
 
 
 def latest_live_date():
-    run = AgentRun.objects.filter(is_backtest=False).order_by("-date").first()
+    run = AgentRun.objects.filter(is_backtest=False, agent__in=domains.agents()).order_by("-date").first()
     return run.date if run else None
 
 
@@ -35,8 +41,16 @@ def agent_runs(agent=None, is_backtest=None, date=None):
 
 
 def backtest_runs(name_prefix=None):
+    # Another asset's runs carry its key in front of the name (assets.Asset.named).
+    others = [f"{asset.key}:" for asset in assets.ASSETS.values() if asset.key != assets.DEFAULT]
+    mine = assets.current().named("")
     runs = BacktestRun.objects.order_by("-created_at")
-    return runs.filter(name__startswith=name_prefix) if name_prefix else runs
+    if mine:
+        runs = runs.filter(name__startswith=mine)
+    else:
+        for prefix in others:
+            runs = runs.exclude(name__startswith=prefix)
+    return runs.filter(name__startswith=assets.current().named(name_prefix)) if name_prefix else runs
 
 
 def cost_by_agent():
@@ -77,5 +91,6 @@ def runs_for_version(version):
 def opus_runs(start, end):
     """Every run of the configured model (AI_MODEL) in the period (live and backtest), oldest
     first. Runs of another model, made to compare, stay out."""
-    return (AgentRun.objects.filter(date__range=(start, end), opus_score__isnull=False, model=settings.AI_MODEL)
+    return (AgentRun.objects.filter(date__range=(start, end), opus_score__isnull=False, model=settings.AI_MODEL,
+                                    agent__in=domains.agents())
             .select_related("prompt_version").order_by("date", "created_at"))

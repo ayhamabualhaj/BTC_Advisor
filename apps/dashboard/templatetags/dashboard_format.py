@@ -12,9 +12,21 @@ from django.templatetags.static import static
 
 register = template.Library()
 
+
+@register.filter
+def domain(agent):
+    """An agent's domain without its asset ("gold_macro" -> "macro"): the name of its colour."""
+    return str(agent).removeprefix("gold_")
+
+
+@register.filter
+def lower_unless_name(label):
+    """A market's name inside a sentence: "Bitcoin" keeps its capital, "Gold" becomes "gold"."""
+    return label if label == "Bitcoin" else label.lower()
+
 # Names for the fields of AgentRun.key_data, which are code names (rsi_14, dxy_change_1m_pct).
 LABELS = {
-    "close": "Bitcoin close", "rsi_14": "RSI (14 days)", "sma_20": "20-day average", "sma_50": "50-day average",
+    "close": "Close", "rsi_14": "RSI (14 days)", "sma_20": "20-day average", "sma_50": "50-day average",
     "sma_200": "200-day average", "support": "Support", "resistance": "Resistance", "near_support": "Near support",
     "near_resistance": "Near resistance", "change_7d_pct": "7-day change", "change_30d_pct": "30-day change",
     "macd_cross_3d": "MACD cross (last 3 days)", "volatility_14d_pct": "Daily volatility (14 days)",
@@ -40,11 +52,16 @@ LABELS = {
     "btc_change_1d_pct": "Bitcoin today", "nasdaq_change_1d_pct": "Nasdaq today",
     "dxy_change_5d_pct": "Dollar change (5 days)", "dxy_change_20d_pct": "Dollar change (20 days)",
     "dxy_change_60d_pct": "Dollar change (60 days)", "dxy_vs_sma_50_pct": "Dollar vs its 50-day average",
+    "gold_minus_dxy_20d_pct": "Gold's 20-day move minus the dollar's",
+    "gold_dxy_correlation_60d": "Gold-dollar correlation (60 days)",
+    "treasury_10y": "10-year Treasury yield", "treasury_10y_change_20d": "10-year yield, 20-day change",
+    "real_yield_10y": "10-year real yield", "real_yield_10y_change_5d": "Real yield, 5-day change",
+    "real_yield_10y_change_20d": "Real yield, 20-day change",
     "btc_minus_dxy_20d_pct": "Bitcoin's 20-day move minus the dollar's",
     "btc_dxy_correlation_60d": "Bitcoin-dollar correlation (60 days)",
 }
 # Shown as percentages although their names do not end in _pct.
-YIELDS = {"treasury_2y", "fed_target_upper", "fed_funds_effective"}
+YIELDS = {"treasury_2y", "treasury_10y", "real_yield_10y", "fed_target_upper", "fed_funds_effective"}
 PRICES = {"close", "sma_20", "sma_50", "sma_200", "support", "resistance"}
 FED_MOVES = {1: "Hike", -1: "Cut", 0: "None"}
 # "rsi_14 = 34.0068 points down (-0.10)": how ai/ml.py words what pushed a logistic model.

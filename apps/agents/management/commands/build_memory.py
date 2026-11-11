@@ -1,20 +1,21 @@
 import datetime
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
 
 from ai.domains import DOMAINS, with_kind
 from apps.agents.services import memory_service
+from apps.data.management.asset_command import AssetCommand
 
 
-class Command(BaseCommand):
+class Command(AssetCommand):
     help = "Store each past day's setup and 7-day outcome per agent as RAG memory (free, no AI)."
 
     def add_arguments(self, parser):
+        super().add_arguments(parser)
         parser.add_argument("--start", default=settings.DATA_START_DATE)
         parser.add_argument("--end", help="YYYY-MM-DD (default: yesterday UTC)")
         # Memory feeds the ML agents (and the LLM's similar days); the risk-on day has neither.
-        parser.add_argument("--agent", action="append", choices=with_kind("ml"))
+        parser.add_argument("--agent", action="append", choices=with_kind("ml", list(DOMAINS)))
 
     def handle(self, *args, **options):
         start = datetime.date.fromisoformat(options["start"])

@@ -13,8 +13,10 @@ import datetime
 from dataclasses import asdict, dataclass
 
 from apps.backtest import metrics
+from apps.backtest import decision_rule
 from apps.backtest.decision_rule import decide
 from apps.backtest.models import BacktestRun
+from apps.data import assets
 
 TUNE_START = datetime.date(2019, 1, 1)
 TUNE_END = datetime.date(2024, 12, 31)
@@ -124,8 +126,16 @@ def choose(scores_by_source, market, returns_7d, test_end, save=True):
     return found, chosen
 
 
+def gold_rule():
+    """Gold's vote is fixed in decision_rule.GOLD (chosen in the Nov 2026 study, not by this module)."""
+    config = decision_rule.GOLD
+    return {"group_lead": 1, "overall": f"{config.overall_needed} of {len(config.round_2)}", "asset": "gold"}
+
+
 def current_rule():
     """The latest chosen vote, or the default (group lead 1)."""
+    if assets.current().key == "gold":
+        return gold_rule()
     run = BacktestRun.objects.filter(name=RULE_NAME).order_by("-created_at").first()
     # Choices saved under an older vote do not apply to this one.
     if run is None or run.settings.get("overall") != OVERALL:
@@ -134,6 +144,10 @@ def current_rule():
 
 
 def describe(rule):
+    if rule.get("asset") == "gold":
+        return ("three voters: gold's technical rule (a low RSI), stress rule (a high VIX) and dollar rule (gold far "
+                f"behind the dollar); the overall vote says Buy when {rule['overall'][0]} of the 3 agree. They never say "
+                "Sell. The ML and LLM agents are scored and shown but do not vote")
     if "group_lead" not in rule:  # a Decision or BacktestRun from the one-round vote
         who = " + ".join({"rules": "rules", "ml": "ML", "opus": "Opus"}[s] for s in rule.get("sources", []))
         return f"one-round vote of the {who} agents, Buy when Buy votes lead by {rule.get('min_net_votes')}+"

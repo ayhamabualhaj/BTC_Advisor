@@ -1,5 +1,6 @@
 from ai.domains import DOMAINS, has, with_kind
 from apps.agents.models import AgentName, AgentRun
+from apps.data import assets
 from apps.data.services import indicator_service
 
 SNAPSHOTS = {
@@ -9,12 +10,19 @@ SNAPSHOTS = {
     AgentName.STRESS: indicator_service.stress_snapshot,
     AgentName.RISKON: indicator_service.riskon_snapshot,
     AgentName.DOLLAR: indicator_service.dollar_snapshot,
+    # Gold: the technical and stress numbers are the same code, read for gold (assets.use).
+    AgentName.GOLD_TECHNICAL: indicator_service.technical_snapshot,
+    AgentName.GOLD_MACRO: indicator_service.gold_macro_snapshot,
+    AgentName.GOLD_STRESS: indicator_service.stress_snapshot,
+    AgentName.GOLD_DOLLAR: indicator_service.gold_dollar_snapshot,
 }
 
 
 def snapshot(agent, date):
-    """The indicator values one domain looks at, from data known on `date`."""
-    return SNAPSHOTS[agent](date)
+    """The indicator values one domain looks at, from data known on `date`, read for the
+    agent's own asset whatever the code around it is working on."""
+    with assets.use(assets.of_agent(agent).key):
+        return SNAPSHOTS[agent](date)
 
 
 def score_agent(agent, date):
@@ -26,7 +34,7 @@ def score_agent(agent, date):
 def run_rules(date, save=False, is_backtest=False):
     """Score every agent for a date. With save=True each result is stored as a rule-only AgentRun."""
     results = {}
-    for agent in with_kind("rules", list(SNAPSHOTS)):
+    for agent in with_kind("rules"):
         values, rule_score = score_agent(agent, date)
         results[agent] = (values, rule_score)
         if save:

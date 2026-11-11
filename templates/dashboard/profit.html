@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load dashboard_format %}
 {% block main_class %}wide{% endblock %}
-{% block title %}Profit · BTC Advisor{% endblock %}
+{% block title %}Profit · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Profit <span class="muted">if you had followed each agent, after fees</span></h1>
@@ -16,7 +16,7 @@
   </div>
   <div class="date-range">
     <label class="tile-label" for="start">From</label>
-    <input type="date" id="start" name="start" value="{{ start|date:'Y-m-d' }}" min="2019-01-01">
+    <input type="date" id="start" name="start" value="{{ start|date:'Y-m-d' }}" min="{{ asset.signals_start|date:'Y-m-d' }}">
     <label class="tile-label" for="end">to</label>
     <input type="date" id="end" name="end" value="{{ end|date:'Y-m-d' }}">
     {% for name, value in links.hidden.items %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
@@ -43,7 +43,7 @@
     <li>Each agent is a strategy: on a <strong>▲ Buy</strong> day (score 55 or more) you buy at that day's close and hold for
       {{ hold_days }} day{{ hold_days|pluralize }} (a new Buy or Sell before then replaces it). Days in a row are one trade.
       {% if short %}On a <strong>▼ Sell</strong> day you go short for {{ hold_days }} day{{ hold_days|pluralize }} instead (you gain when the price falls).{% else %}A <strong>▼ Sell</strong> means hold nothing for {{ hold_days }} day{{ hold_days|pluralize }}.{% endif %}
-      {% if hold_between %}With no call running you <strong>hold Bitcoin</strong>: this is how to judge an agent that only sells, like the risk-on day.{% else %}With no call running you hold nothing.{% endif %}</li>
+      {% if hold_between %}With no call running you <strong>hold {{ asset.label|lower_unless_name }}</strong>: this is how to judge an agent that only calls one side.{% else %}With no call running you hold nothing.{% endif %}</li>
     <li><strong>Profit</strong> is what 100 would have become, minus 100, with every gain reinvested, <strong>after fees</strong>:
       {{ fee_pct|floatformat:"-2" }}% of the amount each time you buy or sell (going from long to short pays twice). No slippage.
       <strong>Before fees</strong> is the same without them: the gap is what trading that often costs.
@@ -51,8 +51,14 @@
     <li><strong>Worst drop</strong> is the largest fall of the account from a high point: the pain on the way.
       <strong>Trades won</strong> is the share of trades that ended in profit.</li>
     <li><strong>Votes</strong>: {{ rule_text }}.</li>
+    {% if asset.key == "gold" %}
+    <li>Be fair to each: gold's rules were found on 2005–2019 and its vote chosen on 2010–2023, so only 2024 on is a clean test;
+      ML learns only from the past; {{ llm_label }} has no scores for gold before its first daily run. Gold's voters never say Sell,
+      so "Go short" changes nothing for the vote. A day is a trading session: a Friday call is held to Monday's close.</li>
+    {% else %}
     <li>Be fair to each: the rules were tuned on Jan 2025 – Sep 2026, so their profit there is flattered; ML learns only from the past;
       {{ llm_label }} has scores only from 2025 (it sits out before, which counts as holding nothing: see "Scored").</li>
+    {% endif %}
   </ul>
 </details>
 
@@ -68,7 +74,7 @@
   <article class="card">
     <div class="tile-label">Best</div>
     <div class="hero-number {% if best.profit_pct >= 0 %}up{% else %}down{% endif %}">{{ best.profit_pct|floatformat:1 }}%</div>
-    <p class="small muted">{% if best.agent != "vote" %}<span class="dot dot-{{ best.agent }}"></span>{% endif %}{{ best.name }}</p>
+    <p class="small muted">{% if best.agent != "vote" %}<span class="dot dot-{{ best.agent|domain }}"></span>{% endif %}{{ best.name }}</p>
   </article>
   <article class="card">
     <div class="tile-label">Beat buy and hold</div>
@@ -82,7 +88,7 @@
     <span class="tile-label">Agents</span>
     {% for group in groups %}
       <button type="button" class="chip" aria-pressed="true" data-filter-agent="{{ group.agent }}">
-        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</button>
+        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent|domain }}"></span>{% endif %}{{ group.label }}</button>
     {% endfor %}
   </div>
   <div class="chip-group" role="group" aria-label="Kind of agent">
@@ -122,7 +128,7 @@
           data-drawdown="{{ r.drawdown_pct|stringformat:'f' }}" data-win="{% if r.win_rate is not None %}{{ r.win_rate|stringformat:'f' }}{% else %}-1{% endif %}"
           data-trades="{{ r.trades }}" data-name="{{ r.name }}" tabindex="0" aria-pressed="false">
         <td class="muted" data-rank>{{ forloop.counter }}</td>
-        <th>{% if r.agent != "vote" %}<span class="dot dot-{{ r.agent }}"></span>{{ r.label }}{% else %}{{ r.name }}{% endif %}
+        <th>{% if r.agent != "vote" %}<span class="dot dot-{{ r.agent|domain }}"></span>{{ r.label }}{% else %}{{ r.name }}{% endif %}
           {% if r.agent != "vote" %}<span class="kind kind-{{ r.source }}">{{ r.source_label }}</span>{% endif %}</th>
         <td class="num strong {% if r.profit_pct > 0 %}up{% elif r.profit_pct < 0 %}down{% endif %}">{{ r.profit_pct|floatformat:1 }}%</td>
         <td class="bar-col"><span class="profit-bar {% if r.profit_pct >= 0 %}gain{% else %}loss{% endif %}" data-bar="{{ r.profit_pct|stringformat:'f' }}"></span></td>

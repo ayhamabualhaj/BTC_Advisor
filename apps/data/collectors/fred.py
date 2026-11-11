@@ -15,6 +15,9 @@ DAILY_SERIES = {
     "DFEDTARU": "fed_target_upper",
     "DGS2": "treasury_2y",
     "VIXCLS": "vix",
+    # Gold's macro agent: the 10-year yield and the 10-year yield after expected inflation (TIPS).
+    "DGS10": "treasury_10y",
+    "DFII10": "real_yield_10y",
 }
 # Weekly and monthly series are revised after release (CPI's seasonal factors every February
 # for five years back, NFCI every week for its whole history), so they are taken as first

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Prompts · BTC Advisor{% endblock %}
+{% load dashboard_format %}
+{% block title %}Prompts · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <h1>Prompt history</h1>
 <p class="muted">A new version is created whenever an agent's prompt.md changes; old versions are never edited.</p>
@@ -10,7 +11,7 @@
   <thead><tr><th>Agent</th><th>Version</th><th>Created</th><th class="num">Runs</th><th class="num">Backtest</th><th class="num">Errors</th><th class="num">Avg LLM score</th><th class="num">7-day hit rate</th><th class="num">Cost</th></tr></thead>
   <tbody>
   {% for entry in history %}
-    <tr class="prompt-head"><td><span class="dot dot-{{ entry.version.agent }}"></span>{{ entry.version.get_agent_display }}</td>
+    <tr class="prompt-head"><td><span class="dot dot-{{ entry.version.agent|domain }}"></span>{{ entry.label }}</td>
       <td>v{{ entry.version.version }}{% ifchanged entry.version.agent %} <span class="badge badge-strong">In use</span>{% endifchanged %}</td>
       <td>{{ entry.version.created_at|date }}</td><td class="num">{{ entry.runs|floatformat:"0g" }}</td><td class="num">{{ entry.backtest_runs|floatformat:"0g" }}</td>
       <td class="num">{% if entry.errors %}<span class="down">{{ entry.errors }}</span>{% else %}0{% endif %}</td>

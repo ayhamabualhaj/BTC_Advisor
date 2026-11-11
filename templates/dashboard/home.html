@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% load dashboard_format %}
+{% block title %}Advisor{% endblock %}
+{% block content %}
+<h1>Which market?</h1>
+<p class="lead muted">Each market has its own agents, its own vote and its own pages. Advice only: you place the trades yourself.</p>
+<div class="cards markets">
+  {% for market in markets %}
+  <a class="card market" href="{% url 'today' market.asset.key %}">
+    <h2>{{ market.asset.label }}</h2>
+    {% if market.price %}
+    <div class="signal-label">${{ market.price.close|floatformat:"0g" }}</div>
+    <div class="small">
+      {% if market.price.change_1d_pct is not None %}1 day <strong class="{% if market.price.change_1d_pct > 0 %}up{% elif market.price.change_1d_pct < 0 %}down{% endif %}">{{ market.price.change_1d_pct|signed }}%</strong>{% endif %}
+      {% if market.price.change_7d_pct is not None %} · 7 days <strong class="{% if market.price.change_7d_pct > 0 %}up{% elif market.price.change_7d_pct < 0 %}down{% endif %}">{{ market.price.change_7d_pct|signed }}%</strong>{% endif %}
+      <span class="muted">· close of {{ market.price.date }}</span>
+    </div>
+    {% else %}
+    <p class="muted">No prices yet. Run <code>python manage.py collect_data</code>.</p>
+    {% endif %}
+    <p>
+      {% if market.call %}Latest call: <span class="vote-call vote-{{ market.call }}">{% if market.call == "buy" %}▲ Buy{% elif market.call == "sell" %}▼ Sell{% else %}Hold{% endif %}</span>
+      <span class="muted small">for {{ market.decision.date }}</span>
+      {% else %}<span class="muted">No decision yet: open it and press "What should I do today?"</span>{% endif %}
+    </p>
+    <p class="small muted">{{ market.agents }} agent domains · {{ market.voters }} voters</p>
+    <span class="market-open">Open {{ market.asset.label }} →</span>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}

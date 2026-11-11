@@ -9,6 +9,8 @@ class Decision(models.Model):
         NO_TRADE = "no_trade", "No trade"
 
     date = models.DateField()
+    # "btc" or "gold" (apps/data/assets.py).
+    asset = models.CharField(max_length=10, default="btc")
     technical_score = models.FloatField(null=True, blank=True)
     derivatives_score = models.FloatField(null=True, blank=True)
     macro_score = models.FloatField(null=True, blank=True)

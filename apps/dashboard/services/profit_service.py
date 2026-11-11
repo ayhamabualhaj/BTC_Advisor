@@ -11,23 +11,35 @@ changes), with the profit before fees beside it. All math is apps/backtest/metri
 
 import datetime
 
-from apps.agents.models import AgentName
+from ai import domains
 from apps.backtest import metrics
-from apps.backtest.decision_rule import GROUPS, decide, strong_call, strong_dollar_call
+from apps.backtest import decision_rule
+from apps.backtest.decision_rule import decide, strong_call, strong_dollar_call
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import backtest_service, combining_service, score_store
 from apps.dashboard.services import signal_service
+from apps.data import assets
 
 # (key, label, start, end); None = from the start / up to the last price. "90d" is relative.
-PRESETS = [
-    ("since-2025", "2025 to now", datetime.date(2025, 1, 1), None),
-    ("2026", "2026", datetime.date(2026, 1, 1), datetime.date(2026, 12, 31)),
-    ("2025", "2025", datetime.date(2025, 1, 1), datetime.date(2025, 12, 31)),
-    ("90d", "Last 90 days", None, None),
-    ("2019-2024", "2019 - 2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31)),
-    ("all", "All since 2019", signal_service.START, None),
-]
-DEFAULT_PRESET = "since-2025"
+YEARS = [("2026", "2026", datetime.date(2026, 1, 1), datetime.date(2026, 12, 31)),
+         ("2025", "2025", datetime.date(2025, 1, 1), datetime.date(2025, 12, 31)),
+         ("90d", "Last 90 days", None, None)]
+# Per asset; the first preset is the default: from where its vote's test period starts.
+ASSET_PRESETS = {
+    "btc": [("since-2025", "2025 to now", datetime.date(2025, 1, 1), None), *YEARS,
+            ("2019-2024", "2019 - 2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31)),
+            ("all", "All since 2019", datetime.date(2019, 1, 1), None)],
+    "gold": [("since-2024", "2024 to now", datetime.date(2024, 1, 1), None), *YEARS,
+             ("2020-2023", "2020 - 2023", datetime.date(2020, 1, 1), datetime.date(2023, 12, 31)),
+             ("2010-2019", "2010 - 2019", datetime.date(2010, 1, 1), datetime.date(2019, 12, 31)),
+             ("all", "All since 2010", datetime.date(2010, 1, 1), None)],
+}
+
+
+def presets():
+    return ASSET_PRESETS[assets.current().key]
+
+
 # The chart keeps at most about this many points per line (weekly beyond it), so years load fast.
 MAX_CHART_POINTS = 400
 HOLD_DAYS = (1, 3, 7)
@@ -35,14 +47,15 @@ HOLD_DAYS = (1, 3, 7)
 
 def period(preset, start, end, last):
     """(preset key, start, end) clamped to the data; custom dates win over the preset."""
+    first = signal_service.start()
     if start or end:
-        start = max(start or signal_service.START, signal_service.START)
+        start = max(start or first, first)
         end = min(end or last, last)
         return "custom", start, max(start, end)
-    key = preset if preset in dict((p[0], p) for p in PRESETS) else DEFAULT_PRESET
+    key = preset if preset in [p[0] for p in presets()] else presets()[0][0]
     if key == "90d":
         return key, last - datetime.timedelta(days=89), last
-    _, _, preset_start, preset_end = next(p for p in PRESETS if p[0] == key)
+    _, _, preset_start, preset_end = next(p for p in presets() if p[0] == key)
     return key, preset_start, min(preset_end or last, last)
 
 
@@ -57,16 +70,18 @@ def daily_signals(days):
         llm_runs = llm.get(day, {})
         by_source = {"rules": rules.get(day, {}), "ml": ml.get(day, {}),
                      "opus": {agent: run.opus_score for agent, run in llm_runs.items()}}
-        for agent in AgentName.values:
+        for agent in domains.agents():
             for source in ("rules", "ml", "opus"):
                 if f"{agent}:{source}" in signals:
                     signals[f"{agent}:{source}"].append(signal_service.signal_for(by_source[source].get(agent)))
         groups, overall = decide(by_source, rule)
-        for source in GROUPS:  # the solo voters (stress, risk-on day) are already agent columns
+        config = decision_rule.current()
+        for source in config.groups_voting:  # the solo voters (stress, risk-on day) are already agent columns
             signals[f"vote:{source}"].append(groups[source])
         signals["vote"].append(overall)
         signals[signal_service.STRONG].append(strong_call(groups))
-        signals[signal_service.STRONG_DOLLAR].append(strong_dollar_call(groups))
+        if config.strong_net is not None:
+            signals[signal_service.STRONG_DOLLAR].append(strong_dollar_call(groups))
     return signals
 
 
@@ -127,12 +142,14 @@ def row(column, signals, market, hold, short, days, hold_between):
 def profit_page(preset=None, start=None, end=None, short=False, days=1, hold_between=False):
     last = price_repository.latest_close_date()
     days = days if days in HOLD_DAYS else 1
-    page = {"presets": [(key, label) for key, label, _, _ in PRESETS], "short": short, "hold_days": days,
+    page = {"presets": [(key, label) for key, label, _, _ in presets()], "short": short, "hold_days": days,
             "hold_between": hold_between, "rows": [], "fee_pct": metrics.FEE_PER_SIDE * 100}
     if last is None:
         return page
     # The last day has no next-day price yet, so it cannot be scored.
     key, start, end = period(preset, start, end, last - datetime.timedelta(days=1))
+    if end < start:
+        return page
     market = backtest_service.load_market(start, end)
     page.update({"preset": key, "start": start, "end": end, "days": len(market.days)})
     if not market.days:

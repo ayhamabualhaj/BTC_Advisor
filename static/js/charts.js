@@ -110,7 +110,7 @@ function scoreChart(id, data) {
 }
 
 // Today page: the Bitcoin close with the overall vote's Buy (▲) and Sell (▼) days marked on it.
-function priceChart(id, data) {
+function priceChart(id, data, market) {
   const options = baseOptions();
   const dollars = (value) => `$${Math.round(value).toLocaleString("en-US")}`;
   options.scales.y.ticks.callback = dollars;
@@ -128,7 +128,7 @@ function priceChart(id, data) {
       datasets: [
         marks("Vote said Buy", data.buy, "--good", 0),
         marks("Vote said Sell", data.sell, "--critical", 180),
-        { label: "Bitcoin close", data: data.close, borderColor: token("--text-2"), backgroundColor: token("--text-2"),
+        { label: `${market || "Bitcoin"} close`, data: data.close, borderColor: token("--text-2"), backgroundColor: token("--text-2"),
           borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, pointStyle: "line", tension: 0 },
       ],
     },

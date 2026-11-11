@@ -4,7 +4,10 @@ from django.db import models
 class Outcome(models.Model):
     """What the price did after a decision date; filled in as the days pass."""
 
-    date = models.DateField(unique=True)
+    date = models.DateField()
+    # "btc" or "gold" (apps/data/assets.py). The *_correct columns are named by domain: gold's
+    # technical agent fills technical_correct of gold's row.
+    asset = models.CharField(max_length=10, default="btc")
     price_at_decision = models.FloatField()
     price_after_1d = models.FloatField(null=True, blank=True)
     price_after_3d = models.FloatField(null=True, blank=True)
@@ -19,6 +22,7 @@ class Outcome(models.Model):
 
     class Meta:
         ordering = ["-date"]
+        constraints = [models.UniqueConstraint(fields=["date", "asset"], name="one_outcome_per_day_and_asset")]
 
     def __str__(self):
         return f"{self.date} outcome"

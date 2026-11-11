@@ -82,12 +82,31 @@ class OkxLiquidationTests(SimpleTestCase):
 
 
 class YahooTests(SimpleTestCase):
+    META = {"gmtoffset": -18000, "exchangeTimezoneName": "America/New_York"}
+
     def test_closes_are_dated_by_new_york_session(self):
         # 2026-07-01 09:30 New York is 13:30 UTC.
         stamp = int(datetime.datetime(2026, 7, 1, 13, 30, tzinfo=datetime.UTC).timestamp())
-        result = {"meta": {"gmtoffset": -14400}, "timestamp": [stamp, stamp + 86400],
+        result = {"meta": self.META, "timestamp": [stamp, stamp + 86400],
                   "indicators": {"quote": [{"close": [101.5, None]}]}}
         self.assertEqual(yahoo.parse_chart(result, "dxy_close"), [Point(D(2026, 7, 1), "dxy_close", 101.5)])
+
+    def test_a_summer_row_stamped_at_midnight_keeps_its_day_when_collected_in_winter(self):
+        # Midnight New York on 1 July is 04:00 UTC; today's winter offset (-5 h) would make it 30 June.
+        stamp = int(datetime.datetime(2026, 7, 1, 4, 0, tzinfo=datetime.UTC).timestamp())
+        result = {"meta": self.META, "timestamp": [stamp], "indicators": {"quote": [{"close": [101.5]}]}}
+        self.assertEqual(yahoo.parse_chart(result, "dxy_close"), [Point(D(2026, 7, 1), "dxy_close", 101.5)])
+
+    def test_gold_keeps_the_whole_candle_once_per_session(self):
+        stamp = int(datetime.datetime(2026, 7, 1, 4, 0, tzinfo=datetime.UTC).timestamp())
+        # Yahoo repeated the first session later the same day; the later row wins. The third has no close.
+        quote = {"open": [1.0, 1.5, 3.0], "high": [2.0, 2.5, 3.0], "low": [0.5, 0.6, 3.0],
+                 "close": [1.2, 1.3, None], "volume": [10, 20, 30]}
+        result = {"meta": self.META, "timestamp": [stamp, stamp + 3600, stamp + 86400], "indicators": {"quote": [quote]}}
+        self.assertEqual(yahoo.parse_candles(result, "gold_"), [
+            Point(D(2026, 7, 1), "gold_open", 1.5), Point(D(2026, 7, 1), "gold_high", 2.5),
+            Point(D(2026, 7, 1), "gold_low", 0.6), Point(D(2026, 7, 1), "gold_close", 1.3),
+            Point(D(2026, 7, 1), "gold_volume", 20.0)])
 
 
 class FredTests(SimpleTestCase):

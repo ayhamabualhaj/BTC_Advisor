@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Costs · BTC Advisor{% endblock %}
+{% load dashboard_format %}
+{% block title %}Costs · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <h1>API costs</h1>
 <div class="tiles hero">
@@ -23,7 +24,7 @@
     <thead><tr><th>Agent</th><th>Kind</th><th class="num">Calls</th><th class="num">Input tokens</th><th class="num">Output tokens</th><th class="num">Cost</th><th class="num">Per call</th></tr></thead>
     <tbody>
     {% for row in by_agent %}
-      <tr><td><span class="dot dot-{{ row.agent }}"></span>{{ row.label }}</td><td>{% if row.is_backtest %}Backtest{% else %}Live{% endif %}</td>
+      <tr><td><span class="dot dot-{{ row.agent|domain }}"></span>{{ row.label }}</td><td>{% if row.is_backtest %}Backtest{% else %}Live{% endif %}</td>
         <td class="num">{{ row.calls|floatformat:"0g" }}</td><td class="num">{{ row.input_tokens|floatformat:"0g" }}</td><td class="num">{{ row.output_tokens|floatformat:"0g" }}</td>
         <td class="num">${{ row.cost_usd|floatformat:4 }}</td><td class="num">${{ row.per_call|floatformat:4 }}</td></tr>
     {% endfor %}

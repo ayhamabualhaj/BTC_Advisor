@@ -1,4 +1,4 @@
-"""The morning routine: collect data, run the agents, decide, update outcomes."""
+"""The morning routine for the current asset: collect data, run the agents, decide, update outcomes."""
 
 import datetime
 from dataclasses import dataclass, field
@@ -8,10 +8,12 @@ from django.conf import settings
 from apps.agents.models import AgentRun, MemoryCase
 from apps.backtest.decision_rule import overall_call
 from apps.backtest.models import Decision
+from ai import domains
 from ai.domains import DOMAINS, with_kind
 from apps.agents.services import agent_service, memory_service
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import decision_service, outcome_service
+from apps.data import assets
 from apps.data.services import collection_service
 
 # Re-collect this many recent days every morning, so a missed day fills itself in (after a
@@ -57,17 +59,26 @@ def last_full_day():
     return datetime.datetime.now(datetime.UTC).date() - datetime.timedelta(days=1)
 
 
+def live_runs():
+    """The current asset's live runs."""
+    return AgentRun.objects.filter(is_backtest=False, agent__in=domains.agents())
+
+
+def llm_runs():
+    """The current asset's runs with a score from the configured model, live or from a backtest."""
+    return AgentRun.objects.filter(opus_score__isnull=False, model=settings.AI_MODEL, agent__in=domains.agents())
+
+
 def already_ran(date):
-    return AgentRun.objects.filter(date=date, is_backtest=False).exists()
+    return live_runs().filter(date=date).exists()
 
 
 def missed_days(date, with_llm):
-    """Days before `date` (within CATCH_UP_DAYS) with a BTC close but no live run, or with the LLM
+    """Days before `date` (within CATCH_UP_DAYS) with a close but no live run, or with the LLM
     on, no LLM score at all. Only gaps after the history began: a new install never backfills."""
     # The pages' history starts at the first live run or the first LLM score from a backtest.
-    starts = [AgentRun.objects.filter(is_backtest=False).order_by("date").values_list("date", flat=True).first(),
-              AgentRun.objects.filter(opus_score__isnull=False, model=settings.AI_MODEL)
-              .order_by("date").values_list("date", flat=True).first()]
+    starts = [live_runs().order_by("date").values_list("date", flat=True).first(),
+              llm_runs().order_by("date").values_list("date", flat=True).first()]
     if not any(starts):
         return []
     first = min(day for day in starts if day)
@@ -75,12 +86,17 @@ def missed_days(date, with_llm):
     period = (start, date - datetime.timedelta(days=1))
     if with_llm:
         # A day the pages already show an LLM score for (live or from a backtest) is not paid again.
-        runs = AgentRun.objects.filter(date__range=period, opus_score__isnull=False, model=settings.AI_MODEL)
+        runs = llm_runs().filter(date__range=period)
     else:
-        runs = AgentRun.objects.filter(date__range=period, is_backtest=False)
+        runs = live_runs().filter(date__range=period)
     done = set(runs.values_list("date", flat=True))
     closes = price_repository.closes(start, date - datetime.timedelta(days=1))
     return [day for day in sorted(closes) if day not in done]
+
+
+def collect_data(date):
+    """Collect every source up to `date`; returns the sources that failed."""
+    return collection_service.collect(collect_start(date), date).errors
 
 
 def run(date=None, rules_only=False, force=False, client=None, collect=True):
@@ -90,10 +106,11 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
     report = DailyRunReport(date=date)
 
     if collect:
-        result = collection_service.collect(collect_start(date), date)
-        report.collection_errors = result.errors
+        report.collection_errors = collect_data(date)
     if date not in price_repository.closes(date, date):
-        raise DailyRunError(f"No BTC close for {date} yet; the daily candle may not be final.")
+        asset = assets.current()
+        closed = "" if asset.every_day else " (or the market was closed that day)"
+        raise DailyRunError(f"No {asset.label} close for {date} yet; the daily candle may not be final{closed}.")
 
     # Without credentials there is nothing to call, so fall back to the free rule scores.
     report.used_opus = not rules_only and bool(settings.ANTHROPIC_API_KEY or client)
@@ -120,18 +137,28 @@ class Advice:
     error: str = ""
 
 
+def advice_day():
+    """The day the button asks about: the last full day, or for a market that was closed then
+    (gold at a weekend), its last session: the data is collected first to find it."""
+    date = last_full_day()
+    if assets.current().every_day:
+        return date, True
+    collection_service.collect(collect_start(date), date)
+    return price_repository.latest_close_date() or date, False
+
+
 def advice():
     """The overall call for the last full day, running the day first if it has not run.
 
     A day that already ran is only read back, so asking again never pays twice.
     """
-    date = last_full_day()
-    decision = Decision.objects.filter(date=date).order_by("-created_at").first()
+    date, collect = advice_day()
+    decision = Decision.objects.filter(date=date, asset=assets.current().key).order_by("-created_at").first()
     try:
         if decision is None and already_ran(date):
             decision = decision_service.make_decision(date)
         elif decision is None:
-            decision = run(date).decision
+            decision = run(date, collect=collect).decision
     except DailyRunError as error:
         return Advice(date=date, error=str(error))
     return Advice(date=date, call=overall_call(decision.group_calls), decision=decision)

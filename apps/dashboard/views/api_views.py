@@ -14,6 +14,18 @@ from apps.dashboard.serializers import (
     PromptHistorySerializer,
 )
 from apps.dashboard.services import report_service
+from apps.data import assets
+
+
+class AssetMixin:
+    """`?asset=gold` answers for gold; without it, for Bitcoin."""
+
+    def dispatch(self, request, *args, **kwargs):
+        key = request.GET.get("asset", assets.DEFAULT)
+        with assets.use(key if key in assets.ASSETS else assets.DEFAULT):
+            response = super().dispatch(request, *args, **kwargs)
+            # Rendered here, inside the asset: a list view reads its rows only when rendered.
+            return response.render() if hasattr(response, "render") else response
 
 
 def parse_bool(value):
@@ -26,8 +38,8 @@ def parse_bool(value):
     raise ValidationError({"backtest": "use true or false"})
 
 
-class TodayView(APIView):
-    """GET /api/decision/today/ — the latest decision with each agent's run."""
+class TodayView(AssetMixin, APIView):
+    """GET /api/decision/today/?asset=gold — the latest decision with each agent's run."""
 
     def get(self, request):
         today = report_service.today()
@@ -58,7 +70,7 @@ class AgentRunListView(generics.ListAPIView):
         return report_repository.agent_runs(agent, parse_bool(params.get("backtest")), date)
 
 
-class BacktestRunListView(generics.ListAPIView):
+class BacktestRunListView(AssetMixin, generics.ListAPIView):
     """GET /api/backtests/?name=opus — runs whose name starts with the given text."""
 
     serializer_class = BacktestRunSerializer

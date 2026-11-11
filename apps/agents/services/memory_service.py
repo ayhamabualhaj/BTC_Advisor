@@ -7,8 +7,9 @@ from ai import similarity
 from ai.domains import DOMAINS
 from apps.agents.models import MemoryCase
 from apps.agents.services import rule_scoring_service
-from apps.backtest.calibration import HORIZON_DAYS
+from apps.backtest.calibration import HORIZON_DAYS, later_close
 from apps.backtest.repositories import price_repository
+from apps.data import assets
 
 SIMILAR_CASES = 5
 # The model sees a summary of this many closest past days: 5 single cases were mostly noise.
@@ -27,16 +28,21 @@ def outcome_text(return_pct):
 
 def build_cases(agent, model_input, start, end):
     """Save a MemoryCase for every day in [start, end] whose 7-day outcome is known."""
-    closes = price_repository.closes(start, end + datetime.timedelta(days=HORIZON_DAYS))
+    with assets.use(assets.of_agent(agent).key) as asset:
+        return build_asset_cases(agent, model_input, start, end, asset.outcome_wait_days)
+
+
+def build_asset_cases(agent, model_input, start, end, wait):
+    closes = price_repository.closes(start, end + datetime.timedelta(days=HORIZON_DAYS + wait))
     saved = 0
     day = start
     while day <= end:
-        later = day + datetime.timedelta(days=HORIZON_DAYS)
-        if day in closes and later in closes:
+        later = later_close(closes, day, HORIZON_DAYS, wait)
+        if day in closes and later is not None:
             snapshot, _ = rule_scoring_service.score_agent(agent, day)
             setup = model_input(snapshot)
             ml_features = DOMAINS[agent].ml.features(snapshot, setup)
-            return_pct = (closes[later] / closes[day] - 1) * 100
+            return_pct = (later / closes[day] - 1) * 100
             MemoryCase.objects.update_or_create(date=day, agent=agent, defaults={
                 "setup_summary": json.dumps(setup, sort_keys=True),
                 "embedding": similarity.encode(setup),
@@ -55,7 +61,7 @@ def similar_cases(agent, date, model_input, limit=SIMILAR_CASES):
     A case from day D is only finished at the close of D + 7, so a backtest decision on
     `date` may only learn from cases dated `date - 7` or earlier.
     """
-    cutoff = date - datetime.timedelta(days=HORIZON_DAYS)
+    cutoff = outcome_known_cutoff(agent, date)
     cases = list(MemoryCase.objects.filter(agent=agent, date__lte=cutoff, return_7d_pct__isnull=False))
     query = similarity.encode(model_input)
     if not cases or not query:
@@ -68,6 +74,11 @@ def similar_cases(agent, date, model_input, limit=SIMILAR_CASES):
             scored.append((gap, case))
     scored.sort(key=lambda pair: (pair[0], pair[1].date))
     return [case for _, case in scored[:limit]]
+
+
+def outcome_known_cutoff(agent, date):
+    """The last day whose 7-day outcome was known on `date` (gold's can come a few days late)."""
+    return date - datetime.timedelta(days=HORIZON_DAYS + assets.of_agent(agent).outcome_wait_days)
 
 
 def known_cases(agent):
@@ -94,7 +105,7 @@ def similar_summary(agent, date, model_input):
     cases = similar_cases(agent, date, model_input, limit=SIMILAR_DAYS)
     if len(cases) < MIN_SIMILAR_DAYS:
         return None
-    cutoff = date - datetime.timedelta(days=HORIZON_DAYS)
+    cutoff = outcome_known_cutoff(agent, date)
     every = list(MemoryCase.objects.filter(agent=agent, date__lte=cutoff, return_7d_pct__isnull=False)
                  .values_list("return_7d_pct", flat=True))
     moves = sorted(case.return_7d_pct for case in cases)

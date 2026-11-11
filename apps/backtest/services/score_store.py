@@ -1,4 +1,4 @@
-"""Rule and ML scores for many days, computed once and kept in DailyScore.
+"""Rule and ML scores for many days, computed once and kept in DailyScore, for the current asset.
 
 Scoring years of history takes minutes (the ML agent retrains for every day), so the
 results are stored. The fingerprint is a hash of the code they depend on; changing a rule,
@@ -14,7 +14,9 @@ from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
 
+from ai import domains
 from apps.backtest.models import DailyScore
+from apps.data import assets
 from apps.data.models import MarketData
 from apps.backtest.services import score_history
 
@@ -23,15 +25,19 @@ FRESH_DAYS = 14
 FRESH_CACHE_SECONDS = 3600
 # Only the code rule and ML scores depend on: editing the Opus client, prompts or the Flow
 # must not throw away years of stored scores.
-SOURCE_FILES = ["ai/scoring.py", "ai/ml.py", "ai/similarity.py", "ai/domains.py",
-                "ai/*/rules.py", "ai/*/inputs.py", "ai/*/ml.py",
+SOURCE_FILES = ["ai/scoring.py", "ai/ml.py", "ai/similarity.py", "ai/domains.py", "ai/gold.py",
                 "apps/agents/services/memory_service.py", "apps/agents/services/rule_scoring_service.py",
-                "apps/data/indicators/*.py", "apps/data/services/indicator_service.py"]
+                "apps/data/assets.py", "apps/data/indicators/*.py", "apps/data/services/indicator_service.py"]
+# Plus these files of each of the asset's own domains (ai/<agent>/), so editing a gold rule
+# does not throw away Bitcoin's scores. Gold reuses some of Bitcoin's inputs, hence SHARED_INPUTS.
+DOMAIN_FILES = ["rules.py", "inputs.py", "ml.py"]
+SHARED_INPUTS = ["ai/technical/inputs.py", "ai/macro/inputs.py", "ai/stress/inputs.py"]
 
 
 def fingerprint():
-    digest = hashlib.sha256()
-    for pattern in SOURCE_FILES:
+    patterns = SOURCE_FILES + SHARED_INPUTS + [f"ai/{agent}/{name}" for agent in domains.agents() for name in DOMAIN_FILES]
+    digest = hashlib.sha256(assets.current().key.encode())
+    for pattern in patterns:
         for path in sorted(Path(settings.BASE_DIR).glob(pattern)):
             digest.update(path.read_bytes())
     return digest.hexdigest()[:16]
@@ -41,7 +47,7 @@ def scores(days, on_progress=None):
     """({day: {agent: rule_score}}, {day: {agent: ml_score}}) for the given days."""
     current = fingerprint()
     rules, ml = {}, {}
-    for row in DailyScore.objects.filter(date__in=days, fingerprint=current):
+    for row in DailyScore.objects.filter(date__in=days, fingerprint=current, agent__in=domains.agents()):
         rules.setdefault(row.date, {})[row.agent] = row.rule_score  # None for a domain without rules
         ml.setdefault(row.date, {})[row.agent] = row.ml_score
     missing = [day for day in days if day not in rules]
@@ -67,7 +73,8 @@ def data_version():
 
 def store(rules, ml, current):
     last_stored = datetime.date.today() - datetime.timedelta(days=FRESH_DAYS)
-    DailyScore.objects.exclude(fingerprint=current).delete()
+    # Only this asset's old rows: the other asset has its own fingerprint.
+    DailyScore.objects.filter(agent__in=domains.agents()).exclude(fingerprint=current).delete()
     DailyScore.objects.bulk_create([
         DailyScore(date=day, agent=agent, rule_score=rules[day].get(agent), ml_score=ml[day].get(agent), fingerprint=current)
         for day in rules if day <= last_stored

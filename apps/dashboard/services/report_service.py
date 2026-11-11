@@ -2,18 +2,17 @@
 
 import datetime
 
+from ai import domains
 from ai.domains import has
 from apps.agents.models import AgentName
-from apps.backtest import calibration
-from apps.backtest.decision_rule import (GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, STRONG_NET, STRONG_ONLY, VOTERS,
-                                          VOTERS_ROUND_2, strong_net)
+from apps.backtest import calibration, decision_rule
+from apps.backtest.decision_rule import GROUPS, strong_net
 from apps.backtest.repositories import price_repository
 from apps.dashboard.repositories import report_repository
 from apps.dashboard.services import signal_service
+from apps.data import assets
 
 SCORE_FIELDS = {"rules": "rule_score", "ml": "ml_score", "opus": "opus_score"}
-# The track record starts where the vote's own test period does (the LLM votes from here).
-TRACK_RECORD_START = datetime.date(2025, 1, 1)
 RECENT_TRADES = 10
 # Fewer judged trades than this cannot tell a real edge from luck, and the page says so.
 ENOUGH_TRADES = 30
@@ -31,6 +30,14 @@ AGENT_NOTES = {
               "It never says Buy and votes on its own.",
     "dollar": "Reads the dollar index: its moves over a week, a month and three months, and how Bitcoin has moved "
               "against it. It has only an ML agent and votes only in the second strong signal (Strong + dollar), never in the overall vote.",
+    "gold_technical": "Reads gold's own price: trend against its 20, 50 and 200-day averages, momentum (RSI, MACD), recent "
+                      "moves, support and resistance. Its rule (a low RSI is a Buy) is one of gold's three voters.",
+    "gold_macro": "Reads what moves gold: the dollar, yields (above all the real yield), the Fed, inflation and the stock "
+                  "market. No macro number passed the test for a rule, so it has only an ML and an LLM agent; neither votes.",
+    "gold_stress": "Reads fear in the stock and bond markets: VIX, MOVE and the Chicago Fed's financial conditions index. "
+                   "Its rule (a high VIX is a Buy) is one of gold's three voters.",
+    "gold_dollar": "Reads the dollar index and how gold has moved against it. Its rule (gold far behind the dollar over "
+                   "20 days is a Buy) is one of gold's three voters.",
 }
 
 
@@ -42,15 +49,22 @@ def today():
     return {"date": date, "decision": decision, "agent_runs": runs}
 
 
+# Gold's close "7 days ago" may fall on a weekend or holiday: look back this many more days.
+EARLIER_CLOSE_DAYS = 4
+
+
 def price_now():
-    """The last Bitcoin close and its move over 1 and 7 days, for the Today page."""
+    """The last close and its move over 1 and 7 days, for the Today page."""
     last = price_repository.latest_close_date()
     if last is None:
         return None
-    closes = price_repository.closes(last - datetime.timedelta(days=7), last)
+    closes = price_repository.closes(last - datetime.timedelta(days=7 + EARLIER_CLOSE_DAYS), last)
 
     def change(days):
-        earlier = closes.get(last - datetime.timedelta(days=days))
+        """Against the close `days` days ago, or the last one before it when the market was closed."""
+        day = last - datetime.timedelta(days=days)
+        earlier = next((closes[day - datetime.timedelta(days=back)] for back in range(EARLIER_CLOSE_DAYS + 1)
+                        if day - datetime.timedelta(days=back) in closes), None)
         return (closes[last] / earlier - 1) * 100 if earlier else None
 
     return {"date": last, "close": closes[last], "change_1d_pct": change(1), "change_7d_pct": change(7)}
@@ -70,7 +84,8 @@ def trades(rows, key):
         if signal:
             found[-1]["days"] += 1
             for flag, column in (("strong", signal_service.STRONG), ("strong_dollar", signal_service.STRONG_DOLLAR)):
-                found[-1][flag] = found[-1][flag] or row["calls"][column].signal == signal
+                backed = column in row["calls"] and row["calls"][column].signal == signal  # gold has one strong signal
+                found[-1][flag] = found[-1][flag] or backed
         previous = signal
     return found
 
@@ -84,7 +99,7 @@ def record(rows, key):
 
 
 def price_chart(rows):
-    """The last months of Bitcoin closes with the overall vote's Buy and Sell days marked on them."""
+    """The last months of closes with the overall vote's Buy and Sell days marked on them."""
     recent = rows[-PRICE_CHART_DAYS:]
 
     def marked(signal):
@@ -97,12 +112,17 @@ def price_chart(rows):
 def track_record():
     """How the overall vote's and the strong signal's past trades turned out after 7 days."""
     last = price_repository.latest_close_date()
-    if last is None or last < TRACK_RECORD_START:
+    # The track record starts where the vote's own test period does.
+    since = assets.current().test_start
+    if last is None or last < since:
         return None
-    rows, _ = signal_service.build_rows(TRACK_RECORD_START, last, signal_service.DEFAULT_HORIZON)
-    return {"since": TRACK_RECORD_START, "needed": OVERALL_NEEDED, "strong_needed": STRONG_NEEDED, "strong_net": STRONG_NET,
+    config = decision_rule.current()
+    rows, _ = signal_service.build_rows(since, last, signal_service.DEFAULT_HORIZON)
+    return {"since": since, "needed": config.overall_needed, "voters": len(config.round_2),
+            "strong_needed": config.strong_needed, "strong_net": config.strong_net,
             "vote": record(rows, "vote"), "strong": record(rows, signal_service.STRONG),
-            "strong_dollar": record(rows, signal_service.STRONG_DOLLAR), "chart": price_chart(rows)}
+            "strong_dollar": record(rows, signal_service.STRONG_DOLLAR) if config.strong_net is not None else None,
+            "chart": price_chart(rows)}
 
 
 def agent_kinds(agent):
@@ -125,10 +145,13 @@ def agent_record(agent):
 
 def group_members(source):
     """[(agent, votes)] for a group vote: every agent of that kind, and whether it counts."""
-    solo_agents = {agent for _, agent in {**SOLO, **STRONG_ONLY}.values()}
-    allowed = VOTERS.get(source)
-    return [(agent, allowed is None or agent in allowed) for agent in AgentName.values
-            if has(agent, source) and agent not in solo_agents]
+    config = decision_rule.current()
+    single = {(kind, agent) for kind, agent in config.singles.values()}
+    allowed = config.voters.get(source)
+    # A group vote that does not count in round 2 (gold's) only shows its agents.
+    counts = source in config.groups_voting
+    return [(agent, counts and (allowed is None or agent in allowed)) for agent in domains.agents()
+            if has(agent, source) and (source, agent) not in single]
 
 
 def vote_breakdown(decision):
@@ -140,11 +163,14 @@ def vote_breakdown(decision):
     runs = {run.agent: run for run in report_repository.latest_live_runs(decision.date)}
     labels = signal_service.voter_labels()
     voters = []
-    for key in VOTERS_ROUND_2 + list(STRONG_ONLY):
+    config = decision_rule.current()
+    # The voters of round 2 first, then group votes that are only shown, then the strong signal's own voter.
+    shown_only = [group for group in GROUPS if group not in config.groups_voting and group_members(group)]
+    for key in config.round_2 + shown_only + list(config.strong_only):
         if key in GROUPS:
             source, members = key, group_members(key)
         else:
-            source, agent = {**SOLO, **STRONG_ONLY}[key]
+            source, agent = config.singles[key]
             members = [(agent, True)]
         rows = []
         for agent, votes in members:
@@ -152,12 +178,13 @@ def vote_breakdown(decision):
             rows.append({"label": AgentName(agent).label, "score": score,
                          "call": signal_service.signal_for(score), "votes": votes})
         voters.append({"key": key, "label": labels[key], "call": decision.group_calls.get(key, "none"), "agents": rows,
-                       "strong_only": key in STRONG_ONLY})
+                       "strong_only": key in config.strong_only, "shown_only": key in shown_only})
     # The counts are the overall vote's: the dollar agent is listed but votes only in the strong signal.
-    calls = [voter["call"] for voter in voters if not voter["strong_only"]]
-    return {"voters": voters, "needed": OVERALL_NEEDED, "buy": calls.count("buy"), "sell": calls.count("sell"),
+    calls = [voter["call"] for voter in voters if not voter["strong_only"] and not voter["shown_only"]]
+    return {"voters": voters, "needed": config.overall_needed, "count": len(config.round_2),
+            "buy": calls.count("buy"), "sell": calls.count("sell"),
             "hold": calls.count("hold"), "missing": calls.count("none"),
-            "strong_net": strong_net(decision.group_calls), "strong_net_needed": STRONG_NET}
+            "strong_net": strong_net(decision.group_calls), "strong_net_needed": config.strong_net}
 
 
 def costs():
@@ -178,8 +205,11 @@ def hit_rate_7d(runs):
     if not scored:
         return None, 0
     days = sorted({run.date for run in scored})
-    closes = price_repository.closes(days[0], days[-1] + datetime.timedelta(days=calibration.HORIZON_DAYS))
-    returns = calibration.forward_returns(days, closes)
+    # A prompt version belongs to one agent, so the prices are its asset's.
+    with assets.use(assets.of_agent(scored[0].agent).key) as asset:
+        wait = asset.outcome_wait_days
+        closes = price_repository.closes(days[0], days[-1] + datetime.timedelta(days=calibration.HORIZON_DAYS + wait))
+    returns = calibration.forward_returns(days, closes, wait=wait)
     judged = [(run.opus_score > 50) == (returns[run.date] > 0) for run in scored
               if run.date in returns and returns[run.date] != 0]
     if not judged:

@@ -5,6 +5,7 @@ from apps.backtest import metrics
 from apps.backtest.decision_rule import is_buy
 from apps.backtest.models import BacktestRun
 from apps.backtest.repositories import price_repository
+from apps.data import assets
 
 DEFAULT_THRESHOLD = 60
 
@@ -18,16 +19,18 @@ class Market:
 
 
 def load_market(start, end):
-    closes = price_repository.closes(start, end + datetime.timedelta(days=1))
+    """Each day with a close and the next close after it: the next day for Bitcoin, the next
+    session for gold (a Friday's return runs to Monday)."""
+    wait = assets.current().outcome_wait_days
+    closes = price_repository.closes(start, end + datetime.timedelta(days=1 + wait))
     days, returns = [], []
-    day = start
-    while day <= end:
-        following = day + datetime.timedelta(days=1)
+    for day in sorted(day for day in closes if day <= end):
+        following = next((closes[day + datetime.timedelta(days=1 + extra)] for extra in range(wait + 1)
+                          if day + datetime.timedelta(days=1 + extra) in closes), None)
         # Only days whose outcome is known can be tested.
-        if day in closes and following in closes:
+        if following is not None:
             days.append(day)
-            returns.append(closes[following] / closes[day] - 1)
-        day = following
+            returns.append(following / closes[day] - 1)
     return Market(days, returns, closes)
 
 

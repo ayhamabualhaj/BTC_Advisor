@@ -49,11 +49,22 @@ def brier_score(pairs):
     return sum(terms) / len(terms) if terms else None
 
 
-def forward_returns(days, closes, horizon=HORIZON_DAYS):
-    """{day: return from that day's close to the close `horizon` days later} where both exist."""
+def later_close(closes, day, horizon=HORIZON_DAYS, wait=0):
+    """The close `horizon` days after `day`; for a market that does not trade every day, the
+    first close on or after that day, at most `wait` days later (a weekend, a holiday)."""
+    for extra in range(wait + 1):
+        close = closes.get(day + datetime.timedelta(days=horizon + extra))
+        if close is not None:
+            return close
+    return None
+
+
+def forward_returns(days, closes, horizon=HORIZON_DAYS, wait=0):
+    """{day: return from that day's close to the close `horizon` days later} where both exist
+    (see later_close for `wait`)."""
     result = {}
     for day in days:
-        later = day + datetime.timedelta(days=horizon)
-        if day in closes and later in closes:
-            result[day] = closes[later] / closes[day] - 1
+        later = later_close(closes, day, horizon, wait)
+        if day in closes and later is not None:
+            result[day] = later / closes[day] - 1
     return result

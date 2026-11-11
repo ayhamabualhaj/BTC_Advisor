@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load dashboard_format %}
-{% block title %}Backtests · BTC Advisor{% endblock %}
+{% block title %}Backtests · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <h1>Backtest results <span class="muted">saved runs of the backtest commands</span></h1>
 <p class="lead">Each table is the last saved run of a command, on the period it was run for. For any period, every agent and
-  the current vote, see <a href="{% url 'profit' %}">Profit</a> (in money) and <a href="{% url 'signals_overview' %}">Signals</a> (how often right).</p>
+  the current vote, see <a href="{% url 'profit' asset.key %}">Profit</a> (in money) and <a href="{% url 'signals_overview' asset.key %}">Signals</a> (how often right).</p>
 {% if not strategies and not calibration %}
   <p class="empty">No backtests yet. Run <code>python manage.py backtest_rules</code>.</p>
 {% endif %}
@@ -40,7 +40,7 @@
   <div class="cards">
   {% for run in calibration %}
     <article class="card">
-      <h3><span class="dot dot-{{ run.settings.agent }}"></span>{{ run.settings.agent|capfirst }} · {{ run.settings.score_type|capfirst }}</h3>
+      <h3><span class="dot dot-{{ run.settings.agent|domain }}"></span>{{ run.settings.agent|capfirst }} · {{ run.settings.score_type|capfirst }}</h3>
       <p class="muted small">{{ run.settings.calls }} calls · Brier {{ run.settings.brier_score|floatformat:3 }} (0.250 = always 50)</p>
       <table class="data">
         <thead><tr><th>Confidence</th><th class="num">Calls</th><th class="num">Said</th><th class="num">Right</th></tr></thead>

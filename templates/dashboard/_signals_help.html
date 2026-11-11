@@ -7,7 +7,17 @@
     <li>A call is <span class="call-right inline">right</span> when the price moved its way and <span class="call-wrong inline">wrong</span>
       when not. “won +3.1%” / “lost −2.0%” is the move seen from the call’s side: a Sell that saw the price fall 3.1% won 3.1%.</li>
     <li><strong>Hit rate</strong> = right ÷ (right + wrong).{% if base_rate %} Always guessing “up” would have been right
-      {{ base_rate|floatformat:0 }}% of the time since 2019 at this horizon, so that is the bar to beat, not 50%.{% endif %}</li>
+      {{ base_rate|floatformat:0 }}% of the time since {{ asset.signals_start.year }} at this horizon, so that is the bar to beat, not 50%.{% endif %}</li>
+    {% if asset.key == "gold" %}
+    <li><strong>Votes</strong>: {{ rule_text }}. <strong>Overall</strong> calls Buy when 2 of the 3 rule agents agree;
+      <strong>Strong</strong> is the same call on the days all 3 agree. Nothing here ever says Sell: on 2005–2019 no pattern that
+      pointed down passed the test, so a day without a Buy is a Hold. {{ llm_label }} has no history for gold: it is asked from
+      the first daily run on and shown, but does not vote. Gold trades on weekdays; “after {{ horizon }} day{{ horizon|pluralize }}”
+      is the first close on or after that day.</li>
+    <li>Fair tests: the rules were found on 2005–2019, so <strong>2020 on is new to the rules</strong>; the vote was chosen on
+      2010–2023, so <strong>2024 on is new to everything</strong>. There the vote was right about as often as simply holding gold,
+      which rose in about 6 weeks of 10: no proven edge yet. ML only ever learns from days whose result was already known.</li>
+    {% else %}
     <li><strong>Votes</strong>: {{ rule_text }}. The Rules, ML and {{ llm_label }} columns under Vote are the first round.
       <strong>Overall</strong> calls when 3 of the 5 voters agree (those three plus Financial stress and the Risk-on day);
       <strong>Strong</strong> is the same call on the days 4 of the 5 agree: far fewer calls, right more often so far, too few to prove.
@@ -18,5 +28,6 @@
     <li>Fair tests: the rules were chosen on Jan 2025 – Sep 2026, so <strong>2019–2024 is new to the rules</strong>; the vote was chosen
       on 2019–2024, so <strong>2025 on is new to the vote</strong>; <strong>Oct 2026 on is new to everything</strong>. ML only ever learns
       from days whose result was already known, so every ML call is a fair test.</li>
+    {% endif %}
   </ul>
 </details>

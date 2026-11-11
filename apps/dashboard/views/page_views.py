@@ -1,4 +1,5 @@
 import datetime
+import functools
 from urllib.parse import urlencode
 
 from django.http import Http404
@@ -6,22 +7,48 @@ from django.shortcuts import redirect, render
 from django.utils.formats import date_format
 from django.views.decorators.http import require_POST
 
+from ai import domains
 from ai.opus_client import model_label
 from apps.agents.models import AgentName
+from apps.backtest import decision_rule
 from apps.backtest.decision_rule import overall_call, strong_call, strong_dollar_call
 from apps.backtest.services import combining_service, daily_run_service
 from apps.dashboard.services import model_service, profit_service, report_service, signal_service
 from apps.dashboard.templatetags.dashboard_format import strategy_name
+from apps.data import assets
 
-AGENT_ORDER = AgentName.values
+
+def for_asset(view):
+    """A page of one market: /btc/... or /gold/.... The view, its services and its template all
+    run inside assets.use, so they read that market's prices, agents and vote."""
+    @functools.wraps(view)
+    def page(request, asset, *args, **kwargs):
+        if asset not in assets.ASSETS:
+            raise Http404("Unknown market")
+        with assets.use(asset):
+            return view(request, *args, **kwargs)
+    return page
 
 
+def home(request):
+    """The first page: choose Bitcoin or gold. Each card shows that market's price and latest call."""
+    markets = []
+    for key in assets.ASSETS:
+        with assets.use(key) as asset:
+            decision = report_service.today()["decision"]
+            call = overall_call(decision.group_calls) if decision and decision.group_calls else None
+            markets.append({"asset": asset, "price": report_service.price_now(), "decision": decision, "call": call,
+                            "agents": len(asset.agents), "voters": len(decision_rule.current().round_2)})
+    return render(request, "dashboard/home.html", {"markets": markets, "chooser": True})
+
+
+@for_asset
 def today(request, advice=None):
     context = report_service.today()
     runs = {run.agent: run for run in context["agent_runs"]}
     context["cards"] = [{"agent": agent, "label": AgentName(agent).label, "run": runs.get(agent),
                          "scores": report_service.kind_scores(agent, runs[agent]) if agent in runs else []}
-                        for agent in AGENT_ORDER]
+                        for agent in domains.agents()]
     decision = context["decision"]
     context["decision_rule_text"] = combining_service.describe(decision.rule) if decision and decision.rule else ""
     context["advice"] = advice
@@ -31,27 +58,43 @@ def today(request, advice=None):
     if shown and shown.group_calls:
         context["call"] = overall_call(shown.group_calls)
         context["strong"] = strong_call(shown.group_calls) in ("buy", "sell")
+        context["strong_needed"] = decision_rule.current().strong_needed
         context["strong_dollar"] = strong_dollar_call(shown.group_calls) in ("buy", "sell")
-    # A decision older than yesterday is stale: say so instead of showing it as today's.
-    context["days_behind"] = (daily_run_service.last_full_day() - context["date"]).days if context["date"] else 0
+    context["days_behind"] = days_behind(context["date"]) if context["date"] else 0
     context["price"] = report_service.price_now()
     context["record"] = report_service.track_record()
     return render(request, "dashboard/today.html", context)
 
 
+def days_behind(date):
+    """How stale a decision is: days since it for Bitcoin; for gold only weekdays count, so
+    Friday's decision is still current on Sunday. More than 1 shows the notice."""
+    last = daily_run_service.last_full_day()
+    if assets.current().every_day:
+        return (last - date).days
+    missed = sum(1 for n in range(1, (last - date).days + 1) if (date + datetime.timedelta(days=n)).weekday() < 5)
+    return missed + 1 if missed else 0
+
+
 @require_POST
-def advise(request):
-    """The "What should I do?" button: runs yesterday's agents if they have not run yet."""
-    return today(request, daily_run_service.advice())
+def advise(request, asset):
+    """The "What should I do?" button: runs the last day's agents if they have not run yet."""
+    if asset not in assets.ASSETS:
+        raise Http404("Unknown market")
+    with assets.use(asset):
+        advice = daily_run_service.advice()
+    return today(request, asset, advice)
 
 
+@for_asset
 def agents(request):
     """The Agents menu link: opens the first agent's tab."""
-    return redirect("agent_detail", AGENT_ORDER[0])
+    return redirect("agent_detail", assets.current().key, domains.agents()[0])
 
 
+@for_asset
 def agent_detail(request, agent):
-    if agent not in AGENT_ORDER:
+    if agent not in domains.agents():
         raise Http404("Unknown agent")
     is_backtest = request.GET.get("backtest") == "1"
     history = report_service.agent_history(agent, is_backtest)
@@ -68,7 +111,7 @@ def agent_detail(request, agent):
         "agent": agent,
         "label": AgentName(agent).label,
         "note": report_service.AGENT_NOTES.get(agent, ""),
-        "tabs": [(choice.value, choice.label) for choice in AgentName],
+        "tabs": [(name, AgentName(name).label) for name in domains.agents()],
         "kinds": kinds,
         "has_llm": any(kind == "opus" for kind, _ in kinds),
         "latest": latest,
@@ -113,6 +156,7 @@ def years(months):
     return sorted(by_year.items(), reverse=True)
 
 
+@for_asset
 def signals(request):
     horizon = parse_horizon(request)
     table = signal_service.month_table(parse_month(request.GET.get("month")), horizon)
@@ -130,6 +174,7 @@ def signals(request):
     })
 
 
+@for_asset
 def signals_overview(request):
     horizon = parse_horizon(request)
     data = signal_service.overview(horizon)
@@ -142,7 +187,11 @@ def signals_overview(request):
     })
 
 
+@for_asset
 def models(request):
+    # The model comparison was run on Bitcoin's agents only.
+    if assets.current().key != assets.DEFAULT:
+        return redirect("models", assets.DEFAULT)
     horizon = parse_horizon(request)
     data = model_service.comparison(request.GET.get("model"), horizon)
     return render(request, "dashboard/models.html", {**data, "horizon": horizon, "horizons": signal_service.HORIZONS})
@@ -170,11 +219,12 @@ def profit_links(data):
         "periods": [(key, label, link(period=key, start=None, end=None)) for key, label in data["presets"]],
         "sell": [(False, "Stay out", link(short=None)), (True, "Go short", link(short="1"))],
         "days": [(days, link(days=str(days) if days != 1 else None)) for days in profit_service.HOLD_DAYS],
-        "between": [(False, "Stay out", link(between=None)), (True, "Hold Bitcoin", link(between="hold"))],
+        "between": [(False, "Stay out", link(between=None)), (True, f"Hold {assets.current().label}", link(between="hold"))],
         "hidden": {key: current[key] for key in ("short", "days", "between") if current[key]},
     }
 
 
+@for_asset
 def profit(request):
     try:
         days = int(request.GET.get("days", 1))
@@ -183,12 +233,13 @@ def profit(request):
     data = profit_service.profit_page(request.GET.get("period"), parse_date(request.GET.get("start")),
                                       parse_date(request.GET.get("end")), request.GET.get("short") == "1",
                                       days, request.GET.get("between") == "hold")
-    groups = [{"agent": agent.value, "label": agent.label} for agent in AgentName] + [{"agent": "vote", "label": "Votes"}]
+    groups = [{"agent": agent, "label": AgentName(agent).label} for agent in domains.agents()] + [{"agent": "vote", "label": "Votes"}]
     links = profit_links(data) if "preset" in data else None
     return render(request, "dashboard/profit.html",
                   {**data, "groups": groups, "sources": signal_service.sources(), "links": links})
 
 
+@for_asset
 def backtests(request):
     groups = report_service.backtest_overview()
     for run in groups["combining"]:
@@ -204,20 +255,33 @@ def backtests(request):
     return render(request, "dashboard/backtests.html", {**groups, "chart": chart})
 
 
+def agent_label(agent):
+    """An agent's name where both markets are listed together: "Gold · Macro"."""
+    asset = assets.of_agent(agent)
+    return AgentName(agent).label if asset.key == assets.DEFAULT else f"{asset.label} · {AgentName(agent).label}"
+
+
+@for_asset
 def costs(request):
+    """Money spent on every market together: the same page under /btc/ and /gold/."""
     data = report_service.costs()
     for row in data["by_agent"]:
         row["per_call"] = row["cost_usd"] / row["calls"]
-        row["label"] = AgentName(row["agent"]).label
+        row["label"] = agent_label(row["agent"])
     days = sorted({row["day"] for row in data["by_day"]})
-    per_agent = {agent: [0.0] * len(days) for agent in AGENT_ORDER}
+    per_agent = {agent: [0.0] * len(days) for agent in AgentName.values}
     for row in data["by_day"]:
         per_agent[row["agent"]][days.index(row["day"])] = float(row["cost_usd"])
     # Only the agents that were ever paid for get a color in the chart.
-    chart = {"labels": days, "series": [{"agent": agent, "label": AgentName(agent).label, "values": per_agent[agent]}
-                                        for agent in AGENT_ORDER if any(per_agent[agent])]}
+    chart = {"labels": days, "series": [{"agent": agent, "label": agent_label(agent), "values": per_agent[agent]}
+                                        for agent in AgentName.values if any(per_agent[agent])]}
     return render(request, "dashboard/costs.html", {**data, "chart": chart})
 
 
+@for_asset
 def prompts(request):
-    return render(request, "dashboard/prompts.html", {"history": report_service.prompt_history()})
+    """Every market's prompts together."""
+    history = report_service.prompt_history()
+    for entry in history:
+        entry["label"] = agent_label(entry["version"].agent)
+    return render(request, "dashboard/prompts.html", {"history": history})

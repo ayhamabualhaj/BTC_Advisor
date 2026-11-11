@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load dashboard_format %}
-{% block title %}Models · BTC Advisor{% endblock %}
+{% block title %}Models · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Model comparison{% if model %} <span class="muted">{{ reference_label }} vs {{ other_label }}</span>{% endif %}</h1>

@@ -1,9 +1,9 @@
-<div class="filters" data-filters>
+{% load dashboard_format %}<div class="filters" data-filters>
   <div class="chip-group" role="group" aria-label="Agents">
     <span class="tile-label">Agents</span>
     {% for group in groups %}
       <button type="button" class="chip" aria-pressed="true" data-filter-agent="{{ group.agent }}">
-        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent }}"></span>{% endif %}{{ group.label }}</button>
+        {% if group.agent != "vote" %}<span class="dot dot-{{ group.agent|domain }}"></span>{% endif %}{{ group.label }}</button>
     {% endfor %}
   </div>
   <div class="chip-group" role="group" aria-label="Kind of agent">

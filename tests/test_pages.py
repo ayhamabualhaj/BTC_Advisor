@@ -13,13 +13,13 @@ DAY = datetime.date(2026, 7, 1)
 
 class EmptyPagesTests(TestCase):
     def test_every_page_works_with_an_empty_database(self):
-        for url in ("/", "/agents/technical/", "/signals/", "/signals/overview/", "/backtests/", "/costs/", "/prompts/", "/profit/"):
+        for url in ("/", "/btc/agents/technical/", "/btc/signals/", "/btc/signals/overview/", "/btc/backtests/", "/btc/costs/", "/btc/prompts/", "/btc/profit/"):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200, url)
-        self.assertContains(self.client.get("/"), "daily_run")
+        self.assertContains(self.client.get("/btc/"), "daily_run")
 
     def test_unknown_agent_is_404(self):
-        self.assertEqual(self.client.get("/agents/nobody/").status_code, 404)
+        self.assertEqual(self.client.get("/btc/agents/nobody/").status_code, 404)
 
 
 class FilledPagesTests(TestCase):
@@ -36,34 +36,34 @@ class FilledPagesTests(TestCase):
                                 group_calls={"rules": "buy", "ml": "buy", "opus": "hold", "stress": "buy", "riskon": "none"})
 
     def test_today_shows_signal_scores_and_reasons(self):
-        page = self.client.get("/").content.decode()
+        page = self.client.get("/btc/").content.decode()
         for text in ("Buy", "71", "Trend is up", "$95,000", "prompt v3", "Who voted", "3 of 5 must agree",
                      "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote",
                      "votes only in Strong + dollar", "Buy minus Sell over all six is +3"):
             self.assertIn(text, page)
 
     def test_today_says_when_the_decision_is_old_and_marks_a_strong_signal(self):
-        page = self.client.get("/").content.decode()
+        page = self.client.get("/btc/").content.decode()
         self.assertIn("This is not today's advice", page)  # the decision is for July 1, long ago
         self.assertNotIn("badge-strong", page)  # 3 of 5 is a call but not a strong one
         Decision.objects.update(group_calls={"rules": "sell", "ml": "sell", "opus": "sell", "stress": "sell", "riskon": "hold"})
-        page = self.client.get("/").content.decode()
+        page = self.client.get("/btc/").content.decode()
         for text in ("signal-sell", "Strong signal", "4 of the 5 voters say Sell", "Strong + dollar", "Sell votes lead Buy votes by 4 or more"):
             self.assertIn(text, page)
         with mock.patch("apps.backtest.services.daily_run_service.last_full_day", return_value=DAY):
-            self.assertNotIn("This is not today's advice", self.client.get("/").content.decode())
+            self.assertNotIn("This is not today's advice", self.client.get("/btc/").content.decode())
 
     def test_agents_link_opens_one_page_with_a_tab_per_agent(self):
-        self.assertRedirects(self.client.get("/agents/"), "/agents/technical/")
-        page = self.client.get("/agents/riskon/?backtest=1").content.decode()
+        self.assertRedirects(self.client.get("/btc/agents/"), "/btc/agents/technical/")
+        page = self.client.get("/btc/agents/riskon/?backtest=1").content.decode()
         for name in ("Technical analysis", "Derivatives", "Macro", "Financial stress", "Risk-on day"):
             self.assertIn(name, page)
-        self.assertIn('href="/agents/macro/?backtest=1"', page)  # tabs keep the live / backtest choice
-        self.assertIn('href="/agents/" aria-current="page">Agents</a>', page)  # the menu marks the page you are on
-        self.assertNotIn('href="/agents/macro/">Macro</a>', page)  # no longer one menu link per agent
+        self.assertIn('href="/btc/agents/macro/?backtest=1"', page)  # tabs keep the live / backtest choice
+        self.assertIn('href="/btc/agents/" aria-current="page">Agents</a>', page)  # the menu marks the page you are on
+        self.assertNotIn('href="/btc/agents/macro/">Macro</a>', page)  # no longer one menu link per agent
 
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
-        page = self.client.get("/agents/technical/").content.decode()
+        page = self.client.get("/btc/agents/technical/").content.decode()
         # The data table names its fields and rounds them; dates read "1 Jul 2026" on every page.
         for text in ("Opus 5.5 reasoning", "Price above 50-day average", "RSI (14 days)", "55.00", 'id="score-data"',
                      "Wed 1 Jul 2026", "Reads Bitcoin"):
@@ -79,7 +79,7 @@ class FilledPagesTests(TestCase):
         # The risk-on day has only a rules agent: no ML or LLM column, no prompt or cost.
         AgentRun.objects.create(date=DAY, agent="riskon", rule_score=40, direction="bearish", reasons=[],
                                 key_data={"btc_change_1d_pct": 1.234, "rule_reasons": [], "skipped": []})
-        page = self.client.get("/agents/riskon/").content.decode()
+        page = self.client.get("/btc/agents/riskon/").content.decode()
         for text in ("Rules score", "Bitcoin today", "+1.23%", "score-chip vote-sell"):
             self.assertIn(text, page)
         for text in ("ML score", "Opus 5.5 score", "<th>Prompt</th>"):
@@ -97,20 +97,20 @@ class FilledPagesTests(TestCase):
         BacktestRun.objects.create(name="combining_rule", start_date=DAY, end_date=DAY, settings={
             "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
-        page = self.client.get("/backtests/").content.decode()
+        page = self.client.get("/btc/backtests/").content.decode()
         for text in ("Rules · Technical", "3.50%", "60s", "44%", "each vote among their domains", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
-        page = self.client.get("/costs/").content.decode()
+        page = self.client.get("/btc/costs/").content.decode()
         for text in ("$0.05", "Live daily runs", "1 day · $0.0500 per day", "Technical analysis"):
             self.assertIn(text, page)
-        page = self.client.get("/prompts/").content.decode()
+        page = self.client.get("/btc/prompts/").content.decode()
         for text in ("You are the agent", "In use", "Technical analysis"):
             self.assertIn(text, page)
 
     def test_every_page_has_the_theme_button(self):
-        self.assertContains(self.client.get("/costs/"), "data-theme-toggle")
+        self.assertContains(self.client.get("/btc/costs/"), "data-theme-toggle")
 
 
 class FormatTests(TestCase):
@@ -187,17 +187,17 @@ class SignalsPageTests(TestCase):
         self.assertEqual(signal_service.score_call(20, None).confidence, 80)
 
     def test_month_page_shows_calls_results_and_filters(self):
-        page = self.client.get("/signals/?month=2026-07").content.decode()
+        page = self.client.get("/btc/signals/?month=2026-07").content.decode()
         for text in ("call-wrong", "call-right", "▲ Buy", "▼ Sell", "70%", "lost -5.0%", "won +5.0%", "-5.00%",
                      "July 2026", "data-filter-source", "How to read this", "Overall", 'data-source="ml"'):
             self.assertIn(text, page)
-        self.assertEqual(self.client.get("/signals/?horizon=99&month=junk").status_code, 200)
+        self.assertEqual(self.client.get("/btc/signals/?horizon=99&month=junk").status_code, 200)
 
     def test_strong_column_and_the_track_record(self):
         from apps.dashboard.services import report_service, signal_service
 
         self.assertEqual([column.key for column in signal_service.columns()[-2:]], ["strong", "strong_dollar"])
-        page = self.client.get("/signals/?month=2026-07").content.decode()
+        page = self.client.get("/btc/signals/?month=2026-07").content.decode()
         for text in ("Strong (4 of 5)", "Strong + dollar"):
             self.assertIn(text, page)
 
@@ -220,15 +220,15 @@ class SignalsPageTests(TestCase):
         AgentRun.objects.create(date=DAY, agent="macro", rule_score=40)
         Decision.objects.create(date=DAY, signal="no_trade", rule={"group_lead": 1},
                                 group_calls={"rules": "sell", "ml": "hold", "opus": "sell", "stress": "sell", "riskon": "none"})
-        page = self.client.get("/").content.decode()
+        page = self.client.get("/btc/").content.decode()
         for text in ("How its calls turned out", "Overall vote (3 of 5)", "Strong signal (4 of 5)", "Strong + dollar (lead of 4 among 6)", "Bitcoin close", "$126"):
             self.assertIn(text, page)  # the last stored close is 200 - 74
-        page = self.client.get("/agents/macro/").content.decode()
+        page = self.client.get("/btc/agents/macro/").content.decode()
         for text in ("How often it was right", "Jan 2025 - Sep 2026"):
             self.assertIn(text, page)
 
     def test_overview_lists_periods_and_months(self):
-        page = self.client.get("/signals/overview/").content.decode()
+        page = self.client.get("/btc/signals/overview/").content.decode()
         for text in ("Oct 2026 on", "Jul 2026", "?month=2026-07", "rate-cell"):
             self.assertIn(text, page)
 
@@ -239,7 +239,7 @@ class LLMLabelTests(TestCase):
         from apps.dashboard.services import signal_service
 
         self.assertEqual(signal_service.sources()[2], ("opus", "Haiku 5.5"))
-        self.assertIn("Haiku 5.5", self.client.get("/signals/").content.decode())
+        self.assertIn("Haiku 5.5", self.client.get("/btc/signals/").content.decode())
 
 
 class ProfitPageTests(TestCase):
@@ -286,18 +286,18 @@ class ProfitPageTests(TestCase):
         self.assertEqual(positions(["buy", "buy", "sell", "hold"], short=False, days=7), [1, 1, 0, 0])
 
     def test_page_links_keep_the_other_settings(self):
-        page = self.client.get("/profit/?period=2025&days=3&between=hold").content.decode()
+        page = self.client.get("/btc/profit/?period=2025&days=3&between=hold").content.decode()
         for text in ("Hold each call", "Between calls", "Hold Bitcoin", "3 days (a new Buy",
                      "?period=2025&amp;days=7&amp;between=hold", "?period=2025&amp;short=1&amp;days=3&amp;between=hold"):
             self.assertIn(text, page)
-        self.assertEqual(self.client.get("/profit/?days=5&between=junk").status_code, 200)
+        self.assertEqual(self.client.get("/btc/profit/?days=5&between=junk").status_code, 200)
 
     def test_page_shows_filters_table_and_chart(self):
-        page = self.client.get("/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
+        page = self.client.get("/btc/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
         for text in ("data-filter-agent", "data-filter-source", "data-profit-table", "profit-chart-data",
                      "Go short", "Overall vote", "Macro", "Strong (4 of 5) signal", "Strong + dollar signal", "Before fees", "after fees"):
             self.assertIn(text, page)
-        self.assertEqual(self.client.get("/profit/?period=junk&start=bad").status_code, 200)
+        self.assertEqual(self.client.get("/btc/profit/?period=junk&start=bad").status_code, 200)
 
 
 class AdviceButtonTests(TestCase):
@@ -316,20 +316,20 @@ class AdviceButtonTests(TestCase):
     def test_buy_when_three_of_five_say_buy(self):
         self.save_decision({"rules": "buy", "ml": "buy", "opus": "none", "stress": "buy", "riskon": "sell"})
         with mock.patch("apps.backtest.services.daily_run_service.run") as run:
-            self.assertContains(self.client.post("/advise/"), "BUY")
+            self.assertContains(self.client.post("/btc/advise/"), "BUY")
         run.assert_not_called()
 
     def test_sell_and_hold(self):
         self.save_decision({"rules": "sell", "ml": "sell", "opus": "none", "stress": "hold", "riskon": "sell"})
-        self.assertContains(self.client.post("/advise/"), "SELL")
+        self.assertContains(self.client.post("/btc/advise/"), "SELL")
         Decision.objects.update(group_calls={"rules": "sell", "ml": "sell", "opus": "none", "stress": "buy", "riskon": "none"})
-        self.assertContains(self.client.post("/advise/"), "HOLD: no clear call")
+        self.assertContains(self.client.post("/btc/advise/"), "HOLD: no clear call")
 
     def test_runs_the_day_when_it_has_not_run(self):
         with mock.patch("apps.backtest.services.daily_run_service.run",
                         side_effect=daily_run_service.DailyRunError("No BTC close yet")) as run:
-            self.assertContains(self.client.post("/advise/"), "No BTC close yet")
-        run.assert_called_once_with(self.day)
+            self.assertContains(self.client.post("/btc/advise/"), "No BTC close yet")
+        run.assert_called_once_with(self.day, collect=True)
 
     def test_get_is_not_allowed(self):
-        self.assertEqual(self.client.get("/advise/").status_code, 405)
+        self.assertEqual(self.client.get("/btc/advise/").status_code, 405)

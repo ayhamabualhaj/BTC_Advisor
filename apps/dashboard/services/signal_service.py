@@ -16,20 +16,22 @@ by 4 or more (or the reverse).
 import datetime
 from dataclasses import dataclass
 
+from ai import domains
 from ai.domains import has
 from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import (GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, STRONG_NET, STRONG_ONLY, decide,
-                                          net_votes, round_2, strong_call, strong_dollar_call, strong_net, vote, voters)
+from apps.backtest import decision_rule
+from apps.backtest.decision_rule import (decide, net_votes, round_2, strong_call, strong_dollar_call, strong_net,
+                                          vote, voters)
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
+from apps.data import assets
 
 HORIZONS = (1, 3, 7)
 DEFAULT_HORIZON = 7
-START = datetime.date(2019, 1, 1)
 STRONG = "strong"  # the column of the strong signal
 STRONG_DOLLAR = "strong_dollar"  # the column of the strong signal with the dollar agent
 def sources():
@@ -37,19 +39,48 @@ def sources():
     return [("rules", "Rules"), ("ml", "ML"), ("opus", model_label())]
 
 
+def start():
+    """The first day the current asset's Signals and Profit pages show."""
+    return assets.current().signals_start
+
+
+def wait():
+    """How many days after the horizon an outcome close may come (gold: weekends, holidays)."""
+    return assets.current().outcome_wait_days
+
+
+def single_label(source, agent):
+    """A voter that is one agent: its domain, with the kind when the domain has several."""
+    label = AgentName(agent).label
+    kinds = [kind for kind, _ in sources() if has(agent, kind)]
+    return f"{label} {dict(sources())[source].lower()}" if len(kinds) > 1 else label
+
+
 def voter_labels():
-    """Every voter by key: three group votes, the two single agents of the overall vote and
-    the dollar agent, which votes only in the strong signal."""
+    """Every voter by key: the group votes and the agents that vote on their own (for Bitcoin
+    also the dollar agent, which votes only in the strong signal)."""
     labels = {source: f"{label} vote" for source, label in sources()}
-    return {**labels, **{voter: AgentName(agent).label for voter, (_, agent) in {**SOLO, **STRONG_ONLY}.items()}}
+    singles = decision_rule.current().singles
+    return {**labels, **{voter: single_label(source, agent) for voter, (source, agent) in singles.items()}}
+
+
 # The periods each part was chosen on, so the pages can say which numbers are a fair test.
-PERIODS = [
-    ("2019-2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31),
-     "The vote was chosen here. New to the rules."),
-    ("Jan 2025 - Sep 2026", datetime.date(2025, 1, 1), datetime.date(2026, 9, 30),
-     "The rules were chosen here. New to the vote."),
-    ("Oct 2026 on", datetime.date(2026, 10, 1), None, "New to everything: the only clean test."),
-]
+PERIODS = {
+    "btc": [
+        ("2019-2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31),
+         "The vote was chosen here. New to the rules."),
+        ("Jan 2025 - Sep 2026", datetime.date(2025, 1, 1), datetime.date(2026, 9, 30),
+         "The rules were chosen here. New to the vote."),
+        ("Oct 2026 on", datetime.date(2026, 10, 1), None, "New to everything: the only clean test."),
+    ],
+    "gold": [
+        ("2010-2019", datetime.date(2010, 1, 1), datetime.date(2019, 12, 31),
+         "The rules were found here (on 2005-2019), and the vote chosen on 2010-2023."),
+        ("2020-2023", datetime.date(2020, 1, 1), datetime.date(2023, 12, 31),
+         "The vote was chosen here. New to the rules."),
+        ("2024 on", datetime.date(2024, 1, 1), None, "New to everything: the only clean test."),
+    ],
+}
 
 
 @dataclass
@@ -72,12 +103,16 @@ class Column:
 
 
 def columns():
-    result = [Column(f"{agent.value}:{source}", agent.value, agent.label, source, label)
-              for agent in AgentName for source, label in sources() if has(agent.value, source)]
-    result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()]
+    config = decision_rule.current()
+    result = [Column(f"{agent}:{source}", agent, AgentName(agent).label, source, label)
+              for agent in domains.agents() for source, label in sources() if has(agent, source)]
+    # Only the group votes that count in the overall vote (gold's rule agents vote one by one).
+    result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()
+               if source in config.groups_voting]
     result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
-    result.append(Column(STRONG, "vote", "Vote", "strong", f"Strong ({STRONG_NEEDED} of 5)"))
-    result.append(Column(STRONG_DOLLAR, "vote", "Vote", "strong_dollar", "Strong + dollar"))
+    result.append(Column(STRONG, "vote", "Vote", "strong", f"Strong ({config.strong_needed} of {len(config.round_2)})"))
+    if config.strong_net is not None:
+        result.append(Column(STRONG_DOLLAR, "vote", "Vote", "strong_dollar", "Strong + dollar"))
     return result
 
 
@@ -132,13 +167,15 @@ def voter_list(calls):
 
 
 def overall_note(groups):
-    five = round_2(groups)
-    buys, sells = list(five.values()).count("buy"), list(five.values()).count("sell")
-    return f"{voter_list(five)} ({buys} Buy, {sells} Sell; {OVERALL_NEEDED} needed)"
+    voted = round_2(groups)
+    buys, sells = list(voted.values()).count("buy"), list(voted.values()).count("sell")
+    return f"{voter_list(voted)} ({buys} Buy, {sells} Sell; {decision_rule.current().overall_needed} needed)"
 
 
 def strong_note(groups):
-    return f"{voter_list(groups)} (Buy minus Sell {strong_net(groups):+d}; {STRONG_NET} needed either way)"
+    config = decision_rule.current()
+    listed = {voter: groups.get(voter, "none") for voter in config.strong_voters}
+    return f"{voter_list(listed)} (Buy minus Sell {strong_net(groups):+d}; {config.strong_net} needed either way)"
 
 
 def opus_history(start, end):
@@ -153,7 +190,7 @@ def day_calls(scores, opus_runs, rule, forward_return):
     """scores: {"rules": {agent: score}, "ml": {...}} for one day."""
     calls = {}
     opus_scores = {}
-    for agent in AgentName.values:
+    for agent in domains.agents():
         calls[f"{agent}:rules"] = score_call(scores["rules"].get(agent), forward_return)
         calls[f"{agent}:ml"] = score_call(scores["ml"].get(agent), forward_return)
         run = opus_runs.get(agent)
@@ -162,11 +199,13 @@ def day_calls(scores, opus_runs, rule, forward_return):
         calls[f"{agent}:opus"] = score_call(opus_scores[agent], forward_return, note)
     by_source = {**scores, "opus": opus_scores}
     groups, overall = decide(by_source, rule)
-    for source in GROUPS:
+    config = decision_rule.current()
+    for source in config.groups_voting:
         calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(voters(source, by_source[source])))
     calls["vote"] = vote_cell(overall, forward_return, overall_note(groups))
     calls[STRONG] = vote_cell(strong_call(groups), forward_return, overall_note(groups))
-    calls[STRONG_DOLLAR] = vote_cell(strong_dollar_call(groups), forward_return, strong_note(groups))
+    if config.strong_net is not None:
+        calls[STRONG_DOLLAR] = vote_cell(strong_dollar_call(groups), forward_return, strong_note(groups))
     return calls
 
 
@@ -185,10 +224,10 @@ def summarize(rows, keys):
 
 def build_rows(start, end, horizon):
     """One row per day (oldest first) with every column's call and the price move."""
-    days = [start + datetime.timedelta(days=i) for i in range((end - start).days + 1)]
-    closes = price_repository.closes(start, end + datetime.timedelta(days=horizon))
-    days = [day for day in days if day in closes]
-    returns = forward_returns(days, closes, horizon)
+    closes = price_repository.closes(start, end + datetime.timedelta(days=horizon + wait()))
+    # Only days the market traded (gold has no weekends).
+    days = [day for day in sorted(closes) if day <= end]
+    returns = forward_returns(days, closes, horizon, wait())
     rules, ml = score_store.scores(days)
     opus = opus_history(start, end)
     rule = combining_service.current_rule()
@@ -212,8 +251,8 @@ def month_bounds(month):
 
 
 def months(last):
-    """Every month from START to the month of `last`, oldest first."""
-    result, month = [], START
+    """Every month from the asset's first day to the month of `last`, oldest first."""
+    result, month = [], start()
     while month <= last:
         result.append(month)
         month = (month + datetime.timedelta(days=32)).replace(day=1)
@@ -242,9 +281,9 @@ def month_table(month=None, horizon=DEFAULT_HORIZON):
 
 
 def base_rate(horizon, last):
-    """How often the price was higher after `horizon` days since START: the bar to beat."""
-    closes = price_repository.closes(START, last)
-    moves = [move for move in forward_returns(sorted(closes), closes, horizon).values() if move]
+    """How often the price was higher after `horizon` days since the first day shown: the bar to beat."""
+    closes = price_repository.closes(start(), last)
+    moves = [move for move in forward_returns(sorted(closes), closes, horizon, wait()).values() if move]
     return sum(move > 0 for move in moves) / len(moves) * 100 if moves else None
 
 
@@ -254,11 +293,11 @@ def month_change(rows):
 
 
 def overview(horizon=DEFAULT_HORIZON):
-    """Hit rates per month and per period for every column, from START to the last price."""
+    """Hit rates per month and per period for every column, from the first day shown to the last price."""
     last = price_repository.latest_close_date()
     if last is None:
         return {"months": [], "periods": [], "columns": columns()}
-    rows, rule = build_rows(START, last, horizon)
+    rows, rule = build_rows(start(), last, horizon)
     keys = [column.key for column in columns()]
     by_month = {}
     for row in rows:
@@ -266,8 +305,8 @@ def overview(horizon=DEFAULT_HORIZON):
     month_rows = [{"month": month, "summary": summarize(group, keys), "price_change_pct": month_change(group)}
                   for month, group in sorted(by_month.items(), reverse=True)]
     periods = []
-    for name, start, end, note in PERIODS:
-        group = [row for row in rows if start <= row["date"] and (end is None or row["date"] <= end)]
+    for name, first, end, note in PERIODS[assets.current().key]:
+        group = [row for row in rows if first <= row["date"] and (end is None or row["date"] <= end)]
         if group:
             periods.append({"name": name, "note": note, "summary": summarize(group, keys), "days": len(group)})
     return {"months": month_rows, "periods": periods, "columns": columns(), "rule": rule,

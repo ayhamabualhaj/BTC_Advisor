@@ -5,7 +5,8 @@ derivatives, macro) each have three independent agents: rules (code), ML (walk-f
 logistic regression, random forest for macro) and Opus 5.5 (judgment). A fourth domain,
 financial stress, has only an ML agent (see "Financial stress domain"); a fifth, the risk-on
 day, only a rules agent (see "Risk-on day domain"); a sixth, the dollar, only an ML agent that
-votes only in the second strong signal (see "Strong signal with the dollar agent"). The system only advises; Ayham places trades manually. Full plan:
+votes only in the second strong signal (see "Strong signal with the dollar agent"). Gold is a
+second market beside Bitcoin with its own agents, vote and pages (see "Gold"). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -34,7 +35,8 @@ votes only in the second strong signal (see "Strong signal with the dollar agent
 
 ## Layout
 - `config/` — settings, urls.
-- `apps/data/` — MarketData (long date/source/field/value table), collectors, indicators.
+- `apps/data/` — MarketData (long date/source/field/value table), collectors, indicators,
+  `assets.py` (the markets: Bitcoin and gold).
 - `ai/` — the agents and the CrewAI Flow (no Django models, no database access).
 - `apps/agents/` — AgentRun (rule_score, ml_score, opus_score), PromptVersion (text locked
   once saved), MemoryCase; services that build Briefs, run the Flow and save the runs.
@@ -630,6 +632,64 @@ votes only in the second strong signal (see "Strong signal with the dollar agent
   `#macro` links work); per agent both models' hit rate, Brier, cost, agreement, a score
   chart and every day's two calls side by side. `?horizon=1|3|7`, `?model=` if several.
 
+## Gold (Nov 11 2026)
+- A second market, on the user's request ("make it like btc or gold and then I enter their
+  pages"). `/` is a chooser; every page lives under `/btc/...` or `/gold/...` (`for_asset` in
+  page_views; old un-prefixed URLs are gone). The API takes `?asset=gold`. The Models page is
+  Bitcoin only.
+- `apps/data/assets.py`: `Asset` (price source and prefix, agents, `outcome_wait_days`,
+  `signals_start`, `test_start`), `ASSETS`, and the current market as a contextvar: `current()`,
+  `use(key)`, `of_agent(agent)`. Bitcoin is the default, so code outside `use("gold")` behaves as
+  before. Services read the current asset; views and commands set it (`AssetCommand` adds
+  `--asset` to build_memory, build_scores, run_agents, score_rules; `daily_run` runs both
+  markets unless `--asset`, skips gold on days its market was closed, and one market failing
+  does not stop the other).
+- Gold's agents are separate agent names (`gold_technical`, `gold_macro`, `gold_stress`,
+  `gold_dollar`, packages `ai/gold_*/`), so AgentRun, DailyScore, MemoryCase and PromptVersion
+  never mix. `Decision.asset` / `Outcome.asset` (unique per date and asset). BacktestRun names
+  get a `gold:` prefix (`Asset.named`). Kinds: technical rules + ML + LLM, macro ML + LLM,
+  stress rules + ML, dollar rules + ML. No derivatives or risk-on domain.
+- Data: Yahoo gold futures `GC=F` as `gold_open/high/low/close/volume` (one candle per session),
+  FRED `DGS10` (`treasury_10y`) and `DFII10` (`real_yield_10y`), all from 2004. Gold trades
+  weekdays, so "7 days later" = the first close on or after D+7, at most 4 days later
+  (`calibration.later_close(..., wait)`); the ML cutoff and memory retrieval wait those 4 days
+  more (`ai/gold.py`, `memory_service.outcome_known_cutoff`); a Friday's 1-day return runs to Monday.
+- Yahoo dating bug found and fixed: the chart API's `gmtoffset` is today's offset, and the dollar
+  index and gold are stamped at midnight New York, so rows collected in winter dated summer
+  sessions a day early. `session_days` now uses the exchange's time zone (zoneinfo). All yahoo
+  `dxy_close` rows were re-collected; Bitcoin's scores were identical except 11 days in late Oct
+  2026 (macro ML 3, dollar ML 8, at most 4 points) and no record changed.
+- Research (scratchpad scripts), bar written first: learn 2005-2019, choose 2020-2023, test once
+  on 2024 - Nov 2026. A pattern is kept by the v3 bar (same direction against each 5-year
+  block's own base rate, >= 30 days each, >= 4 points overall). Gold was up after 7 days on
+  54.9% of days in 2005-19, 54.9% in 2020-23, 60.2% in 2024-26 (2025 67.9%, 2026 49.0%).
+- Kept, all Buys (each is a rule worth 10 points -> score 60): RSI(14) <= 42 (+4.8 pts), VIX >=
+  22.7 (+4.8), gold's 20-day move behind the dollar's by >= 3.8 points (+4.0). Nothing pointing
+  down passed, and no macro pattern (real yields, 10-year, dollar, CPI, Fed), so gold never Sells
+  and `gold_macro` has no rules. ML (technical logistic at C 0.003-0.3, forests; macro forest on
+  15 numbers; stress and dollar logistic C 0.1): all near the base rate, no edge; scored and
+  shown, they do not vote.
+- Vote (`decision_rule.GOLD`, a `Vote` config per asset; `BITCOIN` is unchanged): the three rule
+  agents vote one by one, Buy when 2 of 3 agree, strong when 3 of 3; no "Strong + dollar". Chosen
+  among 16 ways on 2010-2023 (edge +6.5 over always buying). The LLM does not vote: it has no
+  history to judge it on.
+- In the project (stored scores): vote 58.5% of 402 calls in 2010-19 (base 53.3), 63.8% of 196 in
+  2020-23 (54.9), 59.7% of 77 in 2024 - Nov 2026 (60.2): no edge on the test. As trades (days in
+  a row = one, judged on the first): 45 of 78, 23 of 40, 4 of 14. Strong: 16 of 23, 49 of 85, 6
+  of 8 calls. Rules alone 2024-26: technical 59.3% of 81, stress 65.7% of 67, dollar 56.9% of 123.
+  2020-23 was used to choose the vote, so only 2024 on is clean, and there the vote did no better
+  than holding gold. Profit page, 2024 on: holding +94%, no agent or vote beat it.
+- Prompts: `ai/gold_technical/prompt.md`, `ai/gold_macro/prompt.md` with
+  `ai/gold_output_instructions.md` (base rate 55%, patterns from 2005-2019; the asset stays
+  unnamed). Bitcoin's prompt text is unchanged, so no new Bitcoin PromptVersion. No gold LLM
+  backtest was run; live LLM calls start with the first daily run or button press with a key.
+- Scores: the fingerprint is per asset (shared files + the asset's own `ai/<agent>/` files), so
+  editing gold code needs `build_scores --asset gold` (~9 min from 2010) and Bitcoin's stay.
+  Memory: `build_memory --asset gold --start 2005-01-03` (5,490 cases per agent).
+- Pages take labels, voters, periods and presets from the asset (`signal_service`,
+  `report_service`, `profit_service.ASSET_PRESETS`); templates pass `asset.key` in every url tag;
+  context processor `market` gives `asset` and `assets`. Tests: `tests/test_gold.py`.
+
 ## Progress
 - [x] 1. Project setup
 - [x] 2. Database models
@@ -647,5 +707,5 @@ votes only in the second strong signal (see "Strong signal with the dollar agent
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, dollar ML agent (6th domain) and a second strong signal "Strong + dollar" shown beside "Strong (4 of 5)", risk-on day rules agent (5th domain), overall vote 3 of 5
+**Current step:** done through 14, gold as a second market (own agents, 2-of-3 rules vote, pages under /gold/, chooser at /), dollar ML agent (6th domain) and a second strong signal "Strong + dollar" shown beside "Strong (4 of 5)", risk-on day rules agent (5th domain), overall vote 3 of 5
 (Rules, ML, LLM votes, stress, risk-on day), financial stress ML agent (4th domain), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

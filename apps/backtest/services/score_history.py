@@ -2,8 +2,9 @@
 
 from django.conf import settings
 
+from ai import domains
 from ai.domains import DOMAINS, with_kind
-from apps.agents.models import AgentName, AgentRun
+from apps.agents.models import AgentRun
 from apps.agents.services import agent_service, memory_service, rule_scoring_service
 from apps.backtest.services import opus_backtest_service
 
@@ -27,7 +28,8 @@ def rule_and_ml_scores(days, on_progress=None):
     rules, ml = {}, {}
     for day in days:
         rules[day], ml[day] = {}, {}
-        for agent, domain in DOMAINS.items():
+        for agent in domains.agents():
+            domain = DOMAINS[agent]
             brief = agent_service.make_brief(agent, day, cases.get(agent))
             if domain.rules:
                 rules[day][agent] = domain.rules.score(brief.snapshot).score
@@ -65,4 +67,4 @@ def scores(score_type, days):
         return score_store.scores(days)[0]
     if score_type == "ml":
         return ml_scores(days)
-    return opus_scores(days, opus_backtest_service.prompt_versions(AgentName.values))  # LLM agents only
+    return opus_scores(days, opus_backtest_service.prompt_versions(domains.agents()))  # LLM agents only

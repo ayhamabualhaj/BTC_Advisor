@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}BTC Advisor{% endblock %}</title>
+  <title>{% block title %}Advisor{% endblock %}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121211'/%3E%3Cpath d='M6 22l7-8 5 4 8-10' fill='none' stroke='%235cc98a' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   {# The chosen theme is set before the first paint, so a dark page never flashes white. #}
   <script>try { const theme = localStorage.getItem("theme"); if (theme === "light" || theme === "dark") document.documentElement.setAttribute("data-theme", theme); } catch (error) { /* private window */ }</script>
@@ -12,25 +12,31 @@
 <body>
   <a class="skip-link" href="#main">Skip to the page</a>
   <header class="topbar">
-    <a class="brand" href="{% url 'today' %}">BTC Advisor</a>
+    <a class="brand" href="{% url 'home' %}" title="Choose a market">Advisor</a>
     {% with page=request.resolver_match.url_name %}
+    {% if not chooser %}
+    {# The market switch keeps the page you are on (an agent page goes to the other market's first agent). #}
+    <div class="asset-switch" role="group" aria-label="Market">
+      {% for other in assets %}<a href="{% if page == 'agent_detail' or page == 'advise' %}{% url 'today' other.key %}{% else %}{% url page other.key %}{% endif %}"{% if other.key == asset.key %} aria-current="true"{% endif %}>{{ other.label }}</a>{% endfor %}
+    </div>
     <nav aria-label="Pages">
-      <a href="{% url 'today' %}"{% if page == "today" or page == "advise" %} aria-current="page"{% endif %}>Today</a>
-      <a href="{% url 'agents' %}"{% if page == "agent_detail" %} aria-current="page"{% endif %}>Agents</a>
-      <a href="{% url 'signals' %}"{% if page == "signals" or page == "signals_overview" %} aria-current="page"{% endif %}>Signals</a>
-      <a href="{% url 'profit' %}"{% if page == "profit" %} aria-current="page"{% endif %}>Profit</a>
-      <a href="{% url 'models' %}"{% if page == "models" %} aria-current="page"{% endif %}>Models</a>
-      <a href="{% url 'backtests' %}"{% if page == "backtests" %} aria-current="page"{% endif %}>Backtests</a>
-      <a href="{% url 'costs' %}"{% if page == "costs" %} aria-current="page"{% endif %}>Costs</a>
-      <a href="{% url 'prompts' %}"{% if page == "prompts" %} aria-current="page"{% endif %}>Prompts</a>
+      <a href="{% url 'today' asset.key %}"{% if page == "today" or page == "advise" %} aria-current="page"{% endif %}>Today</a>
+      <a href="{% url 'agents' asset.key %}"{% if page == "agent_detail" %} aria-current="page"{% endif %}>Agents</a>
+      <a href="{% url 'signals' asset.key %}"{% if page == "signals" or page == "signals_overview" %} aria-current="page"{% endif %}>Signals</a>
+      <a href="{% url 'profit' asset.key %}"{% if page == "profit" %} aria-current="page"{% endif %}>Profit</a>
+      {% if asset.key == "btc" %}<a href="{% url 'models' asset.key %}"{% if page == "models" %} aria-current="page"{% endif %}>Models</a>{% endif %}
+      <a href="{% url 'backtests' asset.key %}"{% if page == "backtests" %} aria-current="page"{% endif %}>Backtests</a>
+      <a href="{% url 'costs' asset.key %}"{% if page == "costs" %} aria-current="page"{% endif %}>Costs</a>
+      <a href="{% url 'prompts' asset.key %}"{% if page == "prompts" %} aria-current="page"{% endif %}>Prompts</a>
     </nav>
+    {% endif %}
     {% endwith %}
     <button type="button" class="theme-toggle" data-theme-toggle title="Switch between light, dark and your system's setting">Theme: Auto</button>
   </header>
   <main id="main" class="{% block main_class %}{% endblock %}">
     {% block content %}{% endblock %}
   </main>
-  <footer>Advice only. The system never places trades.{% if prices_to %} Prices up to {{ prices_to }} (daily close, 00:00 UTC).{% endif %}</footer>
+  <footer>Advice only. The system never places trades.{% if prices_to and not chooser %} {{ asset.label }} prices up to {{ prices_to }}{% if asset.every_day %} (daily close, 00:00 UTC){% else %} (last session's close){% endif %}.{% endif %}</footer>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="{% versioned_static 'js/charts.js' %}"></script>
   {% block scripts %}{% endblock %}

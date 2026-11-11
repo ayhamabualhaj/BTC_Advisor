@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load dashboard_format %}
-{% block title %}Today · BTC Advisor{% endblock %}
+{% block title %}Today · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
-<form method="post" action="{% url 'advise' %}" class="advise" onsubmit="this.querySelector('button').disabled = true; this.querySelector('.advise-wait').hidden = false;">
+<form method="post" action="{% url 'advise' asset.key %}" class="advise" onsubmit="this.querySelector('button').disabled = true; this.querySelector('.advise-wait').hidden = false;">
   {% csrf_token %}
   <button type="submit">What should I do today?</button>
   <span class="muted small advise-wait" hidden>Collecting data and asking the agents, this can take a minute…</span>
@@ -14,13 +14,13 @@
       <div class="muted">{{ advice.error }}</div>
     {% elif advice.call == "buy" %}
       <div class="advice-label">BUY{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
-      <div>{{ breakdown.buy }} of the 5 voters say Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
+      <div>{{ breakdown.buy }} of the {{ breakdown.count }} voters say Buy for the day that closed on {{ advice.date }}. {% if asset.every_day %}Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.{% else %}Buy now and sell at the next session's close, unless that day says Buy again.{% endif %}</div>
     {% elif advice.call == "sell" %}
       <div class="advice-label">SELL{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
-      <div>{{ breakdown.sell }} of the 5 voters say Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
+      <div>{{ breakdown.sell }} of the {{ breakdown.count }} voters say Sell for the day that closed on {{ advice.date }}. If you hold {{ asset.label|lower_unless_name }}, sell; if not, stay out.</div>
     {% else %}
       <div class="advice-label">HOLD: no clear call</div>
-      <div>Fewer than 3 of the 5 voters agree for the day that closed on {{ advice.date }}. Do nothing: keep what you have, open nothing new.</div>
+      <div>Fewer than {{ breakdown.needed }} of the {{ breakdown.count }} voters agree for the day that closed on {{ advice.date }}. Do nothing: keep what you have, open nothing new.</div>
     {% endif %}
     {% if advice.decision %}<div class="muted small">Advice only: you place the trade yourself.</div>{% endif %}
   </section>
@@ -28,18 +28,18 @@
 
 <h1>Daily decision{% if date %} <span class="muted">for {{ date }}</span>{% endif %}</h1>
 {% if not date %}
-  <p class="empty">No agent runs yet. Run <code>python manage.py daily_run</code>.</p>
+  <p class="empty">No agent runs for {{ asset.label|lower_unless_name }} yet. Press the button above, or run <code>python manage.py daily_run</code>.</p>
 {% else %}
   {% if days_behind > 1 %}
   <p class="notice" role="status"><strong>This is not today's advice.</strong> It is the decision for {{ date }}, {{ days_behind }} days ago{% if price and price.date > date %}; prices are in up to {{ price.date }}, but the agents have not run since{% endif %}.
-    Press the button above to collect the data and run yesterday (free without an API key; with one, about $0.002 per day run).</p>
+    Press the button above to collect the data and run {% if asset.every_day %}yesterday{% else %}the last session{% endif %} (free without an API key; with one, about $0.002 per day run).</p>
   {% endif %}
   <div class="today-top">
   <section class="signal {% if call == 'buy' or not call and decision.signal == 'buy' %}signal-buy{% elif call == 'sell' %}signal-sell{% else %}signal-none{% endif %}">
     {% if decision %}
       <div class="signal-label">{% if call == "buy" %}Buy{% elif call == "sell" %}Sell{% elif call %}Hold{% else %}{{ decision.get_signal_display }}{% endif %}{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
-      {% if breakdown %}<div>{% if call == "buy" %}{{ breakdown.buy }} of the 5 voters say Buy.{% elif call == "sell" %}{{ breakdown.sell }} of the 5 voters say Sell: hold no Bitcoin.{% else %}Fewer than {{ breakdown.needed }} of the 5 voters agree: no call.{% endif %}
-        {% if strong %}Strong signal: {{ record.strong_needed|default:4 }} or more of the 5 agree.{% endif %}
+      {% if breakdown %}<div>{% if call == "buy" %}{{ breakdown.buy }} of the {{ breakdown.count }} voters say Buy.{% elif call == "sell" %}{{ breakdown.sell }} of the {{ breakdown.count }} voters say Sell: hold no {{ asset.label|lower_unless_name }}.{% else %}Fewer than {{ breakdown.needed }} of the {{ breakdown.count }} voters agree: no call.{% endif %}
+        {% if strong %}Strong signal: {% if strong_needed == breakdown.count %}all {{ breakdown.count }} agree{% else %}{{ strong_needed }} or more of the {{ breakdown.count }} agree{% endif %}.{% endif %}
         {% if strong_dollar %}Strong + dollar: with the Dollar agent counted, {% if call == "buy" %}Buy votes lead Sell votes{% else %}Sell votes lead Buy votes{% endif %} by {{ breakdown.strong_net_needed }} or more.{% endif %}</div>{% endif %}
       <div class="muted small">{% if decision.rule %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
@@ -49,7 +49,7 @@
   </section>
   {% if price %}
   <section class="signal price">
-    <div class="tile-label">Bitcoin close · {{ price.date }}</div>
+    <div class="tile-label">{{ asset.label }} close · {{ price.date }}</div>
     <div class="signal-label">${{ price.close|floatformat:"0g" }}</div>
     <div class="small">
       {% if price.change_1d_pct is not None %}1 day <strong class="{% if price.change_1d_pct > 0 %}up{% elif price.change_1d_pct < 0 %}down{% endif %}">{{ price.change_1d_pct|signed }}%</strong>{% endif %}
@@ -62,14 +62,15 @@
   {% if breakdown %}
   <section class="panel votes">
     <h2>Who voted{% if advice.decision %} <span class="muted">for {{ advice.date }}</span>{% endif %}</h2>
-    <p class="muted small">{{ breakdown.needed }} of 5 must agree. {{ breakdown.buy }} Buy · {{ breakdown.sell }} Sell · {{ breakdown.hold }} Hold · {{ breakdown.missing }} did not vote.
-      Strong + dollar: Buy minus Sell over all six is {{ breakdown.strong_net|stringformat:"+d" }}; it takes {{ breakdown.strong_net_needed }} either way.</p>
+    <p class="muted small">{{ breakdown.needed }} of {{ breakdown.count }} must agree. {{ breakdown.buy }} Buy · {{ breakdown.sell }} Sell · {{ breakdown.hold }} Hold · {{ breakdown.missing }} did not vote.
+      {% if breakdown.strong_net_needed %}Strong + dollar: Buy minus Sell over all six is {{ breakdown.strong_net|stringformat:"+d" }}; it takes {{ breakdown.strong_net_needed }} either way.{% endif %}
+      {% if asset.key == "gold" %}Gold's voters only ever say Buy or Hold: no pattern that pointed down passed the test.{% endif %}</p>
     <table class="data vote-table">
       <thead><tr><th>Voter</th><th>Vote</th><th>Agents behind it</th></tr></thead>
       <tbody>
       {% for voter in breakdown.voters %}
         <tr>
-          <td>{{ voter.label }}{% if voter.strong_only %}<span class="small muted block">votes only in Strong + dollar</span>{% endif %}</td>
+          <td>{{ voter.label }}{% if voter.strong_only %}<span class="small muted block">votes only in Strong + dollar</span>{% endif %}{% if voter.shown_only %}<span class="small muted block">shown only, does not vote</span>{% endif %}</td>
           <td>{% if voter.call == "none" %}<span class="muted">Did not vote</span>{% else %}<span class="vote-call vote-{{ voter.call }}">{% if voter.call == "buy" %}▲ {% elif voter.call == "sell" %}▼ {% endif %}{{ voter.call|capfirst }}</span>{% endif %}</td>
           <td class="small">
             {% for agent in voter.agents %}
@@ -86,8 +87,8 @@
 
   {% if record.chart.labels %}
   <section class="panel">
-    <h2>Bitcoin and the vote <span class="muted">last {{ record.chart.labels|length }} days · ▲ the vote said Buy · ▼ it said Sell</span></h2>
-    <div class="chart-box"><canvas id="price-chart" role="img" aria-label="Bitcoin close with the overall vote's Buy and Sell days"></canvas></div>
+    <h2>{{ asset.label }} and the vote <span class="muted">last {{ record.chart.labels|length }} days · ▲ the vote said Buy · ▼ it said Sell</span></h2>
+    <div class="chart-box"><canvas id="price-chart" role="img" aria-label="{{ asset.label }} close with the overall vote's Buy and Sell days"></canvas></div>
     {{ record.chart|json_script:"price-chart-data" }}
   </section>
   {% endif %}
@@ -97,23 +98,25 @@
     <h2>How its calls turned out <span class="muted">since {{ record.since|date:"M Y" }}, judged after 7 days</span></h2>
     <div class="tiles">
       <div>
-        <div class="tile-label">Overall vote ({{ record.needed }} of 5)</div>
+        <div class="tile-label">Overall vote ({{ record.needed }} of {{ record.voters }})</div>
         <div class="score">{% if record.vote.trades %}{{ record.vote.right }} <span class="muted">of {{ record.vote.trades }}</span>{% else %}–{% endif %}</div>
         <div class="small muted">trades right{% if record.vote.hit_rate is not None %} · {{ record.vote.hit_rate|floatformat:0 }}%{% endif %}</div>
       </div>
       <div>
-        <div class="tile-label">Strong signal ({{ record.strong_needed }} of 5)</div>
+        <div class="tile-label">Strong signal ({{ record.strong_needed }} of {{ record.voters }})</div>
         <div class="score">{% if record.strong.trades %}{{ record.strong.right }} <span class="muted">of {{ record.strong.trades }}</span>{% else %}–{% endif %}</div>
         <div class="small muted">trades right{% if record.strong.hit_rate is not None %} · {{ record.strong.hit_rate|floatformat:0 }}%{% endif %}{% if not record.strong.enough %} · too few to prove{% endif %}</div>
       </div>
+      {% if record.strong_dollar %}
       <div>
         <div class="tile-label">Strong + dollar (lead of {{ record.strong_net }} among 6)</div>
         <div class="score">{% if record.strong_dollar.trades %}{{ record.strong_dollar.right }} <span class="muted">of {{ record.strong_dollar.trades }}</span>{% else %}–{% endif %}</div>
         <div class="small muted">trades right{% if record.strong_dollar.hit_rate is not None %} · {{ record.strong_dollar.hit_rate|floatformat:0 }}%{% endif %}{% if not record.strong_dollar.enough %} · too few to prove{% endif %}</div>
       </div>
+      {% endif %}
     </div>
     <table class="data">
-      <thead><tr><th>First day</th><th>Call</th><th class="num">Days</th><th>Strong</th><th class="num">Bitcoin after 7 days</th><th>Result</th></tr></thead>
+      <thead><tr><th>First day</th><th>Call</th><th class="num">Days</th><th>Strong</th><th class="num">{{ asset.label }} after 7 days</th><th>Result</th></tr></thead>
       <tbody>
       {% for trade in record.vote.recent %}
         <tr>
@@ -130,8 +133,11 @@
       </tbody>
     </table>
     <p class="small muted">The last {{ record.vote.recent|length }} trades of the overall vote, newest first. A trade is one or more days in a row with the same call,
-      judged on its first day by where Bitcoin closed 7 days later; before fees. The rules were tuned on Jan 2025 – Sep 2026, which flatters this record;
-      on 2019–2024 the vote was right about 57% of the time. Every call: <a href="{% url 'signals' %}">Signals</a>; in money: <a href="{% url 'profit' %}">Profit</a>.</p>
+      judged on its first day by where {{ asset.label|lower_unless_name }} closed 7 days later; before fees.
+      {% if asset.key == "gold" %}This period was never used to build gold's rules or vote, so it is a clean test, and in it the vote did no better than
+      simply holding gold, which rose in about 60% of weeks. On 2010–2023 the vote was right about 60% of the time against 54% for always buying.
+      {% else %}The rules were tuned on Jan 2025 – Sep 2026, which flatters this record;
+      on 2019–2024 the vote was right about 57% of the time.{% endif %} Every call: <a href="{% url 'signals' asset.key %}">Signals</a>; in money: <a href="{% url 'profit' asset.key %}">Profit</a>.</p>
   </section>
   {% endif %}
 
@@ -139,7 +145,7 @@
   <div class="cards">
     {% for card in cards %}
     <article class="card">
-      <h2><span class="dot dot-{{ card.agent }}"></span><a href="{% url 'agent_detail' card.agent %}">{{ card.label }}</a></h2>
+      <h2><span class="dot dot-{{ card.agent|domain }}"></span><a href="{% url 'agent_detail' asset.key card.agent %}">{{ card.label }}</a></h2>
       {% with run=card.run %}
       {% if run %}
         <div class="tiles">
@@ -170,4 +176,4 @@
   </div>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script>if (document.getElementById("price-chart-data")) priceChart("price-chart", JSON.parse(document.getElementById("price-chart-data").textContent));</script>{% endblock %}
+{% block scripts %}<script>if (document.getElementById("price-chart-data")) priceChart("price-chart", JSON.parse(document.getElementById("price-chart-data").textContent), "{{ asset.label }}");</script>{% endblock %}

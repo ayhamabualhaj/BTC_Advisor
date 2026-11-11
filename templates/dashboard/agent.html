@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load dashboard_format %}
-{% block title %}{{ label }} · BTC Advisor{% endblock %}
+{% block title %}{{ label }} · {{ asset.label }} · Advisor{% endblock %}
 {% block content %}
 <nav class="tabs" aria-label="Agents">
   {% for key, name in tabs %}
-  <a class="tab" href="{% url 'agent_detail' key %}{% if is_backtest %}?backtest=1{% endif %}"{% if key == agent %} aria-selected="true" aria-current="page"{% endif %}><span class="dot dot-{{ key }}"></span> {{ name }}</a>
+  <a class="tab" href="{% url 'agent_detail' asset.key key %}{% if is_backtest %}?backtest=1{% endif %}"{% if key == agent %} aria-selected="true" aria-current="page"{% endif %}><span class="dot dot-{{ key|domain }}"></span> {{ name }}</a>
   {% endfor %}
 </nav>
 <h1>{{ label }} agent</h1>
@@ -75,7 +75,7 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="small muted">From the stored scores of every day, not only the runs listed here. Month by month: <a href="{% url 'signals_overview' %}">Signals, all months</a>.</p>
+    <p class="small muted">From the stored scores of every day, not only the runs listed here. Month by month: <a href="{% url 'signals_overview' asset.key %}">Signals, all months</a>.</p>
   </section>
   {% endif %}
 

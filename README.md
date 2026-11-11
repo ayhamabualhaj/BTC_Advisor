@@ -1,6 +1,10 @@
 # BTC Advisor
 
-A local multi-agent tool that advises on daily Bitcoin trades. Three domains (technical
+A local multi-agent tool that advises on daily Bitcoin trades, and since November 2026 on
+gold as well (see "Gold" below). The first page asks which market; each then has its own
+pages under `/btc/` and `/gold/`.
+
+The Bitcoin system: Three domains (technical
 analysis, derivatives, macro) each have three independent agents, run together by a CrewAI
 Flow. A fourth domain, financial stress (VIX, MOVE, NFCI), has only an ML agent; a fifth,
 the risk-on day (Bitcoin and the Nasdaq both up today -> Sell for tomorrow), only a rules
@@ -20,6 +24,25 @@ vote and change no call: "Strong" when 4 of the 5 agree, and "Strong + dollar" w
 five plus a sixth domain that votes nowhere else (the dollar: an ML agent on the dollar index's
 moves), Buy votes lead Sell votes by 4 or more (or the reverse). Both are shown so new data
 can decide between them. The Today page shows who voted what. The system only advises; it never places trades.
+
+## Gold
+
+Gold has its own agents, learned and judged on gold (COMEX gold futures from Yahoo, daily
+since 2004; weekdays only, so "7 days later" is the first close on or after that day):
+
+- **technical** (rules, ML, LLM), **macro** (ML, LLM; adds the 10-year and real yields),
+  **financial stress** (rules, ML) and **dollar** (rules, ML). No derivatives agent (no free
+  history) and no risk-on day (a Bitcoin pattern).
+- The rules come from a screen on 2005-2019: only three patterns held in every five-year
+  block, all "buy the dip" (a low RSI, a high VIX, gold far behind the dollar). Nothing that
+  pointed down passed, so gold's vote never says Sell.
+- The vote, chosen on 2010-2023: Buy when 2 of those 3 rule agents agree. The ML agents
+  showed no edge on gold and the LLM has no history for it; both are shown but do not vote.
+- Honest result: on 2024-2026, the only period nothing was chosen on, the vote was right no
+  more often than simply holding gold. Treat it as unproven.
+
+Commands take `--asset gold` (`build_memory`, `build_scores`, `run_agents`, `score_rules`);
+`daily_run` runs both markets (gold only on days its market traded).
 
 The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 
@@ -69,7 +92,7 @@ python manage.py import_etf_flows data/imports/etf_flows.txt
 ## Daily use
 
 ```bash
-python manage.py daily_run               # collect, run agents for yesterday (UTC), decide
+python manage.py daily_run               # collect, run both markets' agents for yesterday (UTC), decide
 python manage.py runserver               # dashboard at http://127.0.0.1:8000/
 ```
 

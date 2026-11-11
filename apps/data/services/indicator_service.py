@@ -4,6 +4,9 @@ These snapshots are the `key_data` that the rule scores use and that Opus is sho
 A value is None when its data is missing; the scoring rules skip those criteria.
 """
 
+import datetime
+
+from apps.data import assets
 from apps.data.indicators import levels, macro, momentum, relative, trend
 from apps.data.repositories.market_data_repository import series
 
@@ -30,6 +33,17 @@ def values(source, field, date, limit, max_stale_days=MAX_STALE_DAYS):
     return [value for _, value in rows]
 
 
+def price_series(field, date, limit):
+    """The current asset's candle field (Bitcoin's from Binance, gold's from Yahoo) as (date, value) pairs."""
+    asset = assets.current()
+    return series(asset.price_source, asset.price_field(field), date, limit)
+
+
+def prices(field, date, limit):
+    asset = assets.current()
+    return values(asset.price_source, asset.price_field(field), date, limit)
+
+
 def rounded(value, digits=4):
     return round(value, digits) if isinstance(value, float) else value
 
@@ -49,9 +63,9 @@ def cpi_observations(date):
 
 
 def technical_snapshot(date):
-    closes = values("binance", "close", date, PRICE_HISTORY_DAYS)
-    highs = values("binance", "high", date, PRICE_HISTORY_DAYS)
-    lows = values("binance", "low", date, PRICE_HISTORY_DAYS)
+    closes = prices("close", date, PRICE_HISTORY_DAYS)
+    highs = prices("high", date, PRICE_HISTORY_DAYS)
+    lows = prices("low", date, PRICE_HISTORY_DAYS)
     if not closes:
         return {"close": None}
     close = closes[-1]
@@ -150,26 +164,89 @@ def dollar_snapshot(date):
     The index does not trade at weekends, so its last close stands until Monday; Bitcoin is
     compared with it on the index's own trading days.
     """
+    return against_dollar(date, "btc")
+
+
+def gold_dollar_snapshot(date):
+    """The same numbers for gold: the dollar's moves, and gold against it."""
+    return against_dollar(date, "gold")
+
+
+def against_dollar(date, name):
+    """`name` only names the two numbers that compare the asset with the dollar."""
+    minus, correlation = f"{name}_minus_dxy_20d_pct", f"{name}_dxy_correlation_60d"
     empty = {"dxy_change_5d_pct": None, "dxy_change_20d_pct": None, "dxy_change_60d_pct": None,
-             "dxy_vs_sma_50_pct": None, "btc_minus_dxy_20d_pct": None, "btc_dxy_correlation_60d": None}
+             "dxy_vs_sma_50_pct": None, minus: None, correlation: None}
     rows = series("yahoo", "dxy_close", date, DOLLAR_DAYS)
     if len(rows) < DOLLAR_DAYS or (date - rows[-1][0]).days > MAX_STALE_DAYS:
         return empty
     dxy = [value for _, value in rows]
-    # Enough calendar days of Bitcoin to cover the index's 61 trading days.
-    btc = dict(series("binance", "close", date, (date - rows[0][0]).days + 1))
-    btc_on_dxy_days = [btc.get(day) for day, _ in rows]
-    if date not in btc or any(close is None for close in btc_on_dxy_days):
+    # Enough calendar days of the asset to cover the index's 61 trading days.
+    asset = dict(price_series("close", date, (date - rows[0][0]).days + 1))
+    asset_on_dxy_days = [last_close(asset, day) for day, _ in rows]
+    if date not in asset or any(close is None for close in asset_on_dxy_days):
         return empty
     dxy_20d = trend.pct_change(dxy, 20)
-    btc_20d = (btc[date] / btc_on_dxy_days[-21] - 1) * 100
+    asset_20d = (asset[date] / asset_on_dxy_days[-21] - 1) * 100
     snapshot = {
         "dxy_change_5d_pct": trend.pct_change(dxy, 5),
         "dxy_change_20d_pct": dxy_20d,
         "dxy_change_60d_pct": trend.pct_change(dxy, 60),
         "dxy_vs_sma_50_pct": (dxy[-1] / trend.sma(dxy, 50) - 1) * 100,
-        "btc_minus_dxy_20d_pct": btc_20d - dxy_20d,
-        "btc_dxy_correlation_60d": relative.correlation(relative.returns(dxy), relative.returns(btc_on_dxy_days)),
+        minus: asset_20d - dxy_20d,
+        correlation: relative.correlation(relative.returns(dxy), relative.returns(asset_on_dxy_days)),
+    }
+    return {key: rounded(value) for key, value in snapshot.items()}
+
+
+def last_close(closes, day):
+    """The close on `day`, or the last one up to MAX_STALE_DAYS before it: gold and the dollar
+    index keep slightly different holidays. Bitcoin always has the day itself."""
+    for back in range(MAX_STALE_DAYS + 1):
+        close = closes.get(day - datetime.timedelta(days=back))
+        if close is not None:
+            return close
+    return None
+
+
+def gold_macro_snapshot(date):
+    """What moves gold: the dollar, yields (above all the real yield, what a bond pays after
+    inflation, which gold competes with), the Fed, inflation, and the stock market's mood."""
+    dxy = values("yahoo", "dxy_close", date, 30)
+    nasdaq = values("yahoo", "nasdaq_close", date, 60)
+    sp500 = values("yahoo", "sp500_close", date, 30)
+    target = values("fred", "fed_target_upper", date, 60)
+    fed_funds = values("fred", "fed_funds_effective", date, 5)
+    treasury_2y = values("fred", "treasury_2y", date, 30)
+    treasury_10y = values("fred", "treasury_10y", date, 30)
+    real_yield = values("fred", "real_yield_10y", date, 30)
+    cpi = cpi_observations(date)
+
+    def change(rows, sessions):
+        """In percentage points over that many trading days."""
+        return rows[-1] - rows[-1 - sessions] if len(rows) > sessions else None
+
+    snapshot = {
+        "dxy": dxy[-1] if dxy else None,
+        "dxy_change_2w_pct": trend.pct_change(dxy, 10),
+        "dxy_change_1m_pct": trend.pct_change(dxy, 20),
+        "nasdaq": nasdaq[-1] if nasdaq else None,
+        "nasdaq_sma_50": trend.sma(nasdaq, 50),
+        "nasdaq_change_5d_pct": trend.pct_change(nasdaq, 5),
+        "nasdaq_change_20d_pct": trend.pct_change(nasdaq, 20),
+        "sp500_change_20d_pct": trend.pct_change(sp500, 20),
+        "fed_target_upper": target[-1] if target else None,
+        "fed_rate_change_60d": macro.last_rate_change(target, 60) if target else None,
+        "treasury_2y": treasury_2y[-1] if treasury_2y else None,
+        "fed_funds_effective": fed_funds[-1] if fed_funds else None,
+        "treasury_2y_change_20d": change(treasury_2y, 20),
+        "treasury_10y": treasury_10y[-1] if treasury_10y else None,
+        "treasury_10y_change_20d": change(treasury_10y, 20),
+        "real_yield_10y": real_yield[-1] if real_yield else None,
+        "real_yield_10y_change_5d": change(real_yield, 5),
+        "real_yield_10y_change_20d": change(real_yield, 20),
+        "cpi_yoy_pct": macro.yoy_inflation(cpi),
+        "cpi_surprise_pct": macro.cpi_surprise(cpi),
     }
     return {key: rounded(value) for key, value in snapshot.items()}
 
@@ -180,7 +257,7 @@ def riskon_snapshot(date):
     The Nasdaq closes at 20:00-21:00 UTC, before Bitcoin's daily close at 24:00 UTC, so both
     are known by the end of `date`.
     """
-    btc = series("binance", "close", date, 2)
+    btc = price_series("close", date, 2)
     nasdaq = series("yahoo", "nasdaq_close", date, 2)
     btc_known = len(btc) == 2 and btc[-1][0] == date and (date - btc[0][0]).days == 1
     nasdaq_known = len(nasdaq) == 2 and nasdaq[-1][0] == date and (date - nasdaq[0][0]).days <= NASDAQ_GAP_DAYS

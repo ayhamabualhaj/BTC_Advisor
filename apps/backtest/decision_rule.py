@@ -15,7 +15,10 @@ lead is chosen on 2019-2024 by choose_combining_rule. The system only advises bu
 Sell means stay out.
 """
 
+from dataclasses import dataclass, field
+
 from ai.scoring import BEARISH_AT, BULLISH_AT
+from apps.data import assets
 
 GROUPS = ["rules", "ml", "opus"]
 # Agents that vote in round 2 on their own: {voter: (kind of score, agent)}. Neither is in a
@@ -40,6 +43,48 @@ STRONG_NEEDED = 4
 STRONG_ONLY = {"dollar": ("ml", "dollar")}
 STRONG_VOTERS = VOTERS_ROUND_2 + list(STRONG_ONLY)
 STRONG_NET = 4
+
+
+@dataclass(frozen=True)
+class Vote:
+    """One asset's vote. The constants above are Bitcoin's; gold's are in GOLD below."""
+    voters: dict          # who votes in a group (a group not listed: every domain with that kind)
+    solo: dict            # agents voting on their own in round 2: {voter: (kind of score, agent)}
+    overall_needed: int   # how many round-2 voters must say the same thing
+    strong_needed: int    # ... for the strong signal
+    strong_only: dict = field(default_factory=dict)  # voters of the second strong signal only
+    strong_net: int | None = None                    # its lead; None: the asset has no second strong signal
+    groups_voting: tuple = tuple(GROUPS)             # the group votes that count in round 2
+
+    @property
+    def round_2(self):
+        return list(self.groups_voting) + list(self.solo)
+
+    @property
+    def strong_voters(self):
+        return self.round_2 + list(self.strong_only)
+
+    @property
+    def singles(self):
+        """Every voter that is one agent: {voter: (kind, agent)}."""
+        return {**self.solo, **self.strong_only}
+
+
+BITCOIN = Vote(VOTERS, SOLO, OVERALL_NEEDED, STRONG_NEEDED, STRONG_ONLY, STRONG_NET)
+# Gold (Nov 2026; CLAUDE.md, "Gold"): chosen on 2010-2023 among 16 ways to count. Its three rule
+# agents vote one by one and two must agree: 60.2% of 598 calls there (fair 53.7%), 57.5% of 73
+# on 2024-26 (fair 60.2%: no better than always buying in that rally). The ML agents showed no
+# edge and the LLM has no history for gold, so both are scored and shown but do not vote.
+GOLD = Vote(voters={},
+            solo={"gold_technical": ("rules", "gold_technical"), "gold_stress": ("rules", "gold_stress"),
+                  "gold_dollar": ("rules", "gold_dollar")},
+            overall_needed=2, strong_needed=3, groups_voting=())
+VOTES = {"btc": BITCOIN, "gold": GOLD}
+
+
+def current():
+    """The vote of the asset the code is working on."""
+    return VOTES[assets.current().key]
 
 
 def vote(score):
@@ -79,7 +124,7 @@ def group_call(scores, group_lead):
 
 def voters(source, scores):
     """The {agent: score} of a group's agents that vote."""
-    allowed = VOTERS.get(source)
+    allowed = current().voters.get(source)
     return scores if allowed is None else {agent: score for agent, score in scores.items() if agent in allowed}
 
 
@@ -95,14 +140,14 @@ def group_calls(scores_by_source, group_lead):
     {"rules": "buy", "ml": "hold", "opus": "none", "stress": "buy", "riskon": "sell", "dollar": "buy"}
     from {source: {agent: score}}."""
     calls = {source: group_call(voters(source, scores_by_source.get(source, {})), group_lead) for source in GROUPS}
-    for voter, (source, agent) in {**SOLO, **STRONG_ONLY}.items():
+    for voter, (source, agent) in current().singles.items():
         calls[voter] = solo_call(scores_by_source.get(source, {}).get(agent))
     return calls
 
 
 def round_2(groups):
     """The five voters of the overall vote; a voter missing from a saved Decision did not vote."""
-    return {voter: groups.get(voter, "none") for voter in VOTERS_ROUND_2}
+    return {voter: groups.get(voter, "none") for voter in current().round_2}
 
 
 def overall_net(groups):
@@ -123,29 +168,30 @@ def agreed_call(groups, needed):
 def overall_call(groups):
     """Round 2: Buy or Sell when at least OVERALL_NEEDED of the five voters say it. The dollar
     agent is in `groups` but has no vote here."""
-    return agreed_call(round_2(groups), OVERALL_NEEDED)
+    return agreed_call(round_2(groups), current().overall_needed)
 
 
 def strong_call(groups):
     """The overall call on the days at least STRONG_NEEDED of the five voters back it, else Hold."""
-    return agreed_call(round_2(groups), STRONG_NEEDED)
+    return agreed_call(round_2(groups), current().strong_needed)
 
 
 def strong_net(groups):
     """Buy votes minus Sell votes of the six voters of the strong signal with the dollar."""
-    return sum(CALL_VOTES[groups.get(voter, "none")] for voter in STRONG_VOTERS)
+    return sum(CALL_VOTES[groups.get(voter, "none")] for voter in current().strong_voters)
 
 
 def strong_dollar_call(groups):
     """Buy or Sell on the days the six voters lean that way by at least STRONG_NET, else Hold.
     Four of six in favor then means at least three of the overall vote's five, so it never
     contradicts the overall vote."""
-    if all(groups.get(voter, "none") == "none" for voter in STRONG_VOTERS):
+    config = current()
+    if config.strong_net is None or all(groups.get(voter, "none") == "none" for voter in config.strong_voters):
         return "none"
     net = strong_net(groups)
-    if net >= STRONG_NET:
+    if net >= config.strong_net:
         return "buy"
-    if net <= -STRONG_NET:
+    if net <= -config.strong_net:
         return "sell"
     return "hold"
 
