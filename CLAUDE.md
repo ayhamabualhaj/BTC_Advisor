@@ -513,6 +513,25 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   lean the other way. Seven independent voters right 55% each would give a ~61% majority, 31 would
   give ~71%; ours are not independent, so more agents of the same kind cannot reach 70%.
 
+## Is the ML useless? and a monthly call (Nov 11 2026, scratchpad scripts, nothing changed)
+- Rule written first: ML goes if a vote without it has an edge over fair (hit rate - fair) at
+  least as big as the current vote's in 2019-22 AND in 2023-24. Edge 2019-22 / 2023-24, then
+  2025 - Oct 26 2026: current +8.3 / +6.8 (68.6% of 105, episodes 58.8% of 51); without stress
+  +7.7 / +0.9 (59.9% of 347); without the ML vote +5.6 / +2.8 (64.7% of 275); no ML at all
+  (Rules vote, LLM, risk-on; 2 needed) +19.5 / +1.5 (65.0% of 243, episodes 61.6% of 125); no ML
+  with the three rule agents voting one by one +9.8 / +2.2 (64.9% of 282, episodes 65.6% of 61).
+  Every vote without ML fell apart in 2023-24 (132-311 Sells in a rising market, 44-46% right):
+  the ML voters lean Buy and stop the bearish rules from selling a rally. ML stays.
+- The no-ML votes made far more from 2025 (long / short, 7-day hold, after fees: +166% to +247%
+  vs +31.5%) and lost 74-88% in 2023-24: the rules were tuned on 2025-26, so that profit is
+  in-sample.
+- Monthly call (30 days crypto, 21 trading days elsewhere; 24 markets; calls a month apart per
+  market): "always Buy" is right 54.9% (stock indexes 59-66%) with no skill. Trend rule (above
+  the 200-day and 50 > 200 -> Buy, below both -> Sell): 51.4% of 2795 calls on 2013-24 (fair 52.3),
+  52.5% of 503 from 2025 (fair 56.0); its Sells 45.6% / 44.8%. Pooled models for the monthly
+  outcome: confident Buys 55-57% on 2013-24, no cut-off reached 70% on earlier years, silent.
+  A longer horizon adds no edge; a high hit rate there is only the market's drift.
+
 ## Agents talking to each other: debate test (Oct 26 2026, $0.30, scratchpad script)
 - Round 2 for the Haiku v3 agents: same input plus their own first answer and every other
   agent's score that day (rules, ML, the other LLMs' scores and reasons); final answer. Every
