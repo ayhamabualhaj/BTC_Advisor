@@ -44,12 +44,18 @@ def evaluate(name, market, positions, settings, save=True):
     """Measure one set of positions against buy-and-hold and optionally store a BacktestRun."""
     result = metrics.performance(positions, market.next_day_returns)
     hold = metrics.performance([True] * len(market.days), market.next_day_returns)
+    after_fees = metrics.performance(positions, market.next_day_returns, metrics.FEE_PER_SIDE)
+    hold_after_fees = metrics.performance([True] * len(market.days), market.next_day_returns, metrics.FEE_PER_SIDE)
     run = BacktestRun(
         name=name,
         start_date=market.days[0],
         end_date=market.days[-1],
+        # The model's columns are before fees (as older runs were); the after-fee numbers sit beside them.
         settings={**settings, "days_in_market": result.days_in_market,
-                  "buy_and_hold_drawdown_pct": round(hold.max_drawdown_pct, 2)},
+                  "buy_and_hold_drawdown_pct": round(hold.max_drawdown_pct, 2),
+                  "fee_per_side_pct": metrics.FEE_PER_SIDE * 100,
+                  "profit_after_fees_pct": round(after_fees.total_profit_pct, 2),
+                  "buy_and_hold_after_fees_pct": round(hold_after_fees.total_profit_pct, 2)},
         trade_count=result.trade_count,
         win_rate=result.win_rate,
         total_profit_pct=result.total_profit_pct,

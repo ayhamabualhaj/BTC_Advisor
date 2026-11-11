@@ -3,12 +3,15 @@ from urllib.parse import urlencode
 
 from django.http import Http404
 from django.shortcuts import redirect, render
+from django.utils.formats import date_format
 from django.views.decorators.http import require_POST
 
 from ai.opus_client import model_label
 from apps.agents.models import AgentName
+from apps.backtest.decision_rule import overall_call, strong_call
 from apps.backtest.services import combining_service, daily_run_service
 from apps.dashboard.services import model_service, profit_service, report_service, signal_service
+from apps.dashboard.templatetags.dashboard_format import strategy_name
 
 AGENT_ORDER = AgentName.values
 
@@ -16,13 +19,22 @@ AGENT_ORDER = AgentName.values
 def today(request, advice=None):
     context = report_service.today()
     runs = {run.agent: run for run in context["agent_runs"]}
-    context["cards"] = [(agent, AgentName(agent).label, runs.get(agent)) for agent in AGENT_ORDER]
+    context["cards"] = [{"agent": agent, "label": AgentName(agent).label, "run": runs.get(agent),
+                         "scores": report_service.kind_scores(agent, runs[agent]) if agent in runs else []}
+                        for agent in AGENT_ORDER]
     decision = context["decision"]
     context["decision_rule_text"] = combining_service.describe(decision.rule) if decision and decision.rule else ""
     context["advice"] = advice
     # The vote shown is the advice's when the button was pressed, else the latest decision's.
     shown = advice.decision if advice and advice.decision else decision
     context["breakdown"] = report_service.vote_breakdown(shown) if shown and shown.group_calls else None
+    if shown and shown.group_calls:
+        context["call"] = overall_call(shown.group_calls)
+        context["strong"] = strong_call(shown.group_calls) in ("buy", "sell")
+    # A decision older than yesterday is stale: say so instead of showing it as today's.
+    context["days_behind"] = (daily_run_service.last_full_day() - context["date"]).days if context["date"] else 0
+    context["price"] = report_service.price_now()
+    context["record"] = report_service.track_record()
     return render(request, "dashboard/today.html", context)
 
 
@@ -42,6 +54,7 @@ def agent_detail(request, agent):
         raise Http404("Unknown agent")
     is_backtest = request.GET.get("backtest") == "1"
     history = report_service.agent_history(agent, is_backtest)
+    kinds = report_service.agent_kinds(agent)
     chart = {
         "labels": [run.date for run in history],
         "rule": [run.rule_score for run in history],
@@ -49,14 +62,20 @@ def agent_detail(request, agent):
         "opus": [run.opus_score for run in history],
         "llm_label": model_label(),
     }
+    latest = history[-1] if history else None
     return render(request, "dashboard/agent.html", {
         "agent": agent,
         "label": AgentName(agent).label,
+        "note": report_service.AGENT_NOTES.get(agent, ""),
         "tabs": [(choice.value, choice.label) for choice in AgentName],
-        "latest": history[-1] if history else None,
-        "history": list(reversed(history))[:30],
+        "kinds": kinds,
+        "has_llm": any(kind == "opus" for kind, _ in kinds),
+        "latest": latest,
+        "latest_scores": report_service.kind_scores(agent, latest) if latest else [],
+        "history": [(run, report_service.kind_scores(agent, run)) for run in list(reversed(history))[:30]],
         "is_backtest": is_backtest,
         "chart": chart,
+        "record": report_service.agent_record(agent),
     })
 
 
@@ -172,10 +191,12 @@ def profit(request):
 def backtests(request):
     groups = report_service.backtest_overview()
     for run in groups["combining"]:
-        run.periods = [("Chosen on (2019-2024)", run.settings["tuning"]), (f"Test ({run.start_date} on)", run.settings["test"])]
+        run.periods = [("Chosen on (2019–2024)", run.settings["tuning"]),
+                       (f"Test (from {date_format(run.start_date)})", run.settings["test"])]
         run.rule_text = combining_service.describe(run.settings)
     chart = {
-        "labels": [run.name for run in groups["strategies"]],
+        "labels": [strategy_name(run.name) for run in groups["strategies"]],
+        "keys": [run.name for run in groups["strategies"]],
         "profit": [round(run.total_profit_pct or 0, 2) for run in groups["strategies"]],
         "hold": groups["strategies"][0].buy_and_hold_pct if groups["strategies"] else None,
     }
@@ -186,11 +207,14 @@ def costs(request):
     data = report_service.costs()
     for row in data["by_agent"]:
         row["per_call"] = row["cost_usd"] / row["calls"]
+        row["label"] = AgentName(row["agent"]).label
     days = sorted({row["day"] for row in data["by_day"]})
     per_agent = {agent: [0.0] * len(days) for agent in AGENT_ORDER}
     for row in data["by_day"]:
         per_agent[row["agent"]][days.index(row["day"])] = float(row["cost_usd"])
-    chart = {"labels": days, "series": [{"agent": agent, "values": per_agent[agent]} for agent in AGENT_ORDER]}
+    # Only the agents that were ever paid for get a color in the chart.
+    chart = {"labels": days, "series": [{"agent": agent, "label": AgentName(agent).label, "values": per_agent[agent]}
+                                        for agent in AGENT_ORDER if any(per_agent[agent])]}
     return render(request, "dashboard/costs.html", {**data, "chart": chart})
 
 

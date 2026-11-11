@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from django.conf import settings
 
-from apps.agents.models import AgentRun
+from apps.agents.models import AgentRun, MemoryCase
 from apps.backtest.decision_rule import overall_call
 from apps.backtest.models import Decision
 from ai.domains import DOMAINS, with_kind
@@ -14,7 +14,8 @@ from apps.backtest.repositories import price_repository
 from apps.backtest.services import decision_service, outcome_service
 from apps.data.services import collection_service
 
-# Re-collect this many recent days every morning, so a missed day fills itself in.
+# Re-collect this many recent days every morning, so a missed day fills itself in (after a
+# longer pause the run collects from the last stored price instead, see collect_start).
 COLLECT_DAYS = 10
 # Days the agents missed (no run that morning) within this window are run too, so the Signals
 # and Profit pages have no holes. Each costs about $0.002 with Haiku and is never paid twice.
@@ -35,6 +36,21 @@ class DailyRunReport:
     decision: object = None
     outcomes_updated: int = 0
     memory_cases: int = 0
+
+
+def collect_start(date):
+    """The first day to collect: the last COLLECT_DAYS days, or after a longer pause everything
+    since the last stored price, so the pause leaves no hole in the data."""
+    recent = date - datetime.timedelta(days=COLLECT_DAYS - 1)
+    last = price_repository.latest_close_date()
+    return min(recent, last) if last else recent
+
+
+def memory_start(agent, date):
+    """The first day to add to an agent's memory: likewise, back to its last case after a pause."""
+    recent = date - datetime.timedelta(days=COLLECT_DAYS + 7)
+    last = MemoryCase.objects.filter(agent=agent).order_by("-date").values_list("date", flat=True).first()
+    return min(recent, last) if last else recent
 
 
 def last_full_day():
@@ -74,7 +90,7 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
     report = DailyRunReport(date=date)
 
     if collect:
-        result = collection_service.collect(date - datetime.timedelta(days=COLLECT_DAYS - 1), date)
+        result = collection_service.collect(collect_start(date), date)
         report.collection_errors = result.errors
     if date not in price_repository.closes(date, date):
         raise DailyRunError(f"No BTC close for {date} yet; the daily candle may not be final.")
@@ -92,7 +108,7 @@ def run(date=None, rules_only=False, force=False, client=None, collect=True):
     # Days whose 7-day outcome became known recently join the memory.
     for agent in with_kind("ml"):
         report.memory_cases += memory_service.build_cases(
-            agent, DOMAINS[agent].inputs.model_input, date - datetime.timedelta(days=COLLECT_DAYS + 7), date)
+            agent, DOMAINS[agent].inputs.model_input, memory_start(agent, date), date)
     return report
 
 

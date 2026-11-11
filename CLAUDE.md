@@ -167,6 +167,30 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   (keeps the live / backtest choice), so the top bar stays short as agents are added.
 - Combining-rule thresholds start at 55: a score of 50 means "no edge" and never buys.
 
+## Pages rework (Nov 11 2026)
+- Fees: `metrics.FEE_PER_SIDE` = 0.1% each time the position changes (long to short pays
+  twice; the last position is closed). The Profit page is after fees with "Before fees" beside
+  it; buy-and-hold pays two fees. Saved BacktestRuns keep `profit_after_fees_pct` in settings
+  (older runs show –; rerun `backtest_rules` / `choose_combining_rule`, free, to fill it).
+- Strong signal: `decision_rule.STRONG_NEEDED` = 4 of the 5 voters (`strong_call`). Shown as
+  a badge on Today, a "Strong (4 of 5)" column on Signals and a row on Profit; it changes no call.
+- Today: stale notice when the decision is older than yesterday, Bitcoin close tile, a
+  120-day price chart with the vote's Buy / Sell days (`report_service.price_chart`), the
+  vote's track record since 2025 as trades (`track_record`: days in a row = one trade, judged
+  on its first day after 7 days), agent cards showing only the kinds a domain has.
+- Agent page: one run per day (`agent_history` keeps the run with an LLM score), a 7-day hit
+  rate per period (`agent_record`), score chart on a 30-70 axis with the Buy 55 / Sell 45 lines.
+- Display only, in `apps/dashboard/templatetags/dashboard_format.py`: `field_label` /
+  `field_value` name and round the key_data fields (add a new field's name to `LABELS`),
+  `ml_reason` rewrites the ML reason lines, `versioned_static` adds the file's modified time to
+  CSS / JS links so the browser never shows a stale copy. Stored values are untouched.
+- Dates read "10 Nov 2026" on every page (`config/formats/en/formats.py`, FORMAT_MODULE_PATH);
+  charts show "10 Nov" (`dayLabel` in charts.js), are not animated, and a "Theme" button in the
+  top bar switches Auto / Light / Dark (localStorage "theme"). The footer shows the last stored
+  close (`context_processors.freshness`).
+- `daily_run` after a pause collects from the last stored price and adds memory from the last
+  case (`collect_start`, `memory_start`), so a gap of more than 10 days leaves no hole.
+
 ## Signals pages (after step 14)
 - `/signals/?month=YYYY-MM&horizon=1|3|7`: one month from 2019 on, a Rules, ML and Opus
   column per domain, then the Rules, ML and Opus votes (round 1) and the Overall vote. Each call shows its confidence (Buy at 70 = 70% sure it

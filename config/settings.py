@@ -71,6 +71,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'apps.dashboard.context_processors.llm',
+                'apps.dashboard.context_processors.freshness',
             ],
         },
     },
@@ -110,6 +111,9 @@ LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 
 USE_I18N = True
+
+# One date format on every page (config/formats/en/formats.py).
+FORMAT_MODULE_PATH = ["config.formats"]
 
 USE_TZ = True
 

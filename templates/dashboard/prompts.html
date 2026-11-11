@@ -4,17 +4,24 @@
 <h1>Prompt history</h1>
 <p class="muted">A new version is created whenever an agent's prompt.md changes; old versions are never edited.</p>
 {% if not history %}<p class="empty">No prompt versions yet; they are created on the first LLM run.</p>{% endif %}
+{% if history %}
+<section class="panel">
 <table class="data">
-  <thead><tr><th>Agent</th><th>Version</th><th>Created</th><th>Runs</th><th>Backtest</th><th>Errors</th><th>Avg LLM score</th><th>7-day hit rate</th><th>Cost</th></tr></thead>
+  <thead><tr><th>Agent</th><th>Version</th><th>Created</th><th class="num">Runs</th><th class="num">Backtest</th><th class="num">Errors</th><th class="num">Avg LLM score</th><th class="num">7-day hit rate</th><th class="num">Cost</th></tr></thead>
   <tbody>
   {% for entry in history %}
-    <tr><td><span class="dot dot-{{ entry.version.agent }}"></span>{{ entry.version.agent }}</td><td>v{{ entry.version.version }}</td>
-      <td>{{ entry.version.created_at|date:"Y-m-d" }}</td><td>{{ entry.runs }}</td><td>{{ entry.backtest_runs }}</td><td>{{ entry.errors }}</td>
-      <td>{{ entry.avg_opus_score|floatformat:1|default:"–" }}</td>
-      <td>{% if entry.hit_rate_7d is not None %}{{ entry.hit_rate_7d|floatformat:0 }}% <span class="muted small">of {{ entry.judged_calls }}</span>{% else %}–{% endif %}</td>
-      <td>${{ entry.cost_usd|floatformat:4 }}</td></tr>
+    <tr class="prompt-head"><td><span class="dot dot-{{ entry.version.agent }}"></span>{{ entry.version.get_agent_display }}</td>
+      <td>v{{ entry.version.version }}{% ifchanged entry.version.agent %} <span class="badge badge-strong">In use</span>{% endifchanged %}</td>
+      <td>{{ entry.version.created_at|date }}</td><td class="num">{{ entry.runs|floatformat:"0g" }}</td><td class="num">{{ entry.backtest_runs|floatformat:"0g" }}</td>
+      <td class="num">{% if entry.errors %}<span class="down">{{ entry.errors }}</span>{% else %}0{% endif %}</td>
+      <td class="num">{{ entry.avg_opus_score|floatformat:1|default:"–" }}</td>
+      <td class="num">{% if entry.hit_rate_7d is not None %}{{ entry.hit_rate_7d|floatformat:0 }}% <span class="muted small">of {{ entry.judged_calls }}</span>{% else %}–{% endif %}</td>
+      <td class="num">${{ entry.cost_usd|floatformat:4 }}</td></tr>
     <tr class="prompt-row"><td colspan="9"><details><summary>Prompt text</summary><pre>{{ entry.version.prompt_text }}</pre></details></td></tr>
   {% endfor %}
   </tbody>
 </table>
+<p class="small muted">Hit rate: the share of the version's Buy and Sell leanings (any score other than 50) that were right after 7 days, over every run, backtests included.</p>
+</section>
+{% endif %}
 {% endblock %}

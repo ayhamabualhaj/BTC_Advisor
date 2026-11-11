@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dashboard_format %}
 {% block title %}Today · BTC Advisor{% endblock %}
 {% block content %}
 <form method="post" action="{% url 'advise' %}" class="advise" onsubmit="this.querySelector('button').disabled = true; this.querySelector('.advise-wait').hidden = false;">
@@ -12,10 +13,10 @@
       <div class="advice-label">No advice yet</div>
       <div class="muted">{{ advice.error }}</div>
     {% elif advice.call == "buy" %}
-      <div class="advice-label">BUY</div>
+      <div class="advice-label">BUY{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
       <div>{{ breakdown.buy }} of the 5 voters say Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
     {% elif advice.call == "sell" %}
-      <div class="advice-label">SELL</div>
+      <div class="advice-label">SELL{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
       <div>{{ breakdown.sell }} of the 5 voters say Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
     {% else %}
       <div class="advice-label">HOLD: no clear call</div>
@@ -29,15 +30,33 @@
 {% if not date %}
   <p class="empty">No agent runs yet. Run <code>python manage.py daily_run</code>.</p>
 {% else %}
-  <section class="signal {% if decision.signal == 'buy' %}signal-buy{% else %}signal-none{% endif %}">
+  {% if days_behind > 1 %}
+  <p class="notice" role="status"><strong>This is not today's advice.</strong> It is the decision for {{ date }}, {{ days_behind }} days ago{% if price and price.date > date %}; prices are in up to {{ price.date }}, but the agents have not run since{% endif %}.
+    Press the button above to collect the data and run yesterday (free without an API key; with one, about $0.002 per day run).</p>
+  {% endif %}
+  <div class="today-top">
+  <section class="signal {% if call == 'buy' or not call and decision.signal == 'buy' %}signal-buy{% elif call == 'sell' %}signal-sell{% else %}signal-none{% endif %}">
     {% if decision %}
-      <div class="signal-label">{{ decision.get_signal_display }}</div>
-      <div class="muted">{% if decision.rule %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
+      <div class="signal-label">{% if call == "buy" %}Buy{% elif call == "sell" %}Sell{% elif call %}Hold{% else %}{{ decision.get_signal_display }}{% endif %}{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
+      {% if breakdown %}<div>{% if call == "buy" %}{{ breakdown.buy }} of the 5 voters say Buy.{% elif call == "sell" %}{{ breakdown.sell }} of the 5 voters say Sell: hold no Bitcoin.{% else %}Fewer than {{ breakdown.needed }} of the 5 voters agree: no call.{% endif %}
+        {% if strong %}A strong signal is {{ record.strong_needed|default:4 }} or more agreeing.{% endif %}</div>{% endif %}
+      <div class="muted small">{% if decision.rule %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
       <div class="signal-label">No decision saved</div>
       <div class="muted">Agent runs exist but no Decision was made for this date.</div>
     {% endif %}
   </section>
+  {% if price %}
+  <section class="signal price">
+    <div class="tile-label">Bitcoin close · {{ price.date }}</div>
+    <div class="signal-label">${{ price.close|floatformat:"0g" }}</div>
+    <div class="small">
+      {% if price.change_1d_pct is not None %}1 day <strong class="{% if price.change_1d_pct > 0 %}up{% elif price.change_1d_pct < 0 %}down{% endif %}">{{ price.change_1d_pct|signed }}%</strong>{% endif %}
+      {% if price.change_7d_pct is not None %} · 7 days <strong class="{% if price.change_7d_pct > 0 %}up{% elif price.change_7d_pct < 0 %}down{% endif %}">{{ price.change_7d_pct|signed }}%</strong>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+  </div>
 
   {% if breakdown %}
   <section class="panel votes">
@@ -49,7 +68,7 @@
       {% for voter in breakdown.voters %}
         <tr>
           <td>{{ voter.label }}</td>
-          <td>{% if voter.call == "none" %}<span class="muted">Did not vote</span>{% else %}<span class="vote-call vote-{{ voter.call }}">{{ voter.call|capfirst }}</span>{% endif %}</td>
+          <td>{% if voter.call == "none" %}<span class="muted">Did not vote</span>{% else %}<span class="vote-call vote-{{ voter.call }}">{% if voter.call == "buy" %}▲ {% elif voter.call == "sell" %}▼ {% endif %}{{ voter.call|capfirst }}</span>{% endif %}</td>
           <td class="small">
             {% for agent in voter.agents %}
               <span class="{% if not agent.votes %}muted{% endif %}">{{ agent.label }}:
@@ -63,28 +82,85 @@
   </section>
   {% endif %}
 
+  {% if record.chart.labels %}
+  <section class="panel">
+    <h2>Bitcoin and the vote <span class="muted">last {{ record.chart.labels|length }} days · ▲ the vote said Buy · ▼ it said Sell</span></h2>
+    <div class="chart-box"><canvas id="price-chart" role="img" aria-label="Bitcoin close with the overall vote's Buy and Sell days"></canvas></div>
+    {{ record.chart|json_script:"price-chart-data" }}
+  </section>
+  {% endif %}
+
+  {% if record %}
+  <section class="panel record">
+    <h2>How its calls turned out <span class="muted">since {{ record.since|date:"M Y" }}, judged after 7 days</span></h2>
+    <div class="tiles">
+      <div>
+        <div class="tile-label">Overall vote ({{ record.needed }} of 5)</div>
+        <div class="score">{% if record.vote.trades %}{{ record.vote.right }} <span class="muted">of {{ record.vote.trades }}</span>{% else %}–{% endif %}</div>
+        <div class="small muted">trades right{% if record.vote.hit_rate is not None %} · {{ record.vote.hit_rate|floatformat:0 }}%{% endif %}</div>
+      </div>
+      <div>
+        <div class="tile-label">Strong signal ({{ record.strong_needed }} of 5)</div>
+        <div class="score">{% if record.strong.trades %}{{ record.strong.right }} <span class="muted">of {{ record.strong.trades }}</span>{% else %}–{% endif %}</div>
+        <div class="small muted">trades right{% if record.strong.hit_rate is not None %} · {{ record.strong.hit_rate|floatformat:0 }}%{% endif %}{% if not record.strong.enough %} · too few to prove{% endif %}</div>
+      </div>
+    </div>
+    <table class="data">
+      <thead><tr><th>First day</th><th>Call</th><th class="num">Days</th><th>Strong</th><th class="num">Bitcoin after 7 days</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for trade in record.vote.recent %}
+        <tr>
+          <td>{{ trade.date }}</td>
+          <td><span class="vote-call vote-{{ trade.signal }}">{% if trade.signal == "buy" %}▲ Buy{% else %}▼ Sell{% endif %}</span></td>
+          <td class="num">{{ trade.days }}</td>
+          <td>{% if trade.strong %}<span class="badge badge-strong">Strong</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td class="num">{% if trade.move_pct is None %}<span class="muted">waiting</span>{% else %}<span class="{% if trade.move_pct > 0 %}up{% elif trade.move_pct < 0 %}down{% endif %}">{{ trade.move_pct|signed }}%</span>{% endif %}</td>
+          <td>{% if trade.outcome == "right" %}<span class="up">✓ right</span>{% elif trade.outcome == "wrong" %}<span class="down">✗ wrong</span>{% elif trade.outcome == "pending" %}<span class="muted">waiting</span>{% else %}<span class="muted">flat</span>{% endif %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="muted">No Buy or Sell call yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">The last {{ record.vote.recent|length }} trades of the overall vote, newest first. A trade is one or more days in a row with the same call,
+      judged on its first day by where Bitcoin closed 7 days later; before fees. The rules were tuned on Jan 2025 – Sep 2026, which flatters this record;
+      on 2019–2024 the vote was right about 57% of the time. Every call: <a href="{% url 'signals' %}">Signals</a>; in money: <a href="{% url 'profit' %}">Profit</a>.</p>
+  </section>
+  {% endif %}
+
+  <h2 class="section-title">The agents behind the vote</h2>
   <div class="cards">
-    {% for agent, label, run in cards %}
+    {% for card in cards %}
     <article class="card">
-      <h2><span class="dot dot-{{ agent }}"></span><a href="{% url 'agent_detail' agent %}">{{ label }}</a></h2>
+      <h2><span class="dot dot-{{ card.agent }}"></span><a href="{% url 'agent_detail' card.agent %}">{{ card.label }}</a></h2>
+      {% with run=card.run %}
       {% if run %}
         <div class="tiles">
-          <div><div class="tile-label">{{ llm_label }}</div>{% include "dashboard/_score.html" with score=run.opus_score %}</div>
-          <div><div class="tile-label">ML</div>{% include "dashboard/_score.html" with score=run.ml_score %}</div>
-          <div><div class="tile-label">Rules</div>{% include "dashboard/_score.html" with score=run.rule_score %}</div>
-          <div><div class="tile-label">Direction</div><span class="pill">{{ run.direction|default:"–" }}</span></div>
+          {% for kind, score in card.scores %}
+          <div><div class="tile-label">{{ kind }}</div>{% include "dashboard/_score.html" with score=score %}</div>
+          {% endfor %}
+          {% if run.direction %}<div><div class="tile-label">Direction</div><span class="pill pill-{{ run.direction }}">{{ run.direction }}</span></div>{% endif %}
         </div>
-        <ul class="reasons">{% for reason in run.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        {% if run.reasons %}
+        <ul class="reasons">{% for reason in run.reasons %}<li>{{ reason|ml_reason }}</li>{% endfor %}</ul>
+        {% elif run.key_data.rule_reasons %}
+        <ul class="reasons">{% for reason in run.key_data.rule_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        {% else %}
+        <p class="muted small">No rule fired today.</p>
+        {% endif %}
+        {% if run.opus_score is not None %}
         <div class="muted small">
-          Stop loss: {% if run.suggested_stop_loss %}${{ run.suggested_stop_loss|floatformat:0 }}{% else %}–{% endif %}
-          · prompt v{{ run.prompt_version.version|default:"–" }} · ${{ run.cost_usd|floatformat:4 }}
+          {% if run.suggested_stop_loss %}Stop loss: ${{ run.suggested_stop_loss|floatformat:"0g" }} · {% endif %}{% if run.prompt_version %}prompt v{{ run.prompt_version.version }} · {% endif %}${{ run.cost_usd|floatformat:4 }}
         </div>
+        {% endif %}
         {% if run.error %}<p class="error small">{{ run.error }}</p>{% endif %}
       {% else %}
         <p class="muted">No run for this date.</p>
       {% endif %}
+      {% endwith %}
     </article>
     {% endfor %}
   </div>
 {% endif %}
 {% endblock %}
+{% block scripts %}<script>if (document.getElementById("price-chart-data")) priceChart("price-chart", JSON.parse(document.getElementById("price-chart-data").textContent));</script>{% endblock %}

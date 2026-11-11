@@ -43,6 +43,22 @@ class MetricsTests(SimpleTestCase):
         self.assertEqual(len(metrics.trade_returns([1, -1, -1], [0.1, -0.1, 0.05])), 2)
         self.assertAlmostEqual(metrics.trade_returns([1, -1, -1], [0.1, -0.1, 0.05])[1], 1.1 * 0.95 - 1)
 
+    def test_a_fee_is_paid_each_time_the_position_changes(self):
+        fee = 0.01
+        # In on day 1, out on day 2: one buy and one sell.
+        self.assertAlmostEqual(metrics.equity_curve([1, 0], [0.1, 0.5], fee)[-1], 1.1 * 0.99 ** 2)
+        # Still in at the end: the position is closed on the last day, so holding pays twice.
+        self.assertAlmostEqual(metrics.equity_curve([1, 1], [0.1, 0.1], fee)[-1], 1.21 * 0.99 ** 2)
+        # Long to short trades twice at the switch: out of the long, into the short.
+        self.assertAlmostEqual(metrics.equity_curve([1, -1], [0.0, 0.0], fee)[-1], 0.99 ** 4)
+        self.assertEqual(metrics.equity_curve([0, 0], [0.1, 0.1], fee), [1.0, 1.0])  # no trade, no fee
+
+    def test_fees_can_turn_a_winning_trade_into_a_losing_one(self):
+        self.assertAlmostEqual(metrics.trade_returns([1], [0.01], fee=0.01)[0], 1.01 * 0.99 ** 2 - 1)
+        self.assertEqual(metrics.performance([1], [0.01]).win_rate, 100.0)
+        self.assertEqual(metrics.performance([1], [0.01], fee=0.01).win_rate, 0.0)
+        self.assertEqual(metrics.FEE_PER_SIDE, 0.001)
+
     def test_never_in_market(self):
         result = metrics.performance([False, False], [0.1, 0.1])
         self.assertEqual((result.trade_count, result.win_rate, result.total_profit_pct), (0, None, 0.0))

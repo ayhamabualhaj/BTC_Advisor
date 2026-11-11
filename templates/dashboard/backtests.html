@@ -1,7 +1,10 @@
 {% extends "base.html" %}
+{% load dashboard_format %}
 {% block title %}Backtests · BTC Advisor{% endblock %}
 {% block content %}
-<h1>Backtest results</h1>
+<h1>Backtest results <span class="muted">saved runs of the backtest commands</span></h1>
+<p class="lead">Each table is the last saved run of a command, on the period it was run for. For any period, every agent and
+  the current vote, see <a href="{% url 'profit' %}">Profit</a> (in money) and <a href="{% url 'signals_overview' %}">Signals</a> (how often right).</p>
 {% if not strategies and not calibration %}
   <p class="empty">No backtests yet. Run <code>python manage.py backtest_rules</code>.</p>
 {% endif %}
@@ -9,19 +12,23 @@
 {% if strategies %}
 <section class="panel">
   <h2>Profit by strategy <span class="muted">vs buy and hold (gray)</span></h2>
+  <p class="muted small">"After fees" takes 0.1% of the amount on every buy and sell. Runs saved before fees were counted show –; rerun the backtest to fill it.</p>
   <div class="chart-box"><canvas id="profit-chart" aria-label="Total profit per strategy" role="img"></canvas></div>
   <table class="data">
-    <thead><tr><th>Strategy</th><th>Period</th><th>Trades</th><th>Win rate</th><th>Profit</th><th>Max drawdown</th><th>Buy and hold</th><th>Rule</th></tr></thead>
+    <thead><tr><th>Strategy</th><th>Period</th><th class="num">Trades</th><th class="num">Win rate</th><th class="num">Profit</th><th class="num">After fees</th><th class="num">Worst drop</th><th class="num">Buy and hold</th><th>Buys when</th></tr></thead>
     <tbody>
     {% for run in strategies %}
-      <tr><td>{{ run.name }}</td><td>{{ run.start_date }} – {{ run.end_date }}</td><td>{{ run.trade_count }}</td>
-        <td>{% if run.win_rate is not None %}{{ run.win_rate|floatformat:1 }}%{% else %}–{% endif %}</td>
-        <td>{{ run.total_profit_pct|floatformat:2 }}%</td><td>{{ run.max_drawdown_pct|floatformat:2 }}%</td>
-        <td>{{ run.buy_and_hold_pct|floatformat:2 }}%</td>
-        <td class="small">≥ {{ run.settings.threshold }}{% if run.settings.agents_required %}, {{ run.settings.agents_required }} agents{% endif %}</td></tr>
+      <tr><th>{{ run.name|strategy_name }}</th><td>{{ run.start_date }} – {{ run.end_date }}</td><td class="num">{{ run.trade_count }}</td>
+        <td class="num">{% if run.win_rate is not None %}{{ run.win_rate|floatformat:1 }}%{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="num {% if run.total_profit_pct > 0 %}up{% elif run.total_profit_pct < 0 %}down{% endif %}">{{ run.total_profit_pct|floatformat:2 }}%</td>
+        <td class="num">{% if run.settings.profit_after_fees_pct is not None %}{{ run.settings.profit_after_fees_pct|floatformat:2 }}%{% else %}<span class="muted">–</span>{% endif %}</td>
+        <td class="num">{{ run.max_drawdown_pct|floatformat:2 }}%</td>
+        <td class="num {% if run.buy_and_hold_pct > 0 %}up{% elif run.buy_and_hold_pct < 0 %}down{% endif %}">{{ run.buy_and_hold_pct|floatformat:2 }}%</td>
+        <td class="small">score ≥ {{ run.settings.threshold }}{% if run.settings.agents_required %}, {{ run.settings.agents_required }} agents{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table>
+  <p class="small muted">A strategy with 0 trades never reached its buy threshold in the period, so it made and lost nothing.</p>
   {{ chart|json_script:"profit-data" }}
 </section>
 {% endif %}
@@ -29,16 +36,18 @@
 {% if calibration %}
 <section class="panel">
   <h2>Calibration <span class="muted">is a 70 right 70% of the time? (7-day horizon)</span></h2>
+  <p class="small muted">"Said" is the confidence the scores claimed, "Right" how often they were. Green: at least as right as it said.</p>
   <div class="cards">
   {% for run in calibration %}
     <article class="card">
-      <h3>{{ run.settings.score_type }} · {{ run.settings.agent }}</h3>
+      <h3><span class="dot dot-{{ run.settings.agent }}"></span>{{ run.settings.agent|capfirst }} · {{ run.settings.score_type|capfirst }}</h3>
       <p class="muted small">{{ run.settings.calls }} calls · Brier {{ run.settings.brier_score|floatformat:3 }} (0.250 = always 50)</p>
       <table class="data">
-        <thead><tr><th>Band</th><th>Calls</th><th>Said</th><th>Right</th></tr></thead>
+        <thead><tr><th>Confidence</th><th class="num">Calls</th><th class="num">Said</th><th class="num">Right</th></tr></thead>
         <tbody>
         {% for bucket in run.settings.buckets %}
-          <tr><td>{{ bucket.label }}</td><td>{{ bucket.calls }}</td><td>{{ bucket.avg_confidence|floatformat:0 }}%</td><td>{{ bucket.hit_rate|floatformat:0 }}%</td></tr>
+          <tr><td>{{ bucket.label }}</td><td class="num">{{ bucket.calls }}</td><td class="num">{{ bucket.avg_confidence|floatformat:0 }}%</td>
+            <td class="num {% if bucket.hit_rate >= bucket.avg_confidence %}up{% else %}down{% endif %}">{{ bucket.hit_rate|floatformat:0 }}%</td></tr>
         {% endfor %}
         </tbody>
       </table>
@@ -55,14 +64,17 @@
     <p><strong>{{ run.rule_text|capfirst }}</strong>
       (chosen on {{ run.settings.tuned_on|join:" to " }}).</p>
     <table class="data">
-      <thead><tr><th></th><th>Hit rate (7 days)</th><th>Calls</th><th>Buy days</th><th>Profit</th><th>Buy and hold</th><th>Worst drop</th></tr></thead>
+      <thead><tr><th></th><th class="num">Hit rate (7 days)</th><th class="num">Calls</th><th class="num">Buy days</th><th class="num">Profit</th><th class="num">After fees</th><th class="num">Buy and hold</th><th class="num">Worst drop</th></tr></thead>
       <tbody>
       {% for label, r in run.periods %}
-        <tr><th>{{ label }}</th><td>{{ r.hit_rate|floatformat:1 }}%</td><td>{{ r.calls }}</td><td>{{ r.buy_days }}</td>
-          <td>{{ r.profit_pct|floatformat:1 }}%</td><td>{{ r.hold_pct|floatformat:1 }}%</td><td>{{ r.drawdown_pct|floatformat:1 }}%</td></tr>
+        <tr><th>{{ label }}</th><td class="num">{{ r.hit_rate|floatformat:1 }}%</td><td class="num">{{ r.calls }}</td><td class="num">{{ r.buy_days }}</td>
+          <td class="num">{{ r.profit_pct|floatformat:1 }}%</td>
+          <td class="num">{% if r.profit_after_fees_pct is not None %}{{ r.profit_after_fees_pct|floatformat:1 }}%{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td class="num">{{ r.hold_pct|floatformat:1 }}%</td><td class="num">{{ r.drawdown_pct|floatformat:1 }}%</td></tr>
       {% endfor %}
       </tbody>
     </table>
+    <p class="small muted">Saved {{ run.created_at|date }}. Rerun <code>python manage.py choose_combining_rule</code> (free) to bring it up to date{% if run.settings.test.profit_after_fees_pct is None %} and fill "After fees"{% endif %}.</p>
   {% endfor %}
 </section>
 {% endif %}

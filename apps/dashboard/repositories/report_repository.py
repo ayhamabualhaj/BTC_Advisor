@@ -60,6 +60,11 @@ def cost_by_day():
     )
 
 
+def paid_live_days():
+    """How many decision days had a paid live call."""
+    return AgentRun.objects.filter(cost_usd__gt=0, is_backtest=False).values("date").distinct().count()
+
+
 def prompt_versions(agent=None):
     versions = PromptVersion.objects.order_by("agent", "-version")
     return versions.filter(agent=agent) if agent else versions

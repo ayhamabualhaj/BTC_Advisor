@@ -3,7 +3,7 @@ import datetime
 from django.test import SimpleTestCase, TestCase
 
 from apps.agents.models import AgentRun
-from apps.backtest.decision_rule import call, decide, group_calls, net_votes, overall_call
+from apps.backtest.decision_rule import call, decide, group_calls, net_votes, overall_call, strong_call
 from apps.backtest.models import BacktestRun, Decision
 from apps.backtest.services import backtest_service, combining_service as cs, decision_service
 from apps.data.collectors.base import Point
@@ -53,6 +53,16 @@ class VoteTests(SimpleTestCase):
         self.assertEqual(overall_call(calls("buy", "buy", "none", "buy", "none")), "buy")
         self.assertEqual(overall_call(calls("buy", "buy", "none", "none", "none")), "hold")
         self.assertEqual(overall_call(calls("none", "none", "none", "none", "none")), "none")
+
+    def test_a_strong_signal_needs_four_of_five(self):
+        four = {"rules": "buy", "ml": "buy", "opus": "buy", "stress": "buy", "riskon": "sell"}
+        self.assertEqual((overall_call(four), strong_call(four)), ("buy", "buy"))
+        three = {**four, "stress": "hold"}
+        self.assertEqual((overall_call(three), strong_call(three)), ("buy", "hold"))
+        sells = {"rules": "sell", "ml": "sell", "opus": "sell", "stress": "hold", "riskon": "sell"}
+        self.assertEqual(strong_call(sells), "sell")
+        # Without the LLM only four vote, and all four must agree.
+        self.assertEqual(strong_call({**sells, "opus": "none"}), "hold")
 
     def test_decide_runs_both_rounds(self):
         scores = {"rules": {"technical": 70, "derivatives": 60}, "ml": {"macro": 56, "stress": 60}}

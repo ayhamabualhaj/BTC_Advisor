@@ -37,9 +37,20 @@ class FilledPagesTests(TestCase):
 
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
-        for text in ("Buy", "71", "Trend is up", "$95000", "prompt v3", "Who voted", "3 of 5 must agree",
+        for text in ("Buy", "71", "Trend is up", "$95,000", "prompt v3", "Who voted", "3 of 5 must agree",
                      "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote"):
             self.assertIn(text, page)
+
+    def test_today_says_when_the_decision_is_old_and_marks_a_strong_signal(self):
+        page = self.client.get("/").content.decode()
+        self.assertIn("This is not today's advice", page)  # the decision is for July 1, long ago
+        self.assertNotIn("badge-strong", page)  # 3 of 5 is a call but not a strong one
+        Decision.objects.update(group_calls={"rules": "sell", "ml": "sell", "opus": "sell", "stress": "sell", "riskon": "hold"})
+        page = self.client.get("/").content.decode()
+        for text in ("signal-sell", "Strong signal", "4 of the 5 voters say Sell"):
+            self.assertIn(text, page)
+        with mock.patch("apps.backtest.services.daily_run_service.last_full_day", return_value=DAY):
+            self.assertNotIn("This is not today's advice", self.client.get("/").content.decode())
 
     def test_agents_link_opens_one_page_with_a_tab_per_agent(self):
         self.assertRedirects(self.client.get("/agents/"), "/agents/technical/")
@@ -47,13 +58,31 @@ class FilledPagesTests(TestCase):
         for name in ("Technical analysis", "Derivatives", "Macro", "Financial stress", "Risk-on day"):
             self.assertIn(name, page)
         self.assertIn('href="/agents/macro/?backtest=1"', page)  # tabs keep the live / backtest choice
-        self.assertIn('href="/agents/">Agents</a>', page)
+        self.assertIn('href="/agents/" aria-current="page">Agents</a>', page)  # the menu marks the page you are on
         self.assertNotIn('href="/agents/macro/">Macro</a>', page)  # no longer one menu link per agent
 
     def test_agent_page_shows_both_scores_reasoning_and_chart_data(self):
         page = self.client.get("/agents/technical/").content.decode()
-        for text in ("Opus 5.5 reasoning", "Price above 50-day average", "rsi_14", 'id="score-data"'):
+        # The data table names its fields and rounds them; dates read "1 Jul 2026" on every page.
+        for text in ("Opus 5.5 reasoning", "Price above 50-day average", "RSI (14 days)", "55.00", 'id="score-data"',
+                     "Wed 1 Jul 2026", "Reads Bitcoin"):
             self.assertIn(text, page)
+        self.assertNotIn("rsi_14", page)
+
+    def test_agent_page_shows_a_day_once_and_only_the_kinds_the_agent_has(self):
+        # The day was first run with rules only, then with the LLM: the LLM run is the one shown.
+        AgentRun.objects.create(date=DAY, agent="technical", rule_score=50, direction="neutral", reasons=[], key_data={})
+        from apps.dashboard.services import report_service
+        history = report_service.agent_history("technical")
+        self.assertEqual([(run.date, run.opus_score) for run in history], [(DAY, 71)])
+        # The risk-on day has only a rules agent: no ML or LLM column, no prompt or cost.
+        AgentRun.objects.create(date=DAY, agent="riskon", rule_score=40, direction="bearish", reasons=[],
+                                key_data={"btc_change_1d_pct": 1.234, "rule_reasons": [], "skipped": []})
+        page = self.client.get("/agents/riskon/").content.decode()
+        for text in ("Rules score", "Bitcoin today", "+1.23%", "score-chip vote-sell"):
+            self.assertIn(text, page)
+        for text in ("ML score", "Opus 5.5 score", "<th>Prompt</th>"):
+            self.assertNotIn(text, page)
 
     def test_backtests_page_lists_runs_calibration_and_rule(self):
         BacktestRun.objects.create(name="rules:technical", start_date=DAY, end_date=DAY, trade_count=2,
@@ -68,12 +97,46 @@ class FilledPagesTests(TestCase):
             "group_lead": 1, "overall": "all agree", "tuned_on": ["2019-01-01", "2024-12-31"],
             "tuning": period, "test": period})
         page = self.client.get("/backtests/").content.decode()
-        for text in ("rules:technical", "3.50%", "60s", "44%", "each vote among their domains", "all those votes agree", "55.0%"):
+        for text in ("Rules · Technical", "3.50%", "60s", "44%", "each vote among their domains", "all those votes agree", "55.0%"):
             self.assertIn(text, page)
 
     def test_costs_and_prompts_pages(self):
-        self.assertContains(self.client.get("/costs/"), "$0.05")
-        self.assertContains(self.client.get("/prompts/"), "You are the agent")
+        page = self.client.get("/costs/").content.decode()
+        for text in ("$0.05", "Live daily runs", "1 day · $0.0500 per day", "Technical analysis"):
+            self.assertIn(text, page)
+        page = self.client.get("/prompts/").content.decode()
+        for text in ("You are the agent", "In use", "Technical analysis"):
+            self.assertIn(text, page)
+
+    def test_every_page_has_the_theme_button(self):
+        self.assertContains(self.client.get("/costs/"), "data-theme-toggle")
+
+
+class FormatTests(TestCase):
+    """How stored numbers are shown: named, rounded, in their unit. Display only."""
+
+    def test_fields_get_a_name_and_a_unit(self):
+        from apps.dashboard.templatetags.dashboard_format import field_label, field_value
+
+        self.assertEqual(field_label("sma_200"), "200-day average")
+        self.assertEqual(field_label("some_new_field_pct"), "Some new field")  # an unknown field still reads well
+        self.assertEqual(field_value(73796.06, "close"), "$73,796")
+        self.assertEqual(field_value(-11.9096, "change_30d_pct"), "-11.91%")
+        self.assertEqual(field_value(3.9349, "cpi_yoy_pct"), "3.93%")
+        self.assertEqual(field_value(5.8e-05, "funding_rate"), "0.0058%")
+        self.assertEqual(field_value(0.7033, "long_account_ratio"), "70.3%")
+        self.assertEqual(field_value(1, "fed_rate_change_60d"), "Hike")
+        self.assertEqual(field_value(False, "near_support"), "No")
+        self.assertEqual(field_value(None, "support"), "–")
+
+    def test_ml_reasons_strategy_names_and_signs(self):
+        from apps.dashboard.templatetags.dashboard_format import ml_reason, signed, strategy_name
+
+        self.assertEqual(ml_reason("rsi_14 = 34.0068 points down (-0.10)"), "RSI (14 days) 34.01: ▼ pushes the score down")
+        self.assertEqual(ml_reason("cpi_yoy_pct = 3.9349 (weight 19%)"), "Inflation (CPI, year on year) 3.93% (weight 19%)")
+        self.assertEqual(ml_reason("Learned from 3351 past days"), "Learned from 3351 past days")
+        self.assertEqual(strategy_name("rules:combining_rule"), "Rules · Combining rule")
+        self.assertEqual((signed(3.14), signed(-2), signed(None)), ("+3.1", "-2.0", "–"))
 
 
 class SignalsPageTests(TestCase):
@@ -129,6 +192,37 @@ class SignalsPageTests(TestCase):
             self.assertIn(text, page)
         self.assertEqual(self.client.get("/signals/?horizon=99&month=junk").status_code, 200)
 
+    def test_strong_column_and_the_track_record(self):
+        from apps.dashboard.services import report_service, signal_service
+
+        self.assertEqual(signal_service.columns()[-1].key, "strong")
+        self.assertIn("Strong (4 of 5)", self.client.get("/signals/?month=2026-07").content.decode())
+
+        def row(day, vote, strong="hold", outcome="right"):
+            calls = {"vote": signal_service.Call(vote, outcome=outcome), "strong": signal_service.Call(strong)}
+            return {"date": DAY + datetime.timedelta(days=day), "return_pct": -3.0, "calls": calls}
+
+        # Two Sell days are one trade, judged on its first day; a Hold ends it.
+        rows = [row(0, "sell"), row(1, "sell", strong="sell", outcome="wrong"), row(2, "hold"), row(3, "buy", outcome="wrong"),
+                row(4, "buy", outcome="pending")]
+        found = report_service.trades(rows, "vote")
+        self.assertEqual([(t["signal"], t["days"], t["strong"], t["outcome"]) for t in found],
+                         [("sell", 2, True, "right"), ("buy", 2, False, "wrong")])
+        record = report_service.record(rows, "vote")
+        self.assertEqual((record["right"], record["trades"], record["hit_rate"], record["enough"]), (1, 2, 50.0, False))
+        self.assertEqual(record["recent"][0]["signal"], "buy")  # newest first
+
+    def test_today_and_agent_pages_show_the_record_and_the_price(self):
+        AgentRun.objects.create(date=DAY, agent="macro", rule_score=40)
+        Decision.objects.create(date=DAY, signal="no_trade", rule={"group_lead": 1},
+                                group_calls={"rules": "sell", "ml": "hold", "opus": "sell", "stress": "sell", "riskon": "none"})
+        page = self.client.get("/").content.decode()
+        for text in ("How its calls turned out", "Overall vote (3 of 5)", "Strong signal (4 of 5)", "Bitcoin close", "$126"):
+            self.assertIn(text, page)  # the last stored close is 200 - 74
+        page = self.client.get("/agents/macro/").content.decode()
+        for text in ("How often it was right", "Jan 2025 - Sep 2026"):
+            self.assertIn(text, page)
+
     def test_overview_lists_periods_and_months(self):
         page = self.client.get("/signals/overview/").content.decode()
         for text in ("Oct 2026 on", "Jul 2026", "?month=2026-07", "rate-cell"):
@@ -159,16 +253,21 @@ class ProfitPageTests(TestCase):
 
     def test_profit_per_agent_against_holding(self):
         page, rows = self.rows(short=False)
-        self.assertEqual(len(rows), 15)  # 9 agents, stress ML, the risk-on day rules, 3 group votes, the overall vote
-        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 - 1) * 100, places=3)
+        # 9 agents, stress ML, the risk-on day rules, 3 group votes, the overall vote, the strong signal
+        self.assertEqual(len(rows), 16)
+        # One day long: a buy and a sell, 0.1% of the amount each.
+        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 * 0.999 ** 2 - 1) * 100, places=3)
+        self.assertAlmostEqual(rows["macro:opus"]["before_fees_pct"], (139 / 140 - 1) * 100, places=3)
         self.assertEqual((rows["macro:opus"]["trades"], rows["macro:opus"]["days_long"]), (1, 1))
         self.assertLess(page["hold"].total_profit_pct, rows["macro:opus"]["profit_pct"])  # holding loses every day
-        self.assertEqual(len(page["chart"]["lines"]), 15)
+        self.assertEqual(len(page["chart"]["lines"]), 16)
 
     def test_short_mode_profits_from_sell_calls(self):
         _, rows = self.rows(short=True)
-        expected = ((139 / 140) * (1 + (1 - 138 / 139)) - 1) * 100
-        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], expected, places=3)
+        before_fees = (139 / 140) * (1 + (1 - 138 / 139))
+        # In, out of the long and into the short, out: four fees.
+        self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (before_fees * 0.999 ** 4 - 1) * 100, places=3)
+        self.assertAlmostEqual(rows["macro:opus"]["before_fees_pct"], (before_fees - 1) * 100, places=3)
         self.assertEqual(rows["macro:opus"]["days_short"], 1)
 
     def test_calls_held_for_several_days_and_bitcoin_held_between_calls(self):
@@ -192,7 +291,7 @@ class ProfitPageTests(TestCase):
     def test_page_shows_filters_table_and_chart(self):
         page = self.client.get("/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
         for text in ("data-filter-agent", "data-filter-source", "data-profit-table", "profit-chart-data",
-                     "Go short", "Overall vote", "Macro"):
+                     "Go short", "Overall vote", "Macro", "Strong (4 of 5) signal", "Before fees", "after fees"):
             self.assertIn(text, page)
         self.assertEqual(self.client.get("/profit/?period=junk&start=bad").status_code, 200)
 

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load dashboard_format %}
 {% block main_class %}wide{% endblock %}
 {% block title %}Signals · BTC Advisor{% endblock %}
 {% block content %}
@@ -103,4 +103,4 @@
 <p class="small muted" data-empty-filter hidden>No day matches the filters.</p>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/signals.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% versioned_static 'js/signals.js' %}"></script>{% endblock %}

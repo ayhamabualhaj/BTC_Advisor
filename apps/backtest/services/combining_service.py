@@ -38,6 +38,7 @@ class Result:
     profit_pct: float
     drawdown_pct: float
     hold_pct: float
+    profit_after_fees_pct: float | None = None  # runs saved before fees were counted have none
 
 
 @dataclass
@@ -66,9 +67,10 @@ def evaluate(rule, scores_by_source, days, next_day_returns, returns_7d):
                 wrong += 1
     performance = metrics.performance(positions, next_day_returns)
     hold = metrics.performance([True] * len(days), next_day_returns)
+    after_fees = metrics.performance(positions, next_day_returns, metrics.FEE_PER_SIDE)
     return Result(right + wrong, right, right / (right + wrong) * 100 if right + wrong else None,
                   performance.days_in_market, performance.trade_count, performance.total_profit_pct,
-                  performance.max_drawdown_pct, hold.total_profit_pct)
+                  performance.max_drawdown_pct, hold.total_profit_pct, after_fees.total_profit_pct)
 
 
 def split(market, start, end):

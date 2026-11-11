@@ -12,7 +12,7 @@ from apps.backtest.services import backtest_service, combining_service as cs, op
 def line(result):
     hit = f"{result.hit_rate:5.1f}%" if result.hit_rate is not None else "    -"
     return (f"{hit} of {result.calls:4d} calls | buy days {result.buy_days:4d}, profit {result.profit_pct:+8.1f}% "
-            f"(hold {result.hold_pct:+8.1f}%), drawdown {result.drawdown_pct:5.1f}%")
+            f"(after fees {result.profit_after_fees_pct:+8.1f}%, hold {result.hold_pct:+8.1f}%), drawdown {result.drawdown_pct:5.1f}%")
 
 
 class Command(BaseCommand):

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load dashboard_format %}
 {% block title %}{{ label }} · BTC Advisor{% endblock %}
 {% block content %}
 <nav class="tabs" aria-label="Agents">
@@ -7,6 +8,7 @@
   {% endfor %}
 </nav>
 <h1>{{ label }} agent</h1>
+{% if note %}<p class="lead">{{ note }}</p>{% endif %}
 <p class="toggle">
   <a href="?backtest=0" {% if not is_backtest %}class="active"{% endif %}>Live runs</a>
   <a href="?backtest=1" {% if is_backtest %}class="active"{% endif %}>Backtest runs</a>
@@ -15,33 +17,35 @@
   <p class="empty">No {% if is_backtest %}backtest{% else %}live{% endif %} runs yet.</p>
 {% else %}
   <section class="panel">
-    <h2>Scores over time</h2>
-    <div class="chart-box"><canvas id="score-chart" aria-label="Rule, ML and {{ llm_label }} scores by date" role="img"></canvas></div>
+    <h2>Scores over time <span class="muted">{{ chart.labels|length }} day{{ chart.labels|length|pluralize }} · a score is how sure the agent is that the price is higher in 7 days</span></h2>
+    <div class="chart-box"><canvas id="score-chart" aria-label="{% for kind, kind_label in kinds %}{{ kind_label }}{% if not forloop.last %}, {% endif %}{% endfor %} scores by date" role="img"></canvas></div>
   </section>
 
   <section class="panel">
     <h2>Latest run <span class="muted">{{ latest.date }}</span></h2>
     <div class="tiles">
-      <div><div class="tile-label">{{ llm_label }} score</div>{% include "dashboard/_score.html" with score=latest.opus_score %}</div>
-      <div><div class="tile-label">ML score</div>{% include "dashboard/_score.html" with score=latest.ml_score %}</div>
-      <div><div class="tile-label">Rule score</div>{% include "dashboard/_score.html" with score=latest.rule_score %}</div>
-      <div><div class="tile-label">Direction</div><span class="pill">{{ latest.direction|default:"–" }}</span></div>
-      <div><div class="tile-label">Stop loss</div>{% if latest.suggested_stop_loss %}${{ latest.suggested_stop_loss|floatformat:0 }}{% else %}–{% endif %}</div>
+      {% for kind, score in latest_scores %}
+      <div><div class="tile-label">{{ kind }} score</div>{% include "dashboard/_score.html" with score=score %}</div>
+      {% endfor %}
+      {% if latest.direction %}<div><div class="tile-label">Direction</div><span class="pill pill-{{ latest.direction }}">{{ latest.direction }}</span></div>{% endif %}
+      {% if latest.suggested_stop_loss %}<div><div class="tile-label">Stop loss</div><span class="score">${{ latest.suggested_stop_loss|floatformat:"0g" }}</span></div>{% endif %}
     </div>
     <div class="two-col">
       <div>
         {% if latest.opus_score is not None %}
         <h3>{{ llm_label }} reasoning</h3>
         <ul class="reasons">{% for reason in latest.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
-        {% else %}
-        <p class="muted small">Rules only: no LLM judgment for this run.</p>
+        {% elif has_llm %}
+        <p class="muted small">No {{ llm_label }} judgment for this run (rules and ML only).</p>
         {% endif %}
-        <h3>Rule criteria</h3>
-        <ul class="reasons">{% for reason in latest.key_data.rule_reasons %}<li>{{ reason }}</li>{% empty %}<li class="muted">None fired.</li>{% endfor %}</ul>
+        {% if latest.rule_score is not None %}
+        <h3>Rules that fired</h3>
+        <ul class="reasons">{% for reason in latest.key_data.rule_reasons %}<li>{{ reason }}</li>{% empty %}<li class="muted">None fired: the score stays at 50.</li>{% endfor %}</ul>
+        {% endif %}
         {% if latest.key_data.skipped %}<p class="muted small">No data for: {{ latest.key_data.skipped|join:", " }}</p>{% endif %}
         {% if latest.key_data.ml_reasons %}
         <h3>ML model</h3>
-        <ul class="reasons">{% for reason in latest.key_data.ml_reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+        <ul class="reasons">{% for reason in latest.key_data.ml_reasons %}<li>{{ reason|ml_reason }}</li>{% endfor %}</ul>
         {% endif %}
       </div>
       <div>
@@ -49,7 +53,7 @@
         <table class="data">
           {% for key, value in latest.key_data.items %}
             {% if key != "model_input" and key != "rule_reasons" and key != "ml_reasons" and key != "skipped" %}
-            <tr><th>{{ key }}</th><td>{{ value|default_if_none:"–" }}</td></tr>
+            <tr><th>{{ key|field_label }}</th><td class="num">{{ value|field_value:key }}</td></tr>
             {% endif %}
           {% endfor %}
         </table>
@@ -58,17 +62,41 @@
     {% if latest.error %}<p class="error">{{ latest.error }}</p>{% endif %}
   </section>
 
+  {% if record %}
   <section class="panel">
-    <h2>Recent runs</h2>
+    <h2>How often it was right <span class="muted">Buy and Sell calls, judged after 7 days</span></h2>
     <table class="data">
-      <thead><tr><th>Date</th><th>Rules</th><th>ML</th><th>{{ llm_label }}</th><th>Direction</th><th>Prompt</th><th>Cost</th></tr></thead>
+      <thead><tr><th>Period</th>{% for kind, _ in record.0.1 %}<th>{{ kind }}</th>{% endfor %}</tr></thead>
       <tbody>
-      {% for run in history %}
-        <tr><td>{{ run.date }}</td><td>{{ run.rule_score|floatformat:0 }}</td><td>{{ run.ml_score|floatformat:0|default:"–" }}</td><td>{{ run.opus_score|default_if_none:"–" }}</td>
-          <td>{{ run.direction }}</td><td>v{{ run.prompt_version.version|default:"–" }}</td><td>${{ run.cost_usd|floatformat:4 }}</td></tr>
+      {% for period, cells in record %}
+        <tr><th>{{ period.name }}<span class="small muted block">{{ period.note }}</span></th>
+          {% for kind, s in cells %}<td>{% if s.hit_rate is not None %}<strong>{{ s.hit_rate|floatformat:0 }}%</strong> <span class="muted small">{{ s.right }} of {{ s.right|add:s.wrong }}</span>{% else %}<span class="muted">no calls</span>{% endif %}</td>{% endfor %}
+        </tr>
       {% endfor %}
       </tbody>
     </table>
+    <p class="small muted">From the stored scores of every day, not only the runs listed here. Month by month: <a href="{% url 'signals_overview' %}">Signals, all months</a>.</p>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h2>Recent runs <span class="muted">newest first, one per day</span></h2>
+    <table class="data">
+      <thead><tr><th>Date</th>{% for kind, kind_label in kinds %}<th class="num">{{ kind_label }}</th>{% endfor %}
+        {% if has_llm %}<th>Direction</th><th>Prompt</th><th class="num">Cost</th>{% endif %}</tr></thead>
+      <tbody>
+      {% for run, scores in history %}
+        <tr><td>{{ run.date|date:"D j M Y" }}</td>
+          {% for kind_label, score in scores %}<td class="num">{% if score is None %}<span class="muted">–</span>{% else %}<span class="score-chip {% if score >= 55 %}vote-buy{% elif score <= 45 %}vote-sell{% endif %}">{{ score|floatformat:0 }}</span>{% endif %}</td>{% endfor %}
+          {% if has_llm %}
+          <td>{{ run.direction|default:"–" }}</td>
+          <td>{% if run.prompt_version %}v{{ run.prompt_version.version }}{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td class="num">{% if run.cost_usd %}${{ run.cost_usd|floatformat:4 }}{% else %}<span class="muted">–</span>{% endif %}</td>
+          {% endif %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p class="small muted">Green = a Buy call (55 or more), red = a Sell call (45 or less), plain = Hold.</p>
   </section>
   {{ chart|json_script:"score-data" }}
 {% endif %}

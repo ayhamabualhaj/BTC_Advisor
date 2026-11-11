@@ -3,24 +3,29 @@
 {% block content %}
 <h1>API costs</h1>
 <div class="tiles hero">
-  <div><div class="tile-label">Total spent</div><span class="score">${{ total_usd|floatformat:2 }}</span></div>
+  <div><div class="tile-label">Total spent</div><span class="score">${{ total_usd|floatformat:2 }}</span>
+    <div class="small muted">{{ calls|floatformat:"0g" }} paid calls</div></div>
+  <div><div class="tile-label">Backtests and comparisons</div><span class="score">${{ backtest_usd|floatformat:2 }}</span>
+    <div class="small muted">one-off tests on past days</div></div>
+  <div><div class="tile-label">Live daily runs</div><span class="score">${{ live_usd|floatformat:2 }}</span>
+    <div class="small muted">{{ live_days }} day{{ live_days|pluralize }}{% if per_live_day_usd is not None %} · ${{ per_live_day_usd|floatformat:4 }} per day{% endif %}</div></div>
 </div>
 {% if not by_agent %}
   <p class="empty">No paid LLM calls yet.</p>
 {% else %}
 <section class="panel">
-  <h2>Spend per day</h2>
+  <h2>Spend per day <span class="muted">by the day the calls were made</span></h2>
   <div class="chart-box"><canvas id="cost-chart" aria-label="API spend per day by agent" role="img"></canvas></div>
 </section>
 <section class="panel">
   <h2>Per agent</h2>
   <table class="data">
-    <thead><tr><th>Agent</th><th>Kind</th><th>Calls</th><th>Input tokens</th><th>Output tokens</th><th>Cost</th><th>Per call</th></tr></thead>
+    <thead><tr><th>Agent</th><th>Kind</th><th class="num">Calls</th><th class="num">Input tokens</th><th class="num">Output tokens</th><th class="num">Cost</th><th class="num">Per call</th></tr></thead>
     <tbody>
     {% for row in by_agent %}
-      <tr><td><span class="dot dot-{{ row.agent }}"></span>{{ row.agent }}</td><td>{% if row.is_backtest %}backtest{% else %}live{% endif %}</td>
-        <td>{{ row.calls }}</td><td>{{ row.input_tokens }}</td><td>{{ row.output_tokens }}</td>
-        <td>${{ row.cost_usd|floatformat:4 }}</td><td>${{ row.per_call|floatformat:4 }}</td></tr>
+      <tr><td><span class="dot dot-{{ row.agent }}"></span>{{ row.label }}</td><td>{% if row.is_backtest %}Backtest{% else %}Live{% endif %}</td>
+        <td class="num">{{ row.calls|floatformat:"0g" }}</td><td class="num">{{ row.input_tokens|floatformat:"0g" }}</td><td class="num">{{ row.output_tokens|floatformat:"0g" }}</td>
+        <td class="num">${{ row.cost_usd|floatformat:4 }}</td><td class="num">${{ row.per_call|floatformat:4 }}</td></tr>
     {% endfor %}
     </tbody>
   </table>

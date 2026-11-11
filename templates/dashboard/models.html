@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load dashboard_format %}
 {% block title %}Models · BTC Advisor{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -108,4 +108,4 @@
 {{ other_label|json_script:"model-other-label" }}
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/models.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% versioned_static 'js/models.js' %}"></script>{% endblock %}

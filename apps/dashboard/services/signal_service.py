@@ -7,7 +7,8 @@ never judged. A call is right when the price moved its way; its result is the mo
 from the call's side (a Sell that saw the price fall 3% won 3%). Rules and ML come from
 score_store (stored, recomputed when the code changes); the LLM from the saved runs. The
 votes are the current combining rule: a Rules, an ML and an LLM vote, then the overall vote
-(those three plus the financial stress and risk-on day agents; 3 of the 5 must agree).
+(those three plus the financial stress and risk-on day agents; 3 of the 5 must agree), and the
+strong signal: the same call on the days 4 of the 5 agree.
 """
 
 import datetime
@@ -18,7 +19,7 @@ from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, decide, net_votes, vote, voters
+from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, decide, net_votes, strong_call, vote, voters
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
@@ -26,6 +27,7 @@ from apps.dashboard.repositories import report_repository
 HORIZONS = (1, 3, 7)
 DEFAULT_HORIZON = 7
 START = datetime.date(2019, 1, 1)
+STRONG = "strong"  # the column of the strong signal
 def sources():
     """Each kind of agent with its label; the LLM one is named after AI_MODEL (e.g. "Haiku 5.5")."""
     return [("rules", "Rules"), ("ml", "ML"), ("opus", model_label())]
@@ -69,6 +71,7 @@ def columns():
               for agent in AgentName for source, label in sources() if has(agent.value, source)]
     result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()]
     result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
+    result.append(Column(STRONG, "vote", "Vote", "strong", f"Strong ({STRONG_NEEDED} of 5)"))
     return result
 
 
@@ -148,6 +151,7 @@ def day_calls(scores, opus_runs, rule, forward_return):
     for source in GROUPS:
         calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(voters(source, by_source[source])))
     calls["vote"] = vote_cell(overall, forward_return, overall_note(groups))
+    calls[STRONG] = vote_cell(strong_call(groups), forward_return, overall_note(groups))
     return calls
 
 

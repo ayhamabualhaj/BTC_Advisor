@@ -19,6 +19,8 @@
   --critical: #b42318;
   --critical-bg: #fbe9e7;
   --pending-bg: #f1efe9;
+  --warning: #b7791f;
+  --warning-bg: #fdf3dc;
   --link: #1f5fae;
 }
 @media (prefers-color-scheme: dark) {
@@ -42,6 +44,8 @@
     --critical: #f07167;
     --critical-bg: #3a1c19;
     --pending-bg: #232321;
+    --warning: #d9a441;
+    --warning-bg: #33290f;
     --link: #79aef0;
   }
 }
@@ -49,7 +53,7 @@
   color-scheme: dark;
   --bg: #121211; --surface: #1a1a19; --border: #2e2e2c; --text: #f0efec; --text-2: #c3c2b7;
   --muted: #94938c; --grid: #2a2a28; --technical: #3987e5; --derivatives: #d95926; --macro: #199e70; --stress: #a07ce8; --riskon: #e06aae;
-  --hold: #8a8983; --good: #5cc98a; --good-bg: #16301f; --critical: #f07167; --critical-bg: #3a1c19; --pending-bg: #232321; --link: #79aef0;
+  --hold: #8a8983; --good: #5cc98a; --good-bg: #16301f; --critical: #f07167; --critical-bg: #3a1c19; --pending-bg: #232321; --warning: #d9a441; --warning-bg: #33290f; --link: #79aef0;
 }
 
 * { box-sizing: border-box; }
@@ -68,7 +72,9 @@ pre { white-space: pre-wrap; background: var(--bg); padding: 12px; border-radius
 }
 .brand { font-weight: 700; color: var(--text); }
 .topbar nav { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-.topbar nav a { color: var(--text-2); }
+.topbar nav a { color: var(--text-2); padding: 2px 0; border-bottom: 2px solid transparent; }
+.topbar nav a[aria-current="page"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+.topbar nav a[aria-current="page"]:hover { text-decoration: none; }
 
 main { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
 footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px; }
@@ -92,6 +98,25 @@ h3 { font-size: 14px; margin: 16px 0 6px; color: var(--text-2); }
 .signal-label { font-size: 28px; font-weight: 700; }
 .signal-buy { border-color: var(--good); background: var(--good-bg); }
 .signal-buy .signal-label::before { content: "▲ "; color: var(--good); }
+.signal-sell { border-color: var(--critical); background: var(--critical-bg); }
+.signal-sell .signal-label::before { content: "▼ "; color: var(--critical); }
+.signal > div + div { margin-top: 4px; }
+.today-top { display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); margin-bottom: 20px; }
+.today-top .signal { margin-bottom: 0; }
+.price .signal-label { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .today-top { grid-template-columns: 1fr; } }
+.notice {
+  margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--warning); border-left-width: 4px;
+  border-radius: 8px; background: var(--warning-bg); color: var(--text);
+}
+.badge {
+  display: inline-block; padding: 1px 9px; border-radius: 99px; font-size: 12px; font-weight: 600;
+  letter-spacing: .02em; vertical-align: middle; white-space: nowrap;
+}
+.badge-strong { background: var(--text); color: var(--surface); }
+.record .tiles { gap: 16px 40px; }
+.record .score .muted { font-size: 18px; }
+table.data .num { text-align: right; }
 
 .advise { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; }
 .advise button {
@@ -257,3 +282,43 @@ tr.total th, tr.total td { font-weight: 600; }
 .vote-hold { background: var(--pending-bg); color: var(--text-2); }
 @media (max-width: 640px) { .vote-table td:last-child { white-space: normal; } }
 a.tab { text-decoration: none; gap: 6px; }
+
+/* Shared polish */
+.skip-link { position: absolute; left: -999px; top: 0; padding: 8px 12px; background: var(--text); color: var(--surface); z-index: 10; }
+.skip-link:focus { left: 8px; top: 8px; border-radius: 6px; }
+a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.topbar { position: sticky; top: 0; z-index: 5; }
+.theme-toggle {
+  margin-left: auto; font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 6px; cursor: pointer;
+  background: none; color: var(--text-2); border: 1px solid var(--border);
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--text-2); }
+.lead { margin: -8px 0 16px; color: var(--text-2); max-width: 78ch; }
+.section-title { margin: 28px 0 12px; }
+h1 .muted, h2 .muted { font-size: .8em; }
+/* Row hover, except in the tables whose cells are colored by right / wrong. */
+table.data:not(:has(td.call, td.rate-cell)) tbody tr:hover > * { background: var(--pending-bg); }
+table.data tbody tr:last-child td, table.data tbody tr:last-child th { border-bottom: 0; }
+table.data td.num, table.data th.num { text-align: right; }
+.panel > :last-child { margin-bottom: 0; }
+.pill { text-transform: capitalize; }
+.pill-bullish { border-color: var(--good); color: var(--good); background: var(--good-bg); }
+.pill-bearish { border-color: var(--critical); color: var(--critical); background: var(--critical-bg); }
+.score-chip { display: inline-block; min-width: 34px; padding: 1px 8px; border-radius: 5px; text-align: center; }
+.hero { gap: 16px 48px; margin-bottom: 20px; }
+.card .reasons { color: var(--text-2); font-size: 14px; }
+.prompt-head td { border-bottom: 0 !important; }
+select {
+  font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text);
+}
+@media (max-width: 640px) {
+  main { padding: 16px 12px; }
+  .topbar { position: static; }
+  .signal-label { font-size: 24px; }
+  .advice-label { font-size: 30px; }
+}
+@media print {
+  .topbar, .advise, .theme-toggle, .filters, .controls { display: none; }
+  body { background: #fff; }
+}

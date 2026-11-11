@@ -29,6 +29,9 @@ VOTERS = {"rules": {"technical", "derivatives", "macro"}, "ml": {"macro"}}
 CALL_VOTES = {"buy": 1, "sell": -1, "hold": 0, "none": 0}
 # Round 2: how many of the five voters must say the same thing.
 OVERALL_NEEDED = 3
+# A "strong signal": this many agree. It is shown beside the vote and changes no call. From 2025
+# to Oct 2026 it was right in 9 of 10 trades, too few to prove (CLAUDE.md, search for 70%).
+STRONG_NEEDED = 4
 
 
 def vote(score):
@@ -92,15 +95,25 @@ def overall_net(groups):
     return sum(CALL_VOTES[signal] for signal in groups.values())
 
 
-def overall_call(groups):
-    """Round 2: Buy or Sell when at least OVERALL_NEEDED voters say it; "none" when none voted."""
+def agreed_call(groups, needed):
+    """Buy or Sell when at least `needed` voters say it; "none" when none voted."""
     voted = [signal for signal in groups.values() if signal != "none"]
     if not voted:
         return "none"
     for side in ("buy", "sell"):
-        if voted.count(side) >= OVERALL_NEEDED:
+        if voted.count(side) >= needed:
             return side
     return "hold"
+
+
+def overall_call(groups):
+    """Round 2: Buy or Sell when at least OVERALL_NEEDED voters say it."""
+    return agreed_call(groups, OVERALL_NEEDED)
+
+
+def strong_call(groups):
+    """The overall call on the days at least STRONG_NEEDED voters back it, else Hold."""
+    return agreed_call(groups, STRONG_NEEDED)
 
 
 def decide(scores_by_source, rule):

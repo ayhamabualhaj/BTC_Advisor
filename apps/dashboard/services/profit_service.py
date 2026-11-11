@@ -1,18 +1,19 @@
 """The Profit page: what following each agent's calls would have earned.
 
-Every column of the Signals page (10 agents, the Rules / ML / LLM votes and the overall
-vote) becomes a strategy. A Buy (score >= 55, or the vote's Buy) at the close of day D holds
+Every column of the Signals page (the agents, the Rules / ML / LLM votes, the overall vote and
+the strong signal) becomes a strategy. A Buy (score >= 55, or the vote's Buy) at the close of day D holds
 for `days` days (1, 3 or 7; a new call replaces it); with `short`, a Sell does the opposite,
 else it stays out. Between calls you stay out, or with `hold_between` keep holding Bitcoin
 (the way to use an agent that only sells, like the risk-on day). Compared with buying and
-holding over the same days. All math is apps/backtest/metrics.py.
+holding over the same days. Profit is after fees (metrics.FEE_PER_SIDE each time the position
+changes), with the profit before fees beside it. All math is apps/backtest/metrics.py.
 """
 
 import datetime
 
 from apps.agents.models import AgentName
 from apps.backtest import metrics
-from apps.backtest.decision_rule import GROUPS, decide
+from apps.backtest.decision_rule import GROUPS, decide, strong_call
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import backtest_service, combining_service, score_store
 from apps.dashboard.services import signal_service
@@ -64,6 +65,7 @@ def daily_signals(days):
         for source in GROUPS:  # the solo voters (stress, risk-on day) are already agent columns
             signals[f"vote:{source}"].append(groups[source])
         signals["vote"].append(overall)
+        signals[signal_service.STRONG].append(strong_call(groups))
     return signals
 
 
@@ -90,16 +92,25 @@ def curve_points(days, curve):
     return [days[i].isoformat() for i in picked], [round((curve[i] - 1) * 100, 2) for i in picked]
 
 
+def name(column):
+    if column.agent != "vote":
+        return f"{column.label} · {column.source_label}"
+    if column.source == "vote":
+        return "Overall vote"
+    return f"{column.source_label} signal" if column.key == signal_service.STRONG else f"{column.source_label} vote"
+
+
 def row(column, signals, market, hold, short, days, hold_between):
     scored = sum(1 for signal in signals if signal != "none")
     held = positions(signals, short, days, hold_between)
-    performance = metrics.performance(held, market.next_day_returns)
-    curve = metrics.equity_curve(held, market.next_day_returns)
+    performance = metrics.performance(held, market.next_day_returns, metrics.FEE_PER_SIDE)
+    before_fees = metrics.performance(held, market.next_day_returns)
+    curve = metrics.equity_curve(held, market.next_day_returns, metrics.FEE_PER_SIDE)
     return {
         "key": column.key, "agent": column.agent, "label": column.label, "source": column.source,
-        "source_label": column.source_label, "name": f"{column.label} · {column.source_label}"
-        if column.agent != "vote" else ("Overall vote" if column.source == "vote" else f"{column.source_label} vote"),
+        "source_label": column.source_label, "name": name(column),
         "profit_pct": performance.total_profit_pct,
+        "before_fees_pct": before_fees.total_profit_pct,
         "vs_hold_pct": performance.total_profit_pct - hold.total_profit_pct,
         "drawdown_pct": performance.max_drawdown_pct,
         "trades": performance.trade_count,
@@ -115,7 +126,7 @@ def profit_page(preset=None, start=None, end=None, short=False, days=1, hold_bet
     last = price_repository.latest_close_date()
     days = days if days in HOLD_DAYS else 1
     page = {"presets": [(key, label) for key, label, _, _ in PRESETS], "short": short, "hold_days": days,
-            "hold_between": hold_between, "rows": []}
+            "hold_between": hold_between, "rows": [], "fee_pct": metrics.FEE_PER_SIDE * 100}
     if last is None:
         return page
     # The last day has no next-day price yet, so it cannot be scored.
@@ -124,10 +135,11 @@ def profit_page(preset=None, start=None, end=None, short=False, days=1, hold_bet
     page.update({"preset": key, "start": start, "end": end, "days": len(market.days)})
     if not market.days:
         return page
-    hold = metrics.performance([1] * len(market.days), market.next_day_returns)
+    always_in = [1] * len(market.days)
+    hold = metrics.performance(always_in, market.next_day_returns, metrics.FEE_PER_SIDE)
     signals = daily_signals(market.days)
     rows = [row(column, signals[column.key], market, hold, short, days, hold_between) for column in signal_service.columns()]
-    labels, hold_curve = curve_points(market.days, metrics.equity_curve([1] * len(market.days), market.next_day_returns))
+    labels, hold_curve = curve_points(market.days, metrics.equity_curve(always_in, market.next_day_returns, metrics.FEE_PER_SIDE))
     rule = combining_service.current_rule()
     return {**page, "rows": sorted(rows, key=lambda r: -r["profit_pct"]), "hold": hold,
             "chart": {"labels": labels, "hold": hold_curve,

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load dashboard_format %}
 {% block main_class %}wide{% endblock %}
 {% block title %}Signals overview · BTC Advisor{% endblock %}
 {% block content %}
@@ -56,4 +56,4 @@
   </table>
 </section>
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/signals.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% versioned_static 'js/signals.js' %}"></script>{% endblock %}

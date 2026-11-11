@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% load static %}
+{% load dashboard_format %}
 {% block main_class %}wide{% endblock %}
 {% block title %}Profit · BTC Advisor{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Profit <span class="muted">if you had followed each agent</span></h1>
+  <h1>Profit <span class="muted">if you had followed each agent, after fees</span></h1>
 </div>
 
 {% if links %}
@@ -44,8 +44,10 @@
       {{ hold_days }} day{{ hold_days|pluralize }} (a new Buy or Sell before then replaces it). Days in a row are one trade.
       {% if short %}On a <strong>▼ Sell</strong> day you go short for {{ hold_days }} day{{ hold_days|pluralize }} instead (you gain when the price falls).{% else %}A <strong>▼ Sell</strong> means hold nothing for {{ hold_days }} day{{ hold_days|pluralize }}.{% endif %}
       {% if hold_between %}With no call running you <strong>hold Bitcoin</strong>: this is how to judge an agent that only sells, like the risk-on day.{% else %}With no call running you hold nothing.{% endif %}</li>
-    <li><strong>Profit</strong> is what 100 would have become, minus 100, with every gain reinvested. No fees or slippage.
-      <strong>vs holding</strong> compares with simply buying on the first day and holding to the last.</li>
+    <li><strong>Profit</strong> is what 100 would have become, minus 100, with every gain reinvested, <strong>after fees</strong>:
+      {{ fee_pct|floatformat:"-2" }}% of the amount each time you buy or sell (going from long to short pays twice). No slippage.
+      <strong>Before fees</strong> is the same without them: the gap is what trading that often costs.
+      <strong>vs holding</strong> compares with simply buying on the first day and selling on the last (two fees).</li>
     <li><strong>Worst drop</strong> is the largest fall of the account from a high point: the pain on the way.
       <strong>Trades won</strong> is the share of trades that ended in profit.</li>
     <li><strong>Votes</strong>: {{ rule_text }}.</li>
@@ -110,7 +112,7 @@
 <section class="panel">
   <table class="data profit-table" data-profit-table>
     <thead>
-      <tr><th>#</th><th>Agent</th><th class="num">Profit</th><th class="bar-col"></th><th class="num">vs holding</th>
+      <tr><th>#</th><th>Agent</th><th class="num">Profit</th><th class="bar-col"></th><th class="num">Before fees</th><th class="num">vs holding</th>
         <th class="num">Worst drop</th><th class="num">Trades</th><th class="num">Trades won</th>
         <th class="num">Days in</th><th class="num">Scored</th></tr>
     </thead>
@@ -124,6 +126,7 @@
           {% if r.agent != "vote" %}<span class="kind kind-{{ r.source }}">{{ r.source_label }}</span>{% endif %}</th>
         <td class="num strong {% if r.profit_pct > 0 %}up{% elif r.profit_pct < 0 %}down{% endif %}">{{ r.profit_pct|floatformat:1 }}%</td>
         <td class="bar-col"><span class="profit-bar {% if r.profit_pct >= 0 %}gain{% else %}loss{% endif %}" data-bar="{{ r.profit_pct|stringformat:'f' }}"></span></td>
+        <td class="num muted">{{ r.before_fees_pct|floatformat:1 }}%</td>
         <td class="num {% if r.vs_hold_pct > 0 %}up{% elif r.vs_hold_pct < 0 %}down{% endif %}">{% if r.vs_hold_pct > 0 %}+{% endif %}{{ r.vs_hold_pct|floatformat:1 }}</td>
         <td class="num">{{ r.drawdown_pct|floatformat:0 }}%</td>
         <td class="num">{{ r.trades }}</td>
@@ -135,9 +138,9 @@
     </tbody>
   </table>
   <p class="small muted" data-empty-filter hidden>No agent matches the filters.</p>
-  <p class="small muted">"vs holding" is in percentage points. "Scored" = share of days the agent had a score; on the others it holds nothing.</p>
+  <p class="small muted">Profit is after a {{ fee_pct|floatformat:"-2" }}% fee per side. "vs holding" is in percentage points. "Scored" = share of days the agent had a score; on the others it holds nothing.</p>
 </section>
 {{ chart|json_script:"profit-chart-data" }}
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/profit.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% versioned_static 'js/profit.js' %}"></script>{% endblock %}

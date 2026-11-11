@@ -26,7 +26,7 @@
   options.scales.y.ticks.callback = (v) => `${v}%`;
   options.plugins.legend.labels.filter = (item, chart) => !chart.datasets[item.datasetIndex].hidden;
   options.plugins.tooltip.itemSort = (a, b) => b.parsed.y - a.parsed.y;
-  options.plugins.tooltip.callbacks = { label: (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%` };
+  options.plugins.tooltip.callbacks.label = (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`;
   options.elements = { point: { radius: 0, hoverRadius: 4 } };
   const datasets = data.lines.map((line) => ({
     label: line.name, key: line.key, agent: line.agent, source: line.source, data: line.curve,

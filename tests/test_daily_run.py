@@ -56,6 +56,18 @@ class DailyRunTests(TestCase):
         report = daily_run_service.run(DAY + datetime.timedelta(days=1), client=FakeClient(), collect=False)
         self.assertEqual(report.caught_up, [])
 
+    def test_after_a_pause_it_collects_from_the_last_price_and_fills_the_memory(self):
+        last = START + datetime.timedelta(days=59)  # the last stored close
+        # The next morning: the usual last 10 days.
+        self.assertEqual(daily_run_service.collect_start(last + datetime.timedelta(days=1)), last - datetime.timedelta(days=8))
+        # A month later the last 10 days would leave a hole, so it starts at the last price.
+        self.assertEqual(daily_run_service.collect_start(last + datetime.timedelta(days=30)), last)
+        from apps.agents.models import MemoryCase
+
+        MemoryCase.objects.create(date=START, agent="macro", setup_summary="{}", embedding={}, outcome="", return_7d_pct=1)
+        self.assertEqual(daily_run_service.memory_start("macro", DAY), START)  # back to its last case
+        self.assertEqual(daily_run_service.memory_start("technical", DAY), DAY - datetime.timedelta(days=17))
+
     def test_a_first_run_does_not_backfill(self):
         self.assertEqual(daily_run_service.run(DAY, collect=False).caught_up, [])
 
