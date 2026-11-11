@@ -15,8 +15,11 @@ agent. The ML vote is the macro ML agent (technical and derivatives ML are shown
 A buy comes from a two-round vote: the rules, ML and Opus agents each vote among their
 domains; then five voters (those three votes, the financial stress agent and the risk-on day)
 give the overall vote, Buy or Sell when 3 of the 5 agree (group lead chosen on 2019-2024,
-tested on 2025 onward). The Today page shows who voted what. The system only advises; it
-never places trades.
+tested on 2025 onward). Two **strong signals** are shown beside the
+vote and change no call: "Strong" when 4 of the 5 agree, and "Strong + dollar" when, among the
+five plus a sixth domain that votes nowhere else (the dollar: an ML agent on the dollar index's
+moves), Buy votes lead Sell votes by 4 or more (or the reverse). Both are shown so new data
+can decide between them. The Today page shows who voted what. The system only advises; it never places trades.
 
 The full plan is in `docs/project_plan.pdf`; conventions and progress in `CLAUDE.md`.
 

@@ -8,7 +8,7 @@ from django.views.decorators.http import require_POST
 
 from ai.opus_client import model_label
 from apps.agents.models import AgentName
-from apps.backtest.decision_rule import overall_call, strong_call
+from apps.backtest.decision_rule import overall_call, strong_call, strong_dollar_call
 from apps.backtest.services import combining_service, daily_run_service
 from apps.dashboard.services import model_service, profit_service, report_service, signal_service
 from apps.dashboard.templatetags.dashboard_format import strategy_name
@@ -31,6 +31,7 @@ def today(request, advice=None):
     if shown and shown.group_calls:
         context["call"] = overall_call(shown.group_calls)
         context["strong"] = strong_call(shown.group_calls) in ("buy", "sell")
+        context["strong_dollar"] = strong_dollar_call(shown.group_calls) in ("buy", "sell")
     # A decision older than yesterday is stale: say so instead of showing it as today's.
     context["days_behind"] = (daily_run_service.last_full_day() - context["date"]).days if context["date"] else 0
     context["price"] = report_service.price_now()

@@ -3,7 +3,7 @@ import datetime
 from django.test import SimpleTestCase, TestCase
 
 from apps.agents.models import AgentRun
-from apps.backtest.decision_rule import call, decide, group_calls, net_votes, overall_call, strong_call
+from apps.backtest.decision_rule import call, decide, group_calls, net_votes, overall_call, strong_call, strong_dollar_call
 from apps.backtest.models import BacktestRun, Decision
 from apps.backtest.services import backtest_service, combining_service as cs, decision_service
 from apps.data.collectors.base import Point
@@ -34,9 +34,9 @@ class VoteTests(SimpleTestCase):
                   "ml": {"macro": 50, "stress": 40},
                   "opus": {"technical": None, "derivatives": None, "macro": None}}
         self.assertEqual(group_calls(scores, 1),
-                         {"rules": "buy", "ml": "hold", "opus": "none", "stress": "sell", "riskon": "sell"})
+                         {"rules": "buy", "ml": "hold", "opus": "none", "stress": "sell", "riskon": "sell", "dollar": "none"})
         self.assertEqual(group_calls(scores, 2),
-                         {"rules": "hold", "ml": "hold", "opus": "none", "stress": "sell", "riskon": "sell"})
+                         {"rules": "hold", "ml": "hold", "opus": "none", "stress": "sell", "riskon": "sell", "dollar": "none"})
 
     def test_technical_and_derivatives_ml_do_not_vote(self):
         scores = {"rules": {}, "ml": {"technical": 70, "derivatives": 70, "macro": 50}}
@@ -55,8 +55,8 @@ class VoteTests(SimpleTestCase):
         self.assertEqual(overall_call(calls("none", "none", "none", "none", "none")), "none")
 
     def test_a_strong_signal_needs_four_of_five(self):
-        four = {"rules": "buy", "ml": "buy", "opus": "buy", "stress": "buy", "riskon": "sell"}
-        self.assertEqual((overall_call(four), strong_call(four)), ("buy", "buy"))
+        four = {"rules": "buy", "ml": "buy", "opus": "buy", "stress": "buy", "riskon": "sell", "dollar": "sell"}
+        self.assertEqual((overall_call(four), strong_call(four)), ("buy", "buy"))  # the dollar agent has no say here
         three = {**four, "stress": "hold"}
         self.assertEqual((overall_call(three), strong_call(three)), ("buy", "hold"))
         sells = {"rules": "sell", "ml": "sell", "opus": "sell", "stress": "hold", "riskon": "sell"}
@@ -64,10 +64,32 @@ class VoteTests(SimpleTestCase):
         # Without the LLM only four vote, and all four must agree.
         self.assertEqual(strong_call({**sells, "opus": "none"}), "hold")
 
+    def test_the_strong_signal_with_the_dollar_needs_a_lead_of_four_among_six(self):
+        # Six voters: the overall vote's five plus the dollar agent. Buy minus Sell must reach 4.
+        five = {"rules": "buy", "ml": "buy", "opus": "buy", "stress": "buy", "riskon": "hold"}
+        self.assertEqual(strong_dollar_call(five), "buy")  # 4 - 0; a saved vote without the dollar
+        self.assertEqual(strong_dollar_call({**five, "riskon": "sell"}), "hold")  # 4 - 1: a vote against counts
+        self.assertEqual(strong_dollar_call({**five, "riskon": "sell", "dollar": "buy"}), "buy")  # 5 - 1
+        three = {**five, "stress": "hold"}
+        self.assertEqual((strong_call(three), strong_dollar_call(three)), ("hold", "hold"))
+        self.assertEqual(strong_dollar_call({**three, "dollar": "buy"}), "buy")  # the dollar agent makes it 4 - 0
+        sells = {"rules": "sell", "ml": "sell", "opus": "sell", "stress": "hold", "riskon": "sell", "dollar": "hold"}
+        self.assertEqual(strong_dollar_call(sells), "sell")
+        self.assertEqual(strong_dollar_call({**sells, "dollar": "buy"}), "hold")
+        self.assertEqual(strong_dollar_call({**sells, "opus": "none"}), "hold")  # only three left
+        self.assertEqual(strong_dollar_call({}), "none")
+
+    def test_the_dollar_agent_never_votes_in_the_overall_vote(self):
+        calls = {"rules": "buy", "ml": "buy", "opus": "hold", "stress": "hold", "riskon": "hold", "dollar": "buy"}
+        self.assertEqual(overall_call(calls), "hold")  # two of the five, whatever the dollar says
+        scores = {"rules": {}, "ml": {"macro": 70, "dollar": 70, "stress": 70}}
+        groups, signal = decide(scores, {"group_lead": 1, "overall": cs.OVERALL})
+        self.assertEqual((groups["dollar"], groups["ml"], signal), ("buy", "buy", "hold"))
+
     def test_decide_runs_both_rounds(self):
         scores = {"rules": {"technical": 70, "derivatives": 60}, "ml": {"macro": 56, "stress": 60}}
         groups, signal = decide(scores, {"group_lead": 1, "overall": cs.OVERALL})
-        self.assertEqual(groups, {"rules": "buy", "ml": "buy", "opus": "none", "stress": "buy", "riskon": "none"})
+        self.assertEqual(groups, {"rules": "buy", "ml": "buy", "opus": "none", "stress": "buy", "riskon": "none", "dollar": "none"})
         self.assertEqual(signal, "buy")
 
 
@@ -133,7 +155,7 @@ class ChooseAndDecideTests(TestCase):
         # ML: only macro votes (technical's 60 Buy does not count): 50 Hold -> Hold. Stress Buy.
         # Two Buys of five: no call.
         self.assertEqual(decision.group_calls,
-                         {"rules": "buy", "ml": "hold", "opus": "none", "stress": "buy", "riskon": "sell"})
+                         {"rules": "buy", "ml": "hold", "opus": "none", "stress": "buy", "riskon": "sell", "dollar": "none"})
         self.assertEqual((decision.signal, decision.net_votes), (Decision.Signal.NO_TRADE, 1))
         self.assertEqual((decision.technical_score, decision.macro_score), (72, 40))
 

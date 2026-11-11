@@ -4,7 +4,8 @@ A local Django tool that advises Ayham on daily Bitcoin trades. Three domains (t
 derivatives, macro) each have three independent agents: rules (code), ML (walk-forward:
 logistic regression, random forest for macro) and Opus 5.5 (judgment). A fourth domain,
 financial stress, has only an ML agent (see "Financial stress domain"); a fifth, the risk-on
-day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayham places trades manually. Full plan:
+day, only a rules agent (see "Risk-on day domain"); a sixth, the dollar, only an ML agent that
+votes only in the second strong signal (see "Strong signal with the dollar agent"). The system only advises; Ayham places trades manually. Full plan:
 `docs/project_plan.pdf`.
 
 ## Rules
@@ -491,6 +492,33 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
   a little from 2025 (-7.6% vs -13.2%). Big-drop (>= 8% in a week) warning: AUC 0.52 in 2025,
   0.25 in 2026. Not added.
 
+## Strong signal with the dollar agent (Nov 11 2026)
+- Two strong signals are shown side by side (the user's choice, "show both"); neither changes a
+  call. "Strong (4 of 5)" is unchanged (`STRONG_NEEDED`, `strong_call`). "Strong + dollar"
+  (`strong_dollar_call`): six voters, the five of round 2 plus the dollar ML agent
+  (`STRONG_ONLY`, `STRONG_VOTERS`), strong when Buy votes minus Sell votes is >= `STRONG_NET` = 4
+  either way, so an opposing vote counts against it. The dollar agent votes nowhere else.
+- `ai/dollar/`: `inputs.py` and `ml.py` only (`rules = None`, `opus = None`). Snapshot
+  `indicator_service.dollar_snapshot`: the dollar index's 5 / 20 / 60-session change, distance
+  from its 50-session average, Bitcoin's 20-session move minus the dollar's, their 60-session
+  correlation (math in `indicators/relative.py`; Bitcoin compared on the index's trading days;
+  stale after 5 days). ML: logistic C = 0.1, retrained monthly. Outcome has `dollar_correct`.
+- Test, bar written first: 17 ways to count (other extra voters, other leads) chosen on 2019-24
+  only (>= 15 judged trades, highest edge over fair); replace the old signal only if its 2019-24
+  edge is better AND from 2025 it has >= 10 trades and >= 80% right. Trades = days in a row with
+  the same call, judged on the first day after 7 days.
+- In the project (stored scores): Strong (4 of 5) 8 of 13 (61.5%) on 2019-24, 9 of 10 (90%)
+  from 2025. Strong + dollar 36 of 52 (69.2%) on 2019-24, 10 of 13 (76.9%) from 2025; per year
+  2019 5/11, 2020 8/9, 2021 12/14, 2022 5/9, 2023 6/9, 2025 6/8, 2026 4/5. The scratch run gave
+  38 of 53 and 10 of 12 (83%), shift p 0.006 / 0.029; in the project it missed the 80% bar, so
+  it did not replace the old signal. The overall vote itself: 81 of 134 (60.4%), 31 of 52 (59.6%).
+- The dollar agent alone is weak: 94 of 165 trades (57.0%) on 2019-24, 17 of 37 (45.9%) from
+  2025, and ~96-99% Buys (see "Bigger vote"). It was the best of 17 tries, so expect less on new
+  data; four times the trades on 2019-24 is its real advantage over the old signal.
+- Pages: Today shows both badges, a third track-record tile and a dollar row in "Who voted"
+  ("votes only in Strong + dollar"); Signals and Profit have a "Strong + dollar" column / row.
+  The agent has memory from 2017-08-17 and stored scores; live runs start with the next daily_run.
+
 ## Search for 70% of calls right (Nov 11 2026, scratchpad scripts, nothing added)
 - Bar written before any result: learn to 2022, choose on 2023-24, test once on 2025 on; pass =
   test >= 70% at 7 days (5 trading days for stocks), >= 30 separate episodes, >= fair + 10 points,
@@ -606,5 +634,5 @@ day, only a rules agent (see "Risk-on day domain"). The system only advises; Ayh
 - [x] 14. RAG memory
 - [ ] 15. Optional extras (not planned for now)
 
-**Current step:** done through 14, risk-on day rules agent (5th domain), overall vote 3 of 5
+**Current step:** done through 14, dollar ML agent (6th domain) and a second strong signal "Strong + dollar" shown beside "Strong (4 of 5)", risk-on day rules agent (5th domain), overall vote 3 of 5
 (Rules, ML, LLM votes, stress, risk-on day), financial stress ML agent (4th domain), rule search, Signals page, `ai/` package with rules / ML / Opus agents per domain run by a CrewAI Flow, macro ML is a random forest, two-round vote (Rules / ML / Opus votes; overall only when all agree). Pending for the user: crontab; optionally rerun the technical and derivatives Opus backtests, which would create prompt v3 (paid, ~$0.45 each).

@@ -29,9 +29,17 @@ VOTERS = {"rules": {"technical", "derivatives", "macro"}, "ml": {"macro"}}
 CALL_VOTES = {"buy": 1, "sell": -1, "hold": 0, "none": 0}
 # Round 2: how many of the five voters must say the same thing.
 OVERALL_NEEDED = 3
-# A "strong signal": this many agree. It is shown beside the vote and changes no call. From 2025
-# to Oct 2026 it was right in 9 of 10 trades, too few to prove (CLAUDE.md, search for 70%).
+# A "strong signal": this many of the five agree. It is shown beside the vote and changes no
+# call. From 2025 to Nov 2026 it was right in 9 of 10 trades (8 of 13 on 2019-24): too few to prove.
 STRONG_NEEDED = 4
+# A second strong signal, shown beside the first so new data can decide between them: the five
+# voters plus one that votes nowhere else, the dollar ML agent, and Buy votes minus Sell votes
+# of the six at least STRONG_NET (so an opposing vote counts against it). Chosen on 2019-2024
+# among 17 ways to count (Nov 11 2026): 36 of 52 trades right there, 10 of 13 from 2025, which
+# missed the 80% set beforehand. See CLAUDE.md, "Strong signal with the dollar agent".
+STRONG_ONLY = {"dollar": ("ml", "dollar")}
+STRONG_VOTERS = VOTERS_ROUND_2 + list(STRONG_ONLY)
+STRONG_NET = 4
 
 
 def vote(score):
@@ -83,16 +91,22 @@ def solo_call(score):
 
 
 def group_calls(scores_by_source, group_lead):
-    """Round 1 plus the solo voters: {"rules": "buy", "ml": "hold", "opus": "none", "stress": "buy",
-    "riskon": "sell"} from {source: {agent: score}}."""
+    """Every voter's call: round 1, the solo voters and the strong signal's own voter:
+    {"rules": "buy", "ml": "hold", "opus": "none", "stress": "buy", "riskon": "sell", "dollar": "buy"}
+    from {source: {agent: score}}."""
     calls = {source: group_call(voters(source, scores_by_source.get(source, {})), group_lead) for source in GROUPS}
-    for voter, (source, agent) in SOLO.items():
+    for voter, (source, agent) in {**SOLO, **STRONG_ONLY}.items():
         calls[voter] = solo_call(scores_by_source.get(source, {}).get(agent))
     return calls
 
 
+def round_2(groups):
+    """The five voters of the overall vote; a voter missing from a saved Decision did not vote."""
+    return {voter: groups.get(voter, "none") for voter in VOTERS_ROUND_2}
+
+
 def overall_net(groups):
-    return sum(CALL_VOTES[signal] for signal in groups.values())
+    return sum(CALL_VOTES[signal] for signal in round_2(groups).values())
 
 
 def agreed_call(groups, needed):
@@ -107,16 +121,36 @@ def agreed_call(groups, needed):
 
 
 def overall_call(groups):
-    """Round 2: Buy or Sell when at least OVERALL_NEEDED voters say it."""
-    return agreed_call(groups, OVERALL_NEEDED)
+    """Round 2: Buy or Sell when at least OVERALL_NEEDED of the five voters say it. The dollar
+    agent is in `groups` but has no vote here."""
+    return agreed_call(round_2(groups), OVERALL_NEEDED)
 
 
 def strong_call(groups):
-    """The overall call on the days at least STRONG_NEEDED voters back it, else Hold."""
-    return agreed_call(groups, STRONG_NEEDED)
+    """The overall call on the days at least STRONG_NEEDED of the five voters back it, else Hold."""
+    return agreed_call(round_2(groups), STRONG_NEEDED)
+
+
+def strong_net(groups):
+    """Buy votes minus Sell votes of the six voters of the strong signal with the dollar."""
+    return sum(CALL_VOTES[groups.get(voter, "none")] for voter in STRONG_VOTERS)
+
+
+def strong_dollar_call(groups):
+    """Buy or Sell on the days the six voters lean that way by at least STRONG_NET, else Hold.
+    Four of six in favor then means at least three of the overall vote's five, so it never
+    contradicts the overall vote."""
+    if all(groups.get(voter, "none") == "none" for voter in STRONG_VOTERS):
+        return "none"
+    net = strong_net(groups)
+    if net >= STRONG_NET:
+        return "buy"
+    if net <= -STRONG_NET:
+        return "sell"
+    return "hold"
 
 
 def decide(scores_by_source, rule):
-    """(group calls, overall call) for one day under {"group_lead": g}."""
+    """(every voter's call, overall call) for one day under {"group_lead": g}."""
     groups = group_calls(scores_by_source, rule["group_lead"])
     return groups, overall_call(groups)

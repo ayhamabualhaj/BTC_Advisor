@@ -13,6 +13,7 @@
   --macro: #1baf7a;
   --stress: #8b5cd6;
   --riskon: #c2408f;
+  --dollar: #a8791a;
   --hold: #8f8e89;
   --good: #0f7b3f;
   --good-bg: #e6f4ec;
@@ -38,6 +39,7 @@
     --macro: #199e70;
     --stress: #a07ce8;
     --riskon: #e06aae;
+    --dollar: #d1a23c;
     --hold: #8a8983;
     --good: #5cc98a;
     --good-bg: #16301f;
@@ -52,7 +54,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #121211; --surface: #1a1a19; --border: #2e2e2c; --text: #f0efec; --text-2: #c3c2b7;
-  --muted: #94938c; --grid: #2a2a28; --technical: #3987e5; --derivatives: #d95926; --macro: #199e70; --stress: #a07ce8; --riskon: #e06aae;
+  --muted: #94938c; --grid: #2a2a28; --technical: #3987e5; --derivatives: #d95926; --macro: #199e70; --stress: #a07ce8; --riskon: #e06aae; --dollar: #d1a23c;
   --hold: #8a8983; --good: #5cc98a; --good-bg: #16301f; --critical: #f07167; --critical-bg: #3a1c19; --pending-bg: #232321; --warning: #d9a441; --warning-bg: #33290f; --link: #79aef0;
 }
 
@@ -114,6 +116,7 @@ h3 { font-size: 14px; margin: 16px 0 6px; color: var(--text-2); }
   letter-spacing: .02em; vertical-align: middle; white-space: nowrap;
 }
 .badge-strong { background: var(--text); color: var(--surface); }
+.badge-outline { border: 1px solid var(--text-2); color: var(--text-2); }
 .record .tiles { gap: 16px 40px; }
 .record .score .muted { font-size: 18px; }
 table.data .num { text-align: right; }
@@ -148,6 +151,7 @@ table.data .num { text-align: right; }
 .dot-macro { background: var(--macro); }
 .dot-stress { background: var(--stress); }
 .dot-riskon { background: var(--riskon); }
+.dot-dollar { background: var(--dollar); }
 
 table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 table.data th, table.data td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }

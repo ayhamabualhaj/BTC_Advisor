@@ -38,6 +38,10 @@ LABELS = {
     "vix": "VIX", "move": "MOVE (bond volatility)", "nfci": "Financial conditions (NFCI)",
     "vix_change_20d": "VIX change (20 days)", "move_change_20d_pct": "MOVE change (20 days)",
     "btc_change_1d_pct": "Bitcoin today", "nasdaq_change_1d_pct": "Nasdaq today",
+    "dxy_change_5d_pct": "Dollar change (5 days)", "dxy_change_20d_pct": "Dollar change (20 days)",
+    "dxy_change_60d_pct": "Dollar change (60 days)", "dxy_vs_sma_50_pct": "Dollar vs its 50-day average",
+    "btc_minus_dxy_20d_pct": "Bitcoin's 20-day move minus the dollar's",
+    "btc_dxy_correlation_60d": "Bitcoin-dollar correlation (60 days)",
 }
 # Shown as percentages although their names do not end in _pct.
 YIELDS = {"treasury_2y", "fed_target_upper", "fed_funds_effective"}

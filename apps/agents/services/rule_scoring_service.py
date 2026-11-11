@@ -8,6 +8,7 @@ SNAPSHOTS = {
     AgentName.MACRO: indicator_service.macro_snapshot,
     AgentName.STRESS: indicator_service.stress_snapshot,
     AgentName.RISKON: indicator_service.riskon_snapshot,
+    AgentName.DOLLAR: indicator_service.dollar_snapshot,
 }
 
 

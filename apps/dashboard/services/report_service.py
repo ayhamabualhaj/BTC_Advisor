@@ -5,7 +5,8 @@ import datetime
 from ai.domains import has
 from apps.agents.models import AgentName
 from apps.backtest import calibration
-from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, VOTERS, VOTERS_ROUND_2
+from apps.backtest.decision_rule import (GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, STRONG_NET, STRONG_ONLY, VOTERS,
+                                          VOTERS_ROUND_2, strong_net)
 from apps.backtest.repositories import price_repository
 from apps.dashboard.repositories import report_repository
 from apps.dashboard.services import signal_service
@@ -28,6 +29,8 @@ AGENT_NOTES = {
               "It has only an ML agent and votes on its own.",
     "riskon": "One rule: when Bitcoin and the Nasdaq both rose today, it says Sell for tomorrow; otherwise it holds. "
               "It never says Buy and votes on its own.",
+    "dollar": "Reads the dollar index: its moves over a week, a month and three months, and how Bitcoin has moved "
+              "against it. It has only an ML agent and votes only in the second strong signal (Strong + dollar), never in the overall vote.",
 }
 
 
@@ -55,17 +58,19 @@ def price_now():
 
 def trades(rows, key):
     """A column's Buy / Sell calls as trades, oldest first: days in a row with the same call are
-    one trade, judged on its first day. `strong` marks a trade the strong signal backed."""
+    one trade, judged on its first day. `strong` and `strong_dollar` mark a trade that strong
+    signal backed."""
     found, previous = [], None
     for row in rows:
         call = row["calls"][key]
         signal = call.signal if call.signal in ("buy", "sell") else None
         if signal and signal != previous:
             found.append({"date": row["date"], "signal": signal, "outcome": call.outcome,
-                          "move_pct": row["return_pct"], "days": 0, "strong": False})
+                          "move_pct": row["return_pct"], "days": 0, "strong": False, "strong_dollar": False})
         if signal:
             found[-1]["days"] += 1
-            found[-1]["strong"] = found[-1]["strong"] or row["calls"][signal_service.STRONG].signal == signal
+            for flag, column in (("strong", signal_service.STRONG), ("strong_dollar", signal_service.STRONG_DOLLAR)):
+                found[-1][flag] = found[-1][flag] or row["calls"][column].signal == signal
         previous = signal
     return found
 
@@ -95,8 +100,9 @@ def track_record():
     if last is None or last < TRACK_RECORD_START:
         return None
     rows, _ = signal_service.build_rows(TRACK_RECORD_START, last, signal_service.DEFAULT_HORIZON)
-    return {"since": TRACK_RECORD_START, "needed": OVERALL_NEEDED, "strong_needed": STRONG_NEEDED,
-            "vote": record(rows, "vote"), "strong": record(rows, signal_service.STRONG), "chart": price_chart(rows)}
+    return {"since": TRACK_RECORD_START, "needed": OVERALL_NEEDED, "strong_needed": STRONG_NEEDED, "strong_net": STRONG_NET,
+            "vote": record(rows, "vote"), "strong": record(rows, signal_service.STRONG),
+            "strong_dollar": record(rows, signal_service.STRONG_DOLLAR), "chart": price_chart(rows)}
 
 
 def agent_kinds(agent):
@@ -119,7 +125,7 @@ def agent_record(agent):
 
 def group_members(source):
     """[(agent, votes)] for a group vote: every agent of that kind, and whether it counts."""
-    solo_agents = {agent for _, agent in SOLO.values()}
+    solo_agents = {agent for _, agent in {**SOLO, **STRONG_ONLY}.values()}
     allowed = VOTERS.get(source)
     return [(agent, allowed is None or agent in allowed) for agent in AgentName.values
             if has(agent, source) and agent not in solo_agents]
@@ -134,21 +140,24 @@ def vote_breakdown(decision):
     runs = {run.agent: run for run in report_repository.latest_live_runs(decision.date)}
     labels = signal_service.voter_labels()
     voters = []
-    for key in VOTERS_ROUND_2:
+    for key in VOTERS_ROUND_2 + list(STRONG_ONLY):
         if key in GROUPS:
             source, members = key, group_members(key)
         else:
-            source, agent = SOLO[key]
+            source, agent = {**SOLO, **STRONG_ONLY}[key]
             members = [(agent, True)]
         rows = []
         for agent, votes in members:
             score = getattr(runs[agent], SCORE_FIELDS[source]) if agent in runs else None
             rows.append({"label": AgentName(agent).label, "score": score,
                          "call": signal_service.signal_for(score), "votes": votes})
-        voters.append({"key": key, "label": labels[key], "call": decision.group_calls.get(key, "none"), "agents": rows})
-    calls = [voter["call"] for voter in voters]
+        voters.append({"key": key, "label": labels[key], "call": decision.group_calls.get(key, "none"), "agents": rows,
+                       "strong_only": key in STRONG_ONLY})
+    # The counts are the overall vote's: the dollar agent is listed but votes only in the strong signal.
+    calls = [voter["call"] for voter in voters if not voter["strong_only"]]
     return {"voters": voters, "needed": OVERALL_NEEDED, "buy": calls.count("buy"), "sell": calls.count("sell"),
-            "hold": calls.count("hold"), "missing": calls.count("none")}
+            "hold": calls.count("hold"), "missing": calls.count("none"),
+            "strong_net": strong_net(decision.group_calls), "strong_net_needed": STRONG_NET}
 
 
 def costs():

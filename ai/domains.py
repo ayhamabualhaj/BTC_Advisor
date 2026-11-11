@@ -1,12 +1,12 @@
 """Every domain package (its setup plus rules, ML and Opus agents), by agent name.
 
 A domain may lack an agent kind (its `rules`, `ml` or `opus` is None): financial stress has
-only ML, the risk-on day only rules.
+only ML, the risk-on day only rules, the dollar only ML.
 """
 
-from ai import derivatives, macro, riskon, stress, technical
+from ai import derivatives, dollar, macro, riskon, stress, technical
 
-DOMAINS = {package.AGENT: package for package in (technical, derivatives, macro, stress, riskon)}
+DOMAINS = {package.AGENT: package for package in (technical, derivatives, macro, stress, riskon, dollar)}
 KIND_MODULES = {"rules": "rules", "ml": "ml", "opus": "opus"}
 
 

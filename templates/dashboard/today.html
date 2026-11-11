@@ -13,10 +13,10 @@
       <div class="advice-label">No advice yet</div>
       <div class="muted">{{ advice.error }}</div>
     {% elif advice.call == "buy" %}
-      <div class="advice-label">BUY{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
+      <div class="advice-label">BUY{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
       <div>{{ breakdown.buy }} of the 5 voters say Buy for the day that closed on {{ advice.date }}. Buy now and sell at tomorrow's close (00:00 UTC), unless tomorrow says Buy again.</div>
     {% elif advice.call == "sell" %}
-      <div class="advice-label">SELL{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
+      <div class="advice-label">SELL{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
       <div>{{ breakdown.sell }} of the 5 voters say Sell for the day that closed on {{ advice.date }}. If you hold Bitcoin, sell; if not, stay out.</div>
     {% else %}
       <div class="advice-label">HOLD: no clear call</div>
@@ -37,9 +37,10 @@
   <div class="today-top">
   <section class="signal {% if call == 'buy' or not call and decision.signal == 'buy' %}signal-buy{% elif call == 'sell' %}signal-sell{% else %}signal-none{% endif %}">
     {% if decision %}
-      <div class="signal-label">{% if call == "buy" %}Buy{% elif call == "sell" %}Sell{% elif call %}Hold{% else %}{{ decision.get_signal_display }}{% endif %}{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}</div>
+      <div class="signal-label">{% if call == "buy" %}Buy{% elif call == "sell" %}Sell{% elif call %}Hold{% else %}{{ decision.get_signal_display }}{% endif %}{% if strong %} <span class="badge badge-strong">Strong signal</span>{% endif %}{% if strong_dollar %} <span class="badge badge-outline">Strong + dollar</span>{% endif %}</div>
       {% if breakdown %}<div>{% if call == "buy" %}{{ breakdown.buy }} of the 5 voters say Buy.{% elif call == "sell" %}{{ breakdown.sell }} of the 5 voters say Sell: hold no Bitcoin.{% else %}Fewer than {{ breakdown.needed }} of the 5 voters agree: no call.{% endif %}
-        {% if strong %}A strong signal is {{ record.strong_needed|default:4 }} or more agreeing.{% endif %}</div>{% endif %}
+        {% if strong %}Strong signal: {{ record.strong_needed|default:4 }} or more of the 5 agree.{% endif %}
+        {% if strong_dollar %}Strong + dollar: with the Dollar agent counted, {% if call == "buy" %}Buy votes lead Sell votes{% else %}Sell votes lead Buy votes{% endif %} by {{ breakdown.strong_net_needed }} or more.{% endif %}</div>{% endif %}
       <div class="muted small">{% if decision.rule %}Rule: {{ decision_rule_text }}{% if not decision.group_calls %}; net votes {{ decision.net_votes|stringformat:"+d" }}{% endif %}{% else %}Rule: {{ decision.agents_required }} agents at or above {{ decision.threshold|floatformat:0 }}{% endif %}</div>
     {% else %}
       <div class="signal-label">No decision saved</div>
@@ -61,13 +62,14 @@
   {% if breakdown %}
   <section class="panel votes">
     <h2>Who voted{% if advice.decision %} <span class="muted">for {{ advice.date }}</span>{% endif %}</h2>
-    <p class="muted small">{{ breakdown.needed }} of 5 must agree. {{ breakdown.buy }} Buy · {{ breakdown.sell }} Sell · {{ breakdown.hold }} Hold · {{ breakdown.missing }} did not vote.</p>
+    <p class="muted small">{{ breakdown.needed }} of 5 must agree. {{ breakdown.buy }} Buy · {{ breakdown.sell }} Sell · {{ breakdown.hold }} Hold · {{ breakdown.missing }} did not vote.
+      Strong + dollar: Buy minus Sell over all six is {{ breakdown.strong_net|stringformat:"+d" }}; it takes {{ breakdown.strong_net_needed }} either way.</p>
     <table class="data vote-table">
       <thead><tr><th>Voter</th><th>Vote</th><th>Agents behind it</th></tr></thead>
       <tbody>
       {% for voter in breakdown.voters %}
         <tr>
-          <td>{{ voter.label }}</td>
+          <td>{{ voter.label }}{% if voter.strong_only %}<span class="small muted block">votes only in Strong + dollar</span>{% endif %}</td>
           <td>{% if voter.call == "none" %}<span class="muted">Did not vote</span>{% else %}<span class="vote-call vote-{{ voter.call }}">{% if voter.call == "buy" %}▲ {% elif voter.call == "sell" %}▼ {% endif %}{{ voter.call|capfirst }}</span>{% endif %}</td>
           <td class="small">
             {% for agent in voter.agents %}
@@ -104,6 +106,11 @@
         <div class="score">{% if record.strong.trades %}{{ record.strong.right }} <span class="muted">of {{ record.strong.trades }}</span>{% else %}–{% endif %}</div>
         <div class="small muted">trades right{% if record.strong.hit_rate is not None %} · {{ record.strong.hit_rate|floatformat:0 }}%{% endif %}{% if not record.strong.enough %} · too few to prove{% endif %}</div>
       </div>
+      <div>
+        <div class="tile-label">Strong + dollar (lead of {{ record.strong_net }} among 6)</div>
+        <div class="score">{% if record.strong_dollar.trades %}{{ record.strong_dollar.right }} <span class="muted">of {{ record.strong_dollar.trades }}</span>{% else %}–{% endif %}</div>
+        <div class="small muted">trades right{% if record.strong_dollar.hit_rate is not None %} · {{ record.strong_dollar.hit_rate|floatformat:0 }}%{% endif %}{% if not record.strong_dollar.enough %} · too few to prove{% endif %}</div>
+      </div>
     </div>
     <table class="data">
       <thead><tr><th>First day</th><th>Call</th><th class="num">Days</th><th>Strong</th><th class="num">Bitcoin after 7 days</th><th>Result</th></tr></thead>
@@ -113,7 +120,7 @@
           <td>{{ trade.date }}</td>
           <td><span class="vote-call vote-{{ trade.signal }}">{% if trade.signal == "buy" %}▲ Buy{% else %}▼ Sell{% endif %}</span></td>
           <td class="num">{{ trade.days }}</td>
-          <td>{% if trade.strong %}<span class="badge badge-strong">Strong</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+          <td>{% if trade.strong %}<span class="badge badge-strong">Strong</span> {% endif %}{% if trade.strong_dollar %}<span class="badge badge-outline">+ dollar</span>{% endif %}{% if not trade.strong and not trade.strong_dollar %}<span class="muted">–</span>{% endif %}</td>
           <td class="num">{% if trade.move_pct is None %}<span class="muted">waiting</span>{% else %}<span class="{% if trade.move_pct > 0 %}up{% elif trade.move_pct < 0 %}down{% endif %}">{{ trade.move_pct|signed }}%</span>{% endif %}</td>
           <td>{% if trade.outcome == "right" %}<span class="up">✓ right</span>{% elif trade.outcome == "wrong" %}<span class="down">✗ wrong</span>{% elif trade.outcome == "pending" %}<span class="muted">waiting</span>{% else %}<span class="muted">flat</span>{% endif %}</td>
         </tr>

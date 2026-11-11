@@ -15,6 +15,7 @@ class Outcome(models.Model):
     macro_correct = models.BooleanField(null=True, blank=True)
     stress_correct = models.BooleanField(null=True, blank=True)
     riskon_correct = models.BooleanField(null=True, blank=True)
+    dollar_correct = models.BooleanField(null=True, blank=True)
 
     class Meta:
         ordering = ["-date"]

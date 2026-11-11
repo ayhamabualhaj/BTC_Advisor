@@ -38,7 +38,8 @@ class FilledPagesTests(TestCase):
     def test_today_shows_signal_scores_and_reasons(self):
         page = self.client.get("/").content.decode()
         for text in ("Buy", "71", "Trend is up", "$95,000", "prompt v3", "Who voted", "3 of 5 must agree",
-                     "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote"):
+                     "3 Buy · 0 Sell · 1 Hold · 1 did not vote", "Opus 5.5 vote", "Risk-on day", "shown only, does not vote",
+                     "votes only in Strong + dollar", "Buy minus Sell over all six is +3"):
             self.assertIn(text, page)
 
     def test_today_says_when_the_decision_is_old_and_marks_a_strong_signal(self):
@@ -47,7 +48,7 @@ class FilledPagesTests(TestCase):
         self.assertNotIn("badge-strong", page)  # 3 of 5 is a call but not a strong one
         Decision.objects.update(group_calls={"rules": "sell", "ml": "sell", "opus": "sell", "stress": "sell", "riskon": "hold"})
         page = self.client.get("/").content.decode()
-        for text in ("signal-sell", "Strong signal", "4 of the 5 voters say Sell"):
+        for text in ("signal-sell", "Strong signal", "4 of the 5 voters say Sell", "Strong + dollar", "Sell votes lead Buy votes by 4 or more"):
             self.assertIn(text, page)
         with mock.patch("apps.backtest.services.daily_run_service.last_full_day", return_value=DAY):
             self.assertNotIn("This is not today's advice", self.client.get("/").content.decode())
@@ -195,19 +196,22 @@ class SignalsPageTests(TestCase):
     def test_strong_column_and_the_track_record(self):
         from apps.dashboard.services import report_service, signal_service
 
-        self.assertEqual(signal_service.columns()[-1].key, "strong")
-        self.assertIn("Strong (4 of 5)", self.client.get("/signals/?month=2026-07").content.decode())
+        self.assertEqual([column.key for column in signal_service.columns()[-2:]], ["strong", "strong_dollar"])
+        page = self.client.get("/signals/?month=2026-07").content.decode()
+        for text in ("Strong (4 of 5)", "Strong + dollar"):
+            self.assertIn(text, page)
 
-        def row(day, vote, strong="hold", outcome="right"):
-            calls = {"vote": signal_service.Call(vote, outcome=outcome), "strong": signal_service.Call(strong)}
+        def row(day, vote, strong="hold", outcome="right", strong_dollar="hold"):
+            calls = {"vote": signal_service.Call(vote, outcome=outcome), "strong": signal_service.Call(strong),
+                     "strong_dollar": signal_service.Call(strong_dollar)}
             return {"date": DAY + datetime.timedelta(days=day), "return_pct": -3.0, "calls": calls}
 
         # Two Sell days are one trade, judged on its first day; a Hold ends it.
         rows = [row(0, "sell"), row(1, "sell", strong="sell", outcome="wrong"), row(2, "hold"), row(3, "buy", outcome="wrong"),
-                row(4, "buy", outcome="pending")]
+                row(4, "buy", outcome="pending", strong_dollar="buy")]
         found = report_service.trades(rows, "vote")
-        self.assertEqual([(t["signal"], t["days"], t["strong"], t["outcome"]) for t in found],
-                         [("sell", 2, True, "right"), ("buy", 2, False, "wrong")])
+        self.assertEqual([(t["signal"], t["days"], t["strong"], t["strong_dollar"], t["outcome"]) for t in found],
+                         [("sell", 2, True, False, "right"), ("buy", 2, False, True, "wrong")])
         record = report_service.record(rows, "vote")
         self.assertEqual((record["right"], record["trades"], record["hit_rate"], record["enough"]), (1, 2, 50.0, False))
         self.assertEqual(record["recent"][0]["signal"], "buy")  # newest first
@@ -217,7 +221,7 @@ class SignalsPageTests(TestCase):
         Decision.objects.create(date=DAY, signal="no_trade", rule={"group_lead": 1},
                                 group_calls={"rules": "sell", "ml": "hold", "opus": "sell", "stress": "sell", "riskon": "none"})
         page = self.client.get("/").content.decode()
-        for text in ("How its calls turned out", "Overall vote (3 of 5)", "Strong signal (4 of 5)", "Bitcoin close", "$126"):
+        for text in ("How its calls turned out", "Overall vote (3 of 5)", "Strong signal (4 of 5)", "Strong + dollar (lead of 4 among 6)", "Bitcoin close", "$126"):
             self.assertIn(text, page)  # the last stored close is 200 - 74
         page = self.client.get("/agents/macro/").content.decode()
         for text in ("How often it was right", "Jan 2025 - Sep 2026"):
@@ -253,14 +257,14 @@ class ProfitPageTests(TestCase):
 
     def test_profit_per_agent_against_holding(self):
         page, rows = self.rows(short=False)
-        # 9 agents, stress ML, the risk-on day rules, 3 group votes, the overall vote, the strong signal
-        self.assertEqual(len(rows), 16)
+        # 9 agents, stress ML, the risk-on day rules, dollar ML, 3 group votes, the overall vote, the two strong signals
+        self.assertEqual(len(rows), 18)
         # One day long: a buy and a sell, 0.1% of the amount each.
         self.assertAlmostEqual(rows["macro:opus"]["profit_pct"], (139 / 140 * 0.999 ** 2 - 1) * 100, places=3)
         self.assertAlmostEqual(rows["macro:opus"]["before_fees_pct"], (139 / 140 - 1) * 100, places=3)
         self.assertEqual((rows["macro:opus"]["trades"], rows["macro:opus"]["days_long"]), (1, 1))
         self.assertLess(page["hold"].total_profit_pct, rows["macro:opus"]["profit_pct"])  # holding loses every day
-        self.assertEqual(len(page["chart"]["lines"]), 16)
+        self.assertEqual(len(page["chart"]["lines"]), 18)
 
     def test_short_mode_profits_from_sell_calls(self):
         _, rows = self.rows(short=True)
@@ -291,7 +295,7 @@ class ProfitPageTests(TestCase):
     def test_page_shows_filters_table_and_chart(self):
         page = self.client.get("/profit/?start=2026-07-01&end=2026-07-06&short=1").content.decode()
         for text in ("data-filter-agent", "data-filter-source", "data-profit-table", "profit-chart-data",
-                     "Go short", "Overall vote", "Macro", "Strong (4 of 5) signal", "Before fees", "after fees"):
+                     "Go short", "Overall vote", "Macro", "Strong (4 of 5) signal", "Strong + dollar signal", "Before fees", "after fees"):
             self.assertIn(text, page)
         self.assertEqual(self.client.get("/profit/?period=junk&start=bad").status_code, 200)
 

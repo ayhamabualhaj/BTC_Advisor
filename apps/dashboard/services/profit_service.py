@@ -13,7 +13,7 @@ import datetime
 
 from apps.agents.models import AgentName
 from apps.backtest import metrics
-from apps.backtest.decision_rule import GROUPS, decide, strong_call
+from apps.backtest.decision_rule import GROUPS, decide, strong_call, strong_dollar_call
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import backtest_service, combining_service, score_store
 from apps.dashboard.services import signal_service
@@ -66,6 +66,7 @@ def daily_signals(days):
             signals[f"vote:{source}"].append(groups[source])
         signals["vote"].append(overall)
         signals[signal_service.STRONG].append(strong_call(groups))
+        signals[signal_service.STRONG_DOLLAR].append(strong_dollar_call(groups))
     return signals
 
 
@@ -97,7 +98,8 @@ def name(column):
         return f"{column.label} · {column.source_label}"
     if column.source == "vote":
         return "Overall vote"
-    return f"{column.source_label} signal" if column.key == signal_service.STRONG else f"{column.source_label} vote"
+    strong = column.key in (signal_service.STRONG, signal_service.STRONG_DOLLAR)
+    return f"{column.source_label} signal" if strong else f"{column.source_label} vote"
 
 
 def row(column, signals, market, hold, short, days, hold_between):

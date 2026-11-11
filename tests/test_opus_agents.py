@@ -126,9 +126,10 @@ class AgentRunTests(TestCase):
         client = FakeClient()
         runs = agent_service.run_agents(DAY, client=client)
 
-        self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro", "stress", "riskon"])
-        self.assertEqual(len(client.calls), 3)  # stress and the risk-on day have no LLM agent
-        stress, riskon = runs[-2:]
+        self.assertEqual([run.agent for run in runs], ["technical", "derivatives", "macro", "stress", "riskon", "dollar"])
+        self.assertEqual(len(client.calls), 3)  # stress, the risk-on day and the dollar have no LLM agent
+        stress, riskon, dollar = runs[-3:]
+        self.assertEqual((dollar.rule_score, dollar.opus_score, dollar.prompt_version), (None, None, None))
         self.assertIsNone(riskon.ml_score)
         self.assertIsNone(riskon.opus_score)
         self.assertIsNone(stress.rule_score)

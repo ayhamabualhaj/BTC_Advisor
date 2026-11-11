@@ -8,7 +8,9 @@ from the call's side (a Sell that saw the price fall 3% won 3%). Rules and ML co
 score_store (stored, recomputed when the code changes); the LLM from the saved runs. The
 votes are the current combining rule: a Rules, an ML and an LLM vote, then the overall vote
 (those three plus the financial stress and risk-on day agents; 3 of the 5 must agree), and the
-strong signal: the same call on the days 4 of the 5 agree.
+strong signal: the same call on the days 4 of the 5 agree. A second strong signal is shown
+beside it: those five plus the dollar agent, on the days their Buy votes lead their Sell votes
+by 4 or more (or the reverse).
 """
 
 import datetime
@@ -19,7 +21,8 @@ from ai.opus_client import model_label
 from ai.scoring import BEARISH_AT, BULLISH_AT
 from apps.agents.models import AgentName
 from apps.backtest.calibration import forward_returns
-from apps.backtest.decision_rule import GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, decide, net_votes, strong_call, vote, voters
+from apps.backtest.decision_rule import (GROUPS, OVERALL_NEEDED, SOLO, STRONG_NEEDED, STRONG_NET, STRONG_ONLY, decide,
+                                          net_votes, round_2, strong_call, strong_dollar_call, strong_net, vote, voters)
 from apps.backtest.repositories import price_repository
 from apps.backtest.services import combining_service, score_store
 from apps.dashboard.repositories import report_repository
@@ -28,15 +31,17 @@ HORIZONS = (1, 3, 7)
 DEFAULT_HORIZON = 7
 START = datetime.date(2019, 1, 1)
 STRONG = "strong"  # the column of the strong signal
+STRONG_DOLLAR = "strong_dollar"  # the column of the strong signal with the dollar agent
 def sources():
     """Each kind of agent with its label; the LLM one is named after AI_MODEL (e.g. "Haiku 5.5")."""
     return [("rules", "Rules"), ("ml", "ML"), ("opus", model_label())]
 
 
 def voter_labels():
-    """The five voters of the overall vote, by key: three group votes and two single agents."""
+    """Every voter by key: three group votes, the two single agents of the overall vote and
+    the dollar agent, which votes only in the strong signal."""
     labels = {source: f"{label} vote" for source, label in sources()}
-    return {**labels, **{voter: AgentName(agent).label for voter, (_, agent) in SOLO.items()}}
+    return {**labels, **{voter: AgentName(agent).label for voter, (_, agent) in {**SOLO, **STRONG_ONLY}.items()}}
 # The periods each part was chosen on, so the pages can say which numbers are a fair test.
 PERIODS = [
     ("2019-2024", datetime.date(2019, 1, 1), datetime.date(2024, 12, 31),
@@ -72,6 +77,7 @@ def columns():
     result += [Column(f"vote:{source}", "vote", "Vote", source, label) for source, label in sources()]
     result.append(Column("vote", "vote", "Vote", "vote", "Overall"))
     result.append(Column(STRONG, "vote", "Vote", "strong", f"Strong ({STRONG_NEEDED} of 5)"))
+    result.append(Column(STRONG_DOLLAR, "vote", "Vote", "strong_dollar", "Strong + dollar"))
     return result
 
 
@@ -120,11 +126,19 @@ def group_note(scores):
     return f"{buys} Buy, {sells} Sell of {len(scores)} domains (net {net_votes(scores):+d})"
 
 
-def overall_note(groups):
+def voter_list(calls):
     names = voter_labels()
-    parts = ", ".join(f"{names[voter]} {signal if signal != 'none' else 'did not vote'}" for voter, signal in groups.items())
-    buys, sells = list(groups.values()).count("buy"), list(groups.values()).count("sell")
-    return f"{parts} ({buys} Buy, {sells} Sell; {OVERALL_NEEDED} needed)"
+    return ", ".join(f"{names[voter]} {signal if signal != 'none' else 'did not vote'}" for voter, signal in calls.items())
+
+
+def overall_note(groups):
+    five = round_2(groups)
+    buys, sells = list(five.values()).count("buy"), list(five.values()).count("sell")
+    return f"{voter_list(five)} ({buys} Buy, {sells} Sell; {OVERALL_NEEDED} needed)"
+
+
+def strong_note(groups):
+    return f"{voter_list(groups)} (Buy minus Sell {strong_net(groups):+d}; {STRONG_NET} needed either way)"
 
 
 def opus_history(start, end):
@@ -152,6 +166,7 @@ def day_calls(scores, opus_runs, rule, forward_return):
         calls[f"vote:{source}"] = vote_cell(groups[source], forward_return, group_note(voters(source, by_source[source])))
     calls["vote"] = vote_cell(overall, forward_return, overall_note(groups))
     calls[STRONG] = vote_cell(strong_call(groups), forward_return, overall_note(groups))
+    calls[STRONG_DOLLAR] = vote_cell(strong_dollar_call(groups), forward_return, strong_note(groups))
     return calls
 
 

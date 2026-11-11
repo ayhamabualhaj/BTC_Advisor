@@ -4,7 +4,7 @@ These snapshots are the `key_data` that the rule scores use and that Opus is sho
 A value is None when its data is missing; the scoring rules skip those criteria.
 """
 
-from apps.data.indicators import levels, macro, momentum, trend
+from apps.data.indicators import levels, macro, momentum, relative, trend
 from apps.data.repositories.market_data_repository import series
 
 # 200-day average plus room for MACD warm-up.
@@ -17,6 +17,8 @@ WEEKLY_STALE_DAYS = 14
 NASDAQ_GAP_DAYS = 4
 # A year of CPI needs 13 months; one more print in case a month was never published.
 CPI_PRINTS = 14
+# The dollar agent compares 60 trading days of the dollar index with Bitcoin on the same days.
+DOLLAR_DAYS = 61
 # The long/short ratio is judged against its own recent average.
 LS_HISTORY_DAYS = 90
 
@@ -138,6 +140,36 @@ def stress_snapshot(date):
         "move": move[-1] if move else None,
         "move_change_20d_pct": trend.pct_change(move, 20),
         "nfci": nfci[-1] if nfci else None,
+    }
+    return {key: rounded(value) for key, value in snapshot.items()}
+
+
+def dollar_snapshot(date):
+    """The dollar index's moves over 5, 20 and 60 trading days, and Bitcoin against it.
+
+    The index does not trade at weekends, so its last close stands until Monday; Bitcoin is
+    compared with it on the index's own trading days.
+    """
+    empty = {"dxy_change_5d_pct": None, "dxy_change_20d_pct": None, "dxy_change_60d_pct": None,
+             "dxy_vs_sma_50_pct": None, "btc_minus_dxy_20d_pct": None, "btc_dxy_correlation_60d": None}
+    rows = series("yahoo", "dxy_close", date, DOLLAR_DAYS)
+    if len(rows) < DOLLAR_DAYS or (date - rows[-1][0]).days > MAX_STALE_DAYS:
+        return empty
+    dxy = [value for _, value in rows]
+    # Enough calendar days of Bitcoin to cover the index's 61 trading days.
+    btc = dict(series("binance", "close", date, (date - rows[0][0]).days + 1))
+    btc_on_dxy_days = [btc.get(day) for day, _ in rows]
+    if date not in btc or any(close is None for close in btc_on_dxy_days):
+        return empty
+    dxy_20d = trend.pct_change(dxy, 20)
+    btc_20d = (btc[date] / btc_on_dxy_days[-21] - 1) * 100
+    snapshot = {
+        "dxy_change_5d_pct": trend.pct_change(dxy, 5),
+        "dxy_change_20d_pct": dxy_20d,
+        "dxy_change_60d_pct": trend.pct_change(dxy, 60),
+        "dxy_vs_sma_50_pct": (dxy[-1] / trend.sma(dxy, 50) - 1) * 100,
+        "btc_minus_dxy_20d_pct": btc_20d - dxy_20d,
+        "btc_dxy_correlation_60d": relative.correlation(relative.returns(dxy), relative.returns(btc_on_dxy_days)),
     }
     return {key: rounded(value) for key, value in snapshot.items()}
 
