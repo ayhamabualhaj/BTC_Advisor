@@ -515,6 +515,19 @@ votes only in the second strong signal (see "Strong signal with the dollar agent
 - The dollar agent alone is weak: 94 of 165 trades (57.0%) on 2019-24, 17 of 37 (45.9%) from
   2025, and ~96-99% Buys (see "Bigger vote"). It was the best of 17 tries, so expect less on new
   data; four times the trades on 2019-24 is its real advantage over the old signal.
+- Round 2 (Nov 11 2026, scratchpad scripts, nothing changed): 29 more ways, bar written first
+  (chosen on 2019-24 only: >= 15 trades, positive edge in 2019-22 and 2023-24, highest edge;
+  replaces Strong + dollar only with an edge >= 3 points better on >= 30 trades there AND >= 10
+  trades, >= 80% right from 2025). Tried: five more agents built like the dollar one (VVIX/VIX,
+  ETH/BTC, HYG, 10-year yield, gold; Yahoo / Binance, not stored) as a 7th voter or in the
+  dollar's place, technical and derivatives ML as extra voters, rules one by one, the 200-day
+  trend as a filter, the second day in a row, the mean score of all agents. Chosen: the six plus
+  technical and derivatives ML, lead of 6 among 8: 16 of 18 on 2019-24, all Buys in 2019-22, no
+  call in 2023-24, 3 of 3 from 2025: too few, failed. Next: + gold lead of 5, 23 of 30 (1 trade
+  from 2025); second day in a row 18 of 24 (5 of 6). Stricter versions are right more often
+  only by calling a few times a year, which cannot be proven. Worth watching, not chosen (edge
+  +16.2 vs +17.8): + ETH/BTC, lead of 4 among 7: 51 of 75 (68.0%) on 2019-24, 18 of 22 (81.8%)
+  from 2025, but 2025 on has now been looked at twice.
 - Pages: Today shows both badges, a third track-record tile and a dollar row in "Who voted"
   ("votes only in Strong + dollar"); Signals and Profit have a "Strong + dollar" column / row.
   The agent has memory from 2017-08-17 and stored scores; live runs start with the next daily_run.
